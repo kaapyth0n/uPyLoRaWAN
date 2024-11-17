@@ -20,8 +20,9 @@
 #
 # Modified by Brent Rubell for Adafruit Industries
 # Modified by Mauro Riva for LeMaRiva|Tech
+# Modified by Nikita Kapitonov for Raspberry Pi Pico
 
-from ucryptolib import aes
+from cryptolib import aes
 
 class AES:
     

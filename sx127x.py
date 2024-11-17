@@ -1,5 +1,5 @@
 import utime
-from machine import SPI, Pin
+from machine import Pin
 from encryption_aes import AES
 import gc
 import urandom
