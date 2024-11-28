@@ -15,7 +15,13 @@ DEVICE_ID = mac[-4:].upper()  # Last 4 characters of MAC
 # Access Point Settings
 AP_SSID = f"SBI-Config-{DEVICE_ID}"  # Example: "SBI-Config-A1B2"
 AP_PASSWORD = "configure"  # At least 8 characters
-AP_AUTHMODE = network.AUTH_WPA_WPA2_PSK
+AP_AUTHMODE = 3  # WPA2 authentication
+# Auth modes in MicroPython:
+# 0 - OPEN
+# 1 - WEP
+# 2 - WPA-PSK
+# 3 - WPA2-PSK
+# 4 - WPA/WPA2-PSK
 
 # Web page template
 HTML = f"""<!DOCTYPE html>
@@ -69,10 +75,11 @@ def connect_wifi(ssid, password):
 def start_ap():
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
-    ap.config(essid=AP_SSID, password=AP_PASSWORD, authmode=AP_AUTHMODE)
+    ap.config(essid=AP_SSID, password=AP_PASSWORD, security=AP_AUTHMODE)
     print('Access Point started')
     print(f'SSID: {AP_SSID}')
     print(f'Password: {AP_PASSWORD}')
+    print(f'IP Address: 192.168.4.1')
     return ap
 
 def start_webserver():
@@ -82,38 +89,43 @@ def start_webserver():
     
     while True:
         conn, addr = s.accept()
-        request = conn.recv(1024).decode('utf-8')
-        
-        if request.find('POST /save') == 0:
-            # Parse POST data
-            content_length = int(request.split('Content-Length: ')[1].split('\r\n')[0])
-            post_data = request.split('\r\n\r\n')[1][:content_length]
-            params = {}
-            for param in post_data.split('&'):
-                key, value = param.split('=')
-                params[key] = value.replace('+', ' ')
+        try:
+            request = conn.recv(1024).decode('utf-8')
             
-            # Save configuration
-            save_config(params['ssid'], params['password'])
-            
-            # Send response and restart
-            conn.send('HTTP/1.1 200 OK\n')
-            conn.send('Content-Type: text/html\n')
-            conn.send('Connection: close\n\n')
-            conn.send('Configuration saved. Device will restart in 5 seconds.')
-            conn.close()
-            utime.sleep(5)
-            import machine
-            machine.reset()
-        else:
-            # Serve configuration page
-            conn.send('HTTP/1.1 200 OK\n')
-            conn.send('Content-Type: text/html\n')
-            conn.send('Connection: close\n\n')
-            conn.send(HTML)
+            if request.find('POST /save') == 0:
+                # Parse POST data
+                content_length = int(request.split('Content-Length: ')[1].split('\r\n')[0])
+                post_data = request.split('\r\n\r\n')[1][:content_length]
+                params = {}
+                for param in post_data.split('&'):
+                    key, value = param.split('=')
+                    params[key] = value.replace('+', ' ')
+                
+                # Save configuration
+                save_config(params['ssid'], params['password'])
+                
+                # Send response and restart
+                conn.send('HTTP/1.1 200 OK\n')
+                conn.send('Content-Type: text/html\n')
+                conn.send('Connection: close\n\n')
+                conn.send('Configuration saved. Device will restart in 5 seconds.')
+                conn.close()
+                utime.sleep(5)
+                import machine
+                machine.reset()
+            else:
+                # Serve configuration page
+                conn.send('HTTP/1.1 200 OK\n')
+                conn.send('Content-Type: text/html\n')
+                conn.send('Connection: close\n\n')
+                conn.send(HTML)
+        except Exception as e:
+            print(f'Web server error: {str(e)}')
+        finally:
             conn.close()
 
 # Main boot sequence
+print('Starting SBI boot sequence...')
 config = load_config()
 if config and connect_wifi(config['ssid'], config['password']):
     print('Connected to WiFi')
