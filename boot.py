@@ -74,28 +74,36 @@ def connect_wifi(ssid, password):
 
 def start_ap():
     ap = network.WLAN(network.AP_IF)
-    ap.active(False)  # First deactivate
-    utime.sleep(1)    # Wait a bit
-    ap.active(True)   # Then reactivate
+    ap.active(False)
+    utime.sleep(1)
+    ap.active(True)
     
-    # Configure the access point
+    # Configure the access point with WPA2-PSK (most secure available on Pico W)
     ap.config(
         essid=AP_SSID,
         password=AP_PASSWORD,
-        security=AP_AUTHMODE,
-        pm=0xa11140    # Disable power-saving mode
+        security=3,  # 3 = WPA2-PSK
+        pm=0xa11140  # Disable power-saving
     )
     
-    # Wait for the AP to start
-    while ap.active() == False:
-        pass
+    # Set up network configuration including DHCP range
+    ap.ifconfig((
+        '192.168.4.1',      # AP's IP address
+        '255.255.255.0',    # Subnet mask
+        '192.168.4.1',      # Gateway
+        '8.8.8.8'          # DNS server
+    ))
+    
+    # Wait for the AP to initialize
+    while not ap.active():
+        utime.sleep(0.1)
         
     # Verify configuration
     print('Access Point started')
-    print('Actual SSID:', ap.config('essid'))  # Debug: print actual SSID
-    print('Expected SSID:', AP_SSID)           # Debug: print expected SSID
+    print('Actual SSID:', ap.config('essid'))
+    print('Expected SSID:', AP_SSID)
     print('Password:', AP_PASSWORD)
-    print('IP Address:', ap.ifconfig()[0])
+    print('Network config:', ap.ifconfig())
     return ap
 
 def start_webserver():
