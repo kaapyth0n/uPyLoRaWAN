@@ -1,65 +1,14 @@
 import network
 import utime
 import ntptime
-from machine import Pin
 import json
-import socket
-import ubinascii
 
-# Get unique ID from MAC address
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-mac = ubinascii.hexlify(wlan.config('mac')).decode()
-DEVICE_ID = mac[-4:].upper()  # Last 4 characters of MAC
-
-# Access Point Settings
-AP_SSID = f"SBI-Config-{DEVICE_ID}"  # Example: "SBI-Config-A1B2"
-AP_PASSWORD = "configure"  # At least 8 characters
-AP_AUTHMODE = 3  # WPA2 authentication
-# Auth modes in MicroPython:
-# 0 - OPEN
-# 1 - WEP
-# 2 - WPA-PSK
-# 3 - WPA2-PSK
-# 4 - WPA/WPA2-PSK
-
-# Web page template
-HTML = f"""<!DOCTYPE html>
-<html>
-    <head>
-        <title>SBI Configuration</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body {{font-family: Arial; margin: 0 auto; max-width: 500px; padding: 20px;}}
-            input {{width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box;}}
-            button {{background-color: #4CAF50; color: white; padding: 14px 20px; margin: 8px 0; border: none; width: 100%;}}
-            .device-id {{color: #666; font-size: 0.9em; margin-bottom: 20px;}}
-        </style>
-    </head>
-    <body>
-        <h1>SBI WiFi Setup</h1>
-        <div class="device-id">Device ID: {DEVICE_ID}</div>
-        <form action="/save" method="POST">
-            <label for="ssid">WiFi Name:</label><br>
-            <input type="text" id="ssid" name="ssid"><br>
-            <label for="password">WiFi Password:</label><br>
-            <input type="password" id="password" name="password"><br>
-            <button type="submit">Save Configuration</button>
-        </form>
-    </body>
-</html>
-"""
-
-def load_config():
+def load_wifi_config():
     try:
         with open('wifi_config.json', 'r') as f:
             return json.load(f)
     except:
         return None
-
-def save_config(ssid, password):
-    with open('wifi_config.json', 'w') as f:
-        json.dump({'ssid': ssid, 'password': password}, f)
 
 def connect_wifi(ssid, password):
     sta_if = network.WLAN(network.STA_IF)
@@ -68,98 +17,19 @@ def connect_wifi(ssid, password):
         sta_if.active(True)
         sta_if.connect(ssid, password)
         start = utime.time()
-        while not sta_if.isconnected() and utime.time() - start < 20:
+        while not sta_if.isconnected() and utime.time() - start < 10:  # Reduced timeout to 10 seconds
             utime.sleep(0.1)
     return sta_if.isconnected()
 
-def start_ap():
-    ap = network.WLAN(network.AP_IF)
-    ap.active(False)
-    utime.sleep(1)
-    ap.active(True)
-    
-    # Configure the access point with WPA2-PSK (most secure available on Pico W)
-    ap.config(
-        essid=AP_SSID,
-        password=AP_PASSWORD,
-        security=3,  # 3 = WPA2-PSK
-        pm=0xa11140  # Disable power-saving
-    )
-    
-    # Set up network configuration including DHCP range
-    ap.ifconfig((
-        '192.168.4.1',      # AP's IP address
-        '255.255.255.0',    # Subnet mask
-        '192.168.4.1',      # Gateway
-        '8.8.8.8'          # DNS server
-    ))
-    
-    # Wait for the AP to initialize
-    while not ap.active():
-        utime.sleep(0.1)
-        
-    # Verify configuration
-    print('Access Point started')
-    print('Actual SSID:', ap.config('essid'))
-    print('Expected SSID:', AP_SSID)
-    print('Password:', AP_PASSWORD)
-    print('Network config:', ap.ifconfig())
-    return ap
-
-def start_webserver():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('', 80))
-    s.listen(5)
-    
-    while True:
-        conn, addr = s.accept()
-        try:
-            request = conn.recv(1024).decode('utf-8')
-            
-            if request.find('POST /save') == 0:
-                # Parse POST data
-                content_length = int(request.split('Content-Length: ')[1].split('\r\n')[0])
-                post_data = request.split('\r\n\r\n')[1][:content_length]
-                params = {}
-                for param in post_data.split('&'):
-                    key, value = param.split('=')
-                    params[key] = value.replace('+', ' ')
-                
-                # Save configuration
-                save_config(params['ssid'], params['password'])
-                
-                # Send response and restart
-                conn.send('HTTP/1.1 200 OK\n')
-                conn.send('Content-Type: text/html\n')
-                conn.send('Connection: close\n\n')
-                conn.send('Configuration saved. Device will restart in 5 seconds.')
-                conn.close()
-                utime.sleep(5)
-                import machine
-                machine.reset()
-            else:
-                # Serve configuration page
-                conn.send('HTTP/1.1 200 OK\n')
-                conn.send('Content-Type: text/html\n')
-                conn.send('Connection: close\n\n')
-                conn.send(HTML)
-        except Exception as e:
-            print(f'Web server error: {str(e)}')
-        finally:
-            conn.close()
-
-# Main boot sequence
-print('Starting SBI boot sequence...')
-config = load_config()
-if config and connect_wifi(config['ssid'], config['password']):
-    print('Connected to WiFi')
-    print('Network config:', network.WLAN(network.STA_IF).ifconfig())
+# Quick WiFi connection attempt if credentials exist
+config = load_wifi_config()
+if config:
     try:
-        ntptime.settime()
-        print('Time synchronized')
+        if connect_wifi(config['ssid'], config['password']):
+            print('Connected to WiFi')
+            ntptime.settime()
     except:
-        print('Time sync failed')
+        print('WiFi connection failed')
 else:
-    print('WiFi connection failed - starting config portal')
-    start_ap()
-    start_webserver()
+    print('No WiFi credentials found')
+    config = None
