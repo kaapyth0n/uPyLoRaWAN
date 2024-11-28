@@ -92,6 +92,21 @@ def start_ap():
     else:
         raise RuntimeError('Failed to start AP')
 
+def url_decode(s):
+    # Simple URL decoder that handles the basics including %21 for !
+    s = s.replace('+', ' ')  # First replace + with space
+    i = 0
+    while i < len(s):
+        if s[i] == '%' and i + 2 < len(s):
+            try:
+                hex_val = int(s[i+1:i+3], 16)
+                s = s[:i] + chr(hex_val) + s[i+3:]
+            except ValueError:
+                i += 1
+        else:
+            i += 1
+    return s
+
 def parse_request(request):
     try:
         # Split request into headers and body
@@ -112,7 +127,8 @@ def parse_request(request):
             for pair in pairs:
                 if '=' in pair:
                     key, value = pair.split('=', 1)
-                    params[key] = value.replace('+', ' ')
+                    # URL decode the value
+                    params[key] = url_decode(value)
         return params
     except Exception as e:
         print(f'Error parsing request: {str(e)}')
