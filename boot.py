@@ -4,26 +4,35 @@ import ntptime
 from machine import Pin
 import json
 import socket
+import ubinascii
+
+# Get unique ID from MAC address
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+mac = ubinascii.hexlify(wlan.config('mac')).decode()
+DEVICE_ID = mac[-4:].upper()  # Last 4 characters of MAC
 
 # Access Point Settings
-AP_SSID = "Boiler-Config"
+AP_SSID = f"SBI-Config-{DEVICE_ID}"  # Example: "SBI-Config-A1B2"
 AP_PASSWORD = "configure"  # At least 8 characters
 AP_AUTHMODE = network.AUTH_WPA_WPA2_PSK
 
 # Web page template
-HTML = """<!DOCTYPE html>
+HTML = f"""<!DOCTYPE html>
 <html>
     <head>
-        <title>Boiler Configuration</title>
+        <title>SBI Configuration</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-            body {font-family: Arial; margin: 0 auto; max-width: 500px; padding: 20px;}
-            input {width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box;}
-            button {background-color: #4CAF50; color: white; padding: 14px 20px; margin: 8px 0; border: none; width: 100%;}
+            body {{font-family: Arial; margin: 0 auto; max-width: 500px; padding: 20px;}}
+            input {{width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box;}}
+            button {{background-color: #4CAF50; color: white; padding: 14px 20px; margin: 8px 0; border: none; width: 100%;}}
+            .device-id {{color: #666; font-size: 0.9em; margin-bottom: 20px;}}
         </style>
     </head>
     <body>
-        <h1>Boiler WiFi Setup</h1>
+        <h1>SBI WiFi Setup</h1>
+        <div class="device-id">Device ID: {DEVICE_ID}</div>
         <form action="/save" method="POST">
             <label for="ssid">WiFi Name:</label><br>
             <input type="text" id="ssid" name="ssid"><br>
