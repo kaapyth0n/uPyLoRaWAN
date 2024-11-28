@@ -46,93 +46,108 @@ def save_config(ssid, password):
         json.dump({'ssid': ssid, 'password': password}, f)
 
 def start_ap():
-    # First disable both interfaces
+    # First shut down both interfaces
     ap = network.WLAN(network.AP_IF)
     sta = network.WLAN(network.STA_IF)
     ap.active(False)
     sta.active(False)
     utime.sleep(1)
     
-    # Start fresh AP
+    # Configure and start AP
+    ap.config(essid=AP_SSID, password=AP_PASSWORD)
     ap.active(True)
     
-    try:
-        ap.config(
-            essid=AP_SSID,
-            password=AP_PASSWORD,
-            security=3,  # WPA2-PSK
-            pm=0xa11140  # Disable power-saving
-        )
-        
-        ap.ifconfig((
-            '192.168.4.1',
-            '255.255.255.0',
-            '192.168.4.1',
-            '8.8.8.8'
-        ))
-        
-        while not ap.active():
-            utime.sleep(0.1)
-            
+    # Wait a bit for AP to initialize
+    utime.sleep(1)
+    
+    # Configure network
+    ap.ifconfig(('192.168.4.1', '255.255.255.0', '192.168.4.1', '192.168.4.1'))
+    
+    # Additional delay to ensure configuration is applied
+    utime.sleep(1)
+    
+    if ap.active():
         print('Access Point Configuration:')
-        print('SSID:', ap.config('essid'))
-        print('Password:', AP_PASSWORD)
+        print('SSID:', AP_SSID)
+        print('Password:', AP_PASSWORD) 
         print('Network:', ap.ifconfig())
+        return ap
+    else:
+        raise RuntimeError('Failed to start AP')
+
+def parse_request(request):
+    try:
+        # Split request into headers and body
+        headers, body = request.split('\r\n\r\n', 1)
         
+        # Find Content-Length if it exists
+        content_length = 0
+        for line in headers.split('\r\n'):
+            if line.startswith('Content-Length:'):
+                content_length = int(line.split(':')[1].strip())
+                break
+                
+        # Parse parameters from body
+        params = {}
+        if body and '=' in body:
+            body = body[:content_length] if content_length else body
+            pairs = body.split('&')
+            for pair in pairs:
+                if '=' in pair:
+                    key, value = pair.split('=', 1)
+                    params[key] = value.replace('+', ' ')
+        return params
     except Exception as e:
-        print(f'AP Config Error: {str(e)}')
-        
-    return ap
+        print(f'Error parsing request: {str(e)}')
+        return {}
 
 def run_portal():
-    ap = start_ap()
+    try:
+        ap = start_ap()
+    except Exception as e:
+        print(f'Failed to start AP: {str(e)}')
+        return
     
     print('\nStarting web server...')
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s = socket.socket()
     s.bind(('', 80))
-    s.listen(5)
+    s.listen(1)
     
     print(f'\nPortal ready! Connect to WiFi network "{AP_SSID}" with password "{AP_PASSWORD}"')
     print('Then visit http://192.168.4.1')
     
     try:
         while True:
-            conn, addr = s.accept()
+            conn = None
             try:
-                request = conn.recv(1024).decode('utf-8')
+                conn, addr = s.accept()
+                print(f'Client connected from {addr}')
                 
-                if request.find('POST /save') == 0:
-                    # Parse POST data
-                    content_length = int(request.split('Content-Length: ')[1].split('\r\n')[0])
-                    post_data = request.split('\r\n\r\n')[1][:content_length]
-                    params = {}
-                    for param in post_data.split('&'):
-                        key, value = param.split('=')
-                        params[key] = value.replace('+', ' ')
-                    
-                    # Save configuration
-                    save_config(params['ssid'], params['password'])
-                    
-                    # Send response
-                    conn.send('HTTP/1.1 200 OK\n')
-                    conn.send('Content-Type: text/html\n')
-                    conn.send('Connection: close\n\n')
-                    conn.send('Configuration saved. Device will restart in 5 seconds.')
-                    conn.close()
-                    utime.sleep(5)
-                    import machine
-                    machine.reset()
+                request = conn.recv(1024).decode()
+                
+                if 'POST /save' in request:
+                    params = parse_request(request)
+                    if 'ssid' in params and 'password' in params:
+                        save_config(params['ssid'], params['password'])
+                        response = 'Configuration saved. Device will restart in 5 seconds.'
+                        conn.send('HTTP/1.1 200 OK\r\n')
+                        conn.send('Content-Type: text/html\r\n\r\n')
+                        conn.send(response)
+                        conn.close()
+                        utime.sleep(5)
+                        import machine
+                        machine.reset()
                 else:
-                    # Serve configuration page
-                    conn.send('HTTP/1.1 200 OK\n')
-                    conn.send('Content-Type: text/html\n')
-                    conn.send('Connection: close\n\n')
+                    conn.send('HTTP/1.1 200 OK\r\n')
+                    conn.send('Content-Type: text/html\r\n\r\n')
                     conn.send(HTML)
             
             except Exception as e:
-                print(f'Request handling error: {str(e)}')
+                print(f'Error handling request: {str(e)}')
+            
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
                 
     except KeyboardInterrupt:
         print('\nPortal stopped by user')
