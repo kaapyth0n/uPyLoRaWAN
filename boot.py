@@ -74,12 +74,28 @@ def connect_wifi(ssid, password):
 
 def start_ap():
     ap = network.WLAN(network.AP_IF)
-    ap.active(True)
-    ap.config(essid=AP_SSID, password=AP_PASSWORD, security=AP_AUTHMODE)
+    ap.active(False)  # First deactivate
+    utime.sleep(1)    # Wait a bit
+    ap.active(True)   # Then reactivate
+    
+    # Configure the access point
+    ap.config(
+        essid=AP_SSID,
+        password=AP_PASSWORD,
+        security=AP_AUTHMODE,
+        pm=0xa11140    # Disable power-saving mode
+    )
+    
+    # Wait for the AP to start
+    while ap.active() == False:
+        pass
+        
+    # Verify configuration
     print('Access Point started')
-    print(f'SSID: {AP_SSID}')
-    print(f'Password: {AP_PASSWORD}')
-    print(f'IP Address: 192.168.4.1')
+    print('Actual SSID:', ap.config('essid'))  # Debug: print actual SSID
+    print('Expected SSID:', AP_SSID)           # Debug: print expected SSID
+    print('Password:', AP_PASSWORD)
+    print('IP Address:', ap.ifconfig()[0])
     return ap
 
 def start_webserver():
