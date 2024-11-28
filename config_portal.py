@@ -3,6 +3,7 @@ import utime
 import json
 import socket
 import ubinascii
+import machine
 
 # Get unique ID from MAC address
 wlan = network.WLAN(network.STA_IF)
@@ -42,9 +43,25 @@ HTML = f"""<!DOCTYPE html>
 """
 
 def save_config(ssid, password):
-    with open('wifi_config.json', 'w') as f:
-        json.dump({'ssid': ssid, 'password': password}, f)
-
+    try:
+        with open('wifi_config.json', 'w') as f:
+            config = {'ssid': ssid, 'password': password}
+            json.dump(config, f)
+            print(f"Configuration saved. SSID: {ssid}")
+            
+        # Try to validate config
+        with open('wifi_config.json', 'r') as f:
+            saved = json.load(f)
+            if saved['ssid'] == ssid and saved['password'] == password:
+                print("Configuration validated successfully")
+                return True
+            else:
+                print("Configuration validation failed!")
+                return False
+    except Exception as e:
+        print(f"Error saving configuration: {str(e)}")
+        return False
+    
 def start_ap():
     # First shut down both interfaces
     ap = network.WLAN(network.AP_IF)
@@ -128,15 +145,29 @@ def run_portal():
                 if 'POST /save' in request:
                     params = parse_request(request)
                     if 'ssid' in params and 'password' in params:
-                        save_config(params['ssid'], params['password'])
-                        response = 'Configuration saved. Device will restart in 5 seconds.'
+                        if save_config(params['ssid'], params['password']):
+                            response = """
+                                <html><body>
+                                <h2 style='color: green'>Configuration saved successfully!</h2>
+                                <p>SSID: {}</p>
+                                <p>Device will restart in 5 seconds...</p>
+                                </body></html>
+                            """.format(params['ssid'])
+                        else:
+                            response = """
+                                <html><body>
+                                <h2 style='color: red'>Error saving configuration!</h2>
+                                <p>Please try again.</p>
+                                </body></html>
+                            """
                         conn.send('HTTP/1.1 200 OK\r\n')
                         conn.send('Content-Type: text/html\r\n\r\n')
                         conn.send(response)
-                        conn.close()
-                        utime.sleep(5)
-                        import machine
-                        machine.reset()
+                        
+                        if 'successfully' in response:
+                            conn.close()
+                            utime.sleep(5)
+                            machine.reset()
                 else:
                     conn.send('HTTP/1.1 200 OK\r\n')
                     conn.send('Content-Type: text/html\r\n\r\n')
