@@ -27,12 +27,21 @@ def update_display(title, line1="", line2="", beep=False):
     """Update display with status information"""
     if display:
         try:
+            # Truncate strings if too long
+            title = title[:16] + "..." if len(title) > 16 else title
+            line1 = line1[:21] + "..." if len(line1) > 21 else line1
+            line2 = line2[:21] + "..." if len(line2) > 21 else line2
+            
             display.erase(0, display=0)  # Clear buffer
             display.show_text(title, x=0, y=0, font=5)
             if line1:
                 display.show_text(line1, x=0, y=24, font=4)
             if line2:
-                display.show_text(line2, x=0, y=48, font=4, display=1)
+                display.show_text(line2, x=0, y=48, font=4)
+            
+            # Always show the display buffer at the end
+            display.show(0)
+            
             if beep:
                 display.beep(1)
         except:
