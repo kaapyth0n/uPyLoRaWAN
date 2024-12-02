@@ -20,19 +20,30 @@ def scan_wifi():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     networks = wlan.scan()
-    # Sort networks by signal strength (RSSI)
-    networks.sort(key=lambda x: x[3], reverse=True)
-    return networks
+    
+    # Filter and clean networks
+    clean_networks = []
+    for net in networks:
+        ssid_bytes = net[0]
+        if ssid_bytes:  # Only process non-empty SSIDs
+            try:
+                ssid = ssid_bytes.decode('utf-8')
+                clean_networks.append((ssid, net[3], net[4]))  # Store SSID, RSSI, and security
+            except UnicodeError:
+                continue
+    
+    # Sort by signal strength
+    clean_networks.sort(key=lambda x: x[1], reverse=True)
+    return clean_networks
 
 # Web page template with network scan
 def get_html():
     networks = scan_wifi()
     networks_html = ""
     for net in networks:
-        ssid = net[0].decode('utf-8')
-        rssi = net[3]
-        security = "🔒" if net[4] > 0 else "🔓"
-        networks_html += f'<option value="{ssid}">{security} {ssid} ({rssi}dB)</option>\n'
+        ssid, rssi, security = net
+        security_icon = "*" if security > 0 else ""  # Just an asterisk for secured networks
+        networks_html += f'<option value="{ssid}">{security_icon} {ssid} ({rssi}dB)</option>\n'
     
     return f"""<!DOCTYPE html>
 <html>
