@@ -15,29 +15,76 @@ DEVICE_ID = mac[-4:].upper()
 AP_SSID = f"SBI-Config-{DEVICE_ID}"
 AP_PASSWORD = "configure"
 
-# Web page template
-HTML = f"""<!DOCTYPE html>
+def scan_wifi():
+    """Scan for available WiFi networks"""
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    networks = wlan.scan()
+    # Sort networks by signal strength (RSSI)
+    networks.sort(key=lambda x: x[3], reverse=True)
+    return networks
+
+# Web page template with network scan
+def get_html():
+    networks = scan_wifi()
+    networks_html = ""
+    for net in networks:
+        ssid = net[0].decode('utf-8')
+        rssi = net[3]
+        security = "🔒" if net[4] > 0 else "🔓"
+        networks_html += f'<option value="{ssid}">{security} {ssid} ({rssi}dB)</option>\n'
+    
+    return f"""<!DOCTYPE html>
 <html>
     <head>
         <title>SBI Configuration</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
             body {{font-family: Arial; margin: 0 auto; max-width: 500px; padding: 20px;}}
-            input {{width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box;}}
+            select, input {{width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box;}}
             button {{background-color: #4CAF50; color: white; padding: 14px 20px; margin: 8px 0; border: none; width: 100%;}}
             .device-id {{color: #666; font-size: 0.9em; margin-bottom: 20px;}}
+            .network-list {{margin-bottom: 20px;}}
+            .manual-input {{display: none;}}
+            #manual-toggle {{color: blue; cursor: pointer; text-decoration: underline;}}
         </style>
     </head>
     <body>
         <h1>SBI WiFi Setup</h1>
         <div class="device-id">Device ID: {DEVICE_ID}</div>
         <form action="/save" method="POST">
-            <label for="ssid">WiFi Name:</label><br>
-            <input type="text" id="ssid" name="ssid"><br>
+            <div class="network-list">
+                <label for="ssid">Select WiFi Network:</label><br>
+                <select name="ssid" id="ssid-select">
+                    {networks_html}
+                </select>
+            </div>
+            <div class="manual-input" id="manual-div">
+                <label for="manual-ssid">Manual SSID:</label><br>
+                <input type="text" id="manual-ssid" name="manual-ssid"><br>
+            </div>
+            <p id="manual-toggle" onclick="toggleManual()">Enter SSID manually</p>
             <label for="password">WiFi Password:</label><br>
             <input type="password" id="password" name="password"><br>
             <button type="submit">Save Configuration</button>
         </form>
+        <script>
+            function toggleManual() {{
+                var manualDiv = document.getElementById('manual-div');
+                var select = document.getElementById('ssid-select');
+                var toggle = document.getElementById('manual-toggle');
+                
+                if (manualDiv.style.display === 'none') {{
+                    manualDiv.style.display = 'block';
+                    select.disabled = true;
+                    toggle.textContent = 'Use network list';
+                }} else {{
+                    manualDiv.style.display = 'none';
+                    select.disabled = false;
+                    toggle.textContent = 'Enter SSID manually';
+                }}
+            }}
+        </script>
     </body>
 </html>
 """
@@ -160,15 +207,16 @@ def run_portal():
                 
                 if 'POST /save' in request:
                     params = parse_request(request)
-                    if 'ssid' in params and 'password' in params:
-                        if save_config(params['ssid'], params['password']):
+                    ssid = params.get('manual-ssid') if params.get('manual-ssid') else params.get('ssid')
+                    if ssid and 'password' in params:
+                        if save_config(ssid, params['password']):
                             response = """
                                 <html><body>
                                 <h2 style='color: green'>Configuration saved successfully!</h2>
                                 <p>SSID: {}</p>
                                 <p>Device will restart in 5 seconds...</p>
                                 </body></html>
-                            """.format(params['ssid'])
+                            """.format(ssid)
                         else:
                             response = """
                                 <html><body>
@@ -187,7 +235,7 @@ def run_portal():
                 else:
                     conn.send('HTTP/1.1 200 OK\r\n')
                     conn.send('Content-Type: text/html\r\n\r\n')
-                    conn.send(HTML)
+                    conn.send(get_html())
             
             except Exception as e:
                 print(f'Error handling request: {str(e)}')
