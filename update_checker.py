@@ -14,6 +14,21 @@ except:
     print("Display not found or initialization failed")
     display = None
 
+# Configuration
+UPDATE_SERVER = "http://your-update-server.com/firmware"
+
+class UpdateResult:
+    """Simple class to hold update results"""
+    def __init__(self, success=False, updated_files=None, error=None):
+        self.success = success
+        self.updated_files = updated_files or []
+        self.error = error
+
+    def __str__(self):
+        if self.success:
+            return f"Update successful: {len(self.updated_files)} files updated"
+        return f"Update failed: {self.error}"
+
 def update_display(*lines, beep=False):
     """
     Show multiple lines on display with proper formatting.
@@ -205,44 +220,44 @@ def update_local_version(filename, version):
     with open('versions.json', 'w') as f:
         json.dump(versions, f)
 
-def main():
-    base_url = "http://your-update-server.com/firmware"
-    
-    while True:
-        if network.WLAN(network.STA_IF).isconnected():
-            update_display(
-                "Update Checker",
-                "Starting check",
-                "Connected: OK",
-                "Please wait..."
-            )
-            
-            try:
-                updates = check_updates(base_url)
-                if updates:
-                    process_updates(base_url, updates)
-                    gc.collect()  # Clean up memory after updates
-            except Exception as e:
-                update_display(
-                    "Update Error",
-                    "Check failed:",
-                    str(e)[:21],
-                    "Will retry later",
-                    beep=True
-                )
-        else:
-            update_display(
-                "Update Checker",
-                "No connection",
-                "Will retry when",
-                "WiFi available"
-            )
-        
-        # Show idle status
+def check_and_update(base_url=UPDATE_SERVER):
+    """
+    Main update function that can be called from other code.
+    Returns UpdateResult object with status and details.
+    """
+    if not network.WLAN(network.STA_IF).isconnected():
+        return UpdateResult(False, error="No network connection")
+
+    try:
         update_display(
             "Update Checker",
-            "System running",
-            "Next check in",
-            "60 minutes"
+            "Checking manifest",
+            f"URL: {base_url}",
+            "Please wait..."
         )
-        utime.sleep(3600)  # Check every hour
+        
+        updates = check_updates(base_url)
+        if not updates:
+            return UpdateResult(True, [])  # Success but no updates needed
+            
+        updated_files = process_updates(base_url, updates)
+        gc.collect()  # Clean up memory after updates
+        
+        return UpdateResult(True, updated_files)
+        
+    except Exception as e:
+        error_msg = str(e)[:50]  # Truncate very long error messages
+        update_display(
+            "Update Error",
+            "Check failed:",
+            error_msg,
+            beep=True
+        )
+        return UpdateResult(False, error=error_msg)
+
+def get_current_versions():
+    """
+    Public function to get current file versions.
+    Can be used by other code to check what's installed.
+    """
+    return get_local_versions()
