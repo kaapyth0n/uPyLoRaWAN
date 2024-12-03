@@ -261,3 +261,42 @@ def get_current_versions():
     Can be used by other code to check what's installed.
     """
     return get_local_versions()
+
+def is_update_available():
+    """
+    Quick check if updates are available without downloading them.
+    Can be called from other code to check if update is needed.
+    """
+    try:
+        manifest = fetch_manifest(UPDATE_SERVER)
+        if not manifest:
+            return False
+            
+        local_versions = get_local_versions()
+        for filename, info in manifest['files'].items():
+            if filename not in local_versions or \
+               local_versions[filename] < info['version']:
+                return True
+        return False
+    except:
+        return False
+
+def get_update_details():
+    """
+    Get details about available updates without installing them.
+    Returns a list of (filename, current_version, available_version) tuples.
+    """
+    try:
+        manifest = fetch_manifest(UPDATE_SERVER)
+        if not manifest:
+            return []
+            
+        local_versions = get_local_versions()
+        updates = []
+        for filename, info in manifest['files'].items():
+            current = local_versions.get(filename, "Not installed")
+            if current != info['version']:
+                updates.append((filename, current, info['version']))
+        return updates
+    except:
+        return []
