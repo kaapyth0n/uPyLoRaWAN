@@ -2,6 +2,7 @@ import network
 import utime
 import ntptime
 import json
+import machine
 from IND1 import Module_IND1
 
 # Initialize display globally so it's available throughout the boot process
@@ -157,3 +158,30 @@ else:
 if display:
     update_display("Smart Boiler", "System Ready", "")
     display.beep(2)
+
+def run_update_check():
+    """Run update check if network is available"""
+    if network.WLAN(network.STA_IF).isconnected():
+        try:
+            import update_checker
+            update_result = update_checker.check_and_update()
+            
+            if update_result.success:
+                if update_result.updated_files:
+                    print("Updates installed:", update_result.updated_files)
+                    update_display("Update Success", 
+                                 f"{len(update_result.updated_files)} files",
+                                 "updated, Rebooting...")
+                    utime.sleep(2)
+                    machine.reset()  # Restart if files were updated
+                else:
+                    print("No updates needed")
+            else:
+                print("Update check failed:", update_result.error)
+        except Exception as e:
+            print("Error during update check:", str(e))
+    else:
+        print("No network connection - skipping update check")
+
+if network.WLAN(network.STA_IF).isconnected():
+    run_update_check()
