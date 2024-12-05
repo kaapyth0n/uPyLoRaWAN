@@ -32,8 +32,8 @@ class ManifestGenerator:
 
     def generate_manifest(self):
         manifest = self.load_current_manifest()
-        manifest["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ")
         files = manifest["files"]
+        changes_made = False
 
         for filename in list(files.keys()):
             filepath = os.path.join(self.src_dir, filename)
@@ -56,6 +56,14 @@ class ManifestGenerator:
                     "size": file_size
                 })
                 print(f"Updated: {filename} to version {new_version}")
+                changes_made = True
+
+        # Only update timestamp if changes were made
+        if changes_made:
+            manifest["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            print("Files were updated - timestamp refreshed")
+        else:
+            print("No changes detected - keeping existing timestamp")
 
         with open(self.manifest_file, 'w') as f:
             json.dump(manifest, f, indent=2)
