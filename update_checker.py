@@ -61,11 +61,27 @@ def get_local_versions():
         return {}
 
 def fetch_manifest(base_url):
+    print(f"\nFetching manifest from {base_url}/manifest.json")
     try:
         r = urequests.get(f"{base_url}/manifest.json")
-        return json.loads(r.text)
+        print(f"Got response with status code: {r.status_code}")
+        
+        if r.status_code != 200:
+            print(f"Server returned error status: {r.status_code}")
+            return None
+            
+        try:
+            manifest_data = r.text
+            print("Parsing manifest JSON...")
+            manifest = json.loads(manifest_data)
+            print(f"Found {len(manifest.get('files', {}))} files in manifest")
+            return manifest
+        except ValueError as e:
+            print(f"Failed to parse manifest JSON: {str(e)}")
+            print(f"Raw manifest data: {manifest_data[:100]}...")  # Print first 100 chars
+            return None
     except Exception as e:
-        print(f"Failed to fetch manifest: {e}")
+        print(f"Failed to fetch manifest: {str(e)}")
         return None
     
 def download_file(base_url, file_info):
@@ -104,6 +120,7 @@ def replace_file(filename):
         return False
     
 def check_updates(base_url):
+    print("\nStarting update check...")
     update_display(
         "Update Checker",
         "Checking manifest",
@@ -111,10 +128,15 @@ def check_updates(base_url):
         "Please wait..."
     )
     
+    print("Loading local versions...")
     local_versions = get_local_versions()
+    print(f"Local versions found: {local_versions}")
+    
+    print("\nFetching manifest from server...")
     manifest = fetch_manifest(base_url)
     
     if not manifest:
+        print("Failed to fetch manifest!")
         update_display(
             "Update Check Failed",
             "Could not fetch",
@@ -123,14 +145,27 @@ def check_updates(base_url):
             beep=True
         )
         return False
-        
+    
+    print("\nComparing versions...")
     updates_needed = []
     for filename, info in manifest['files'].items():
+        print(f"\nChecking {filename}:")
+        print(f"Remote version: {info['version']}")
+        local_version = local_versions.get(filename, "Not installed")
+        print(f"Local version: {local_version}")
+        
         if filename not in local_versions or \
            local_versions[filename] < info['version']:
+            print(f"Update needed for {filename}")
             updates_needed.append((filename, info))
+        else:
+            print(f"No update needed for {filename}")
     
     if updates_needed:
+        print(f"\nFound {len(updates_needed)} files needing updates:")
+        for filename, info in updates_needed:
+            print(f"- {filename} (version {info['version']})")
+        
         update_display(
             "Updates Available",
             f"Found {len(updates_needed)}",
@@ -139,6 +174,7 @@ def check_updates(base_url):
             beep=True
         )
     else:
+        print("\nNo updates needed")
         update_display(
             "System Updated",
             "All files are",
@@ -149,8 +185,14 @@ def check_updates(base_url):
     return updates_needed
 
 def process_updates(base_url, updates_needed):
+    print("\nStarting update process...")
     total = len(updates_needed)
+    successful_updates = 0
+    
     for idx, (filename, info) in enumerate(updates_needed, 1):
+        print(f"\nProcessing file {idx}/{total}: {filename}")
+        print(f"Target version: {info['version']}")
+        
         update_display(
             f"Updating {idx}/{total}",
             f"File: {filename}",
@@ -158,7 +200,9 @@ def process_updates(base_url, updates_needed):
             "Downloading..."
         )
         
+        print("Downloading file...")
         if not download_file(base_url, info):
+            print("Download failed!")
             update_display(
                 "Download Failed",
                 f"File: {filename}",
@@ -168,6 +212,8 @@ def process_updates(base_url, updates_needed):
             )
             continue
         
+        print("Download successful")
+        print("Verifying file...")
         update_display(
             f"Updating {idx}/{total}",
             f"File: {filename}",
@@ -176,6 +222,7 @@ def process_updates(base_url, updates_needed):
         )
         
         if not verify_file(f"{filename}.new", info['hash']):
+            print("File verification failed!")
             update_display(
                 "Verification Failed",
                 f"File: {filename}",
@@ -183,11 +230,21 @@ def process_updates(base_url, updates_needed):
                 "Skipping file",
                 beep=True
             )
-            os.remove(f"{filename}.new")
+            try:
+                os.remove(f"{filename}.new")
+                print("Cleaned up temporary file")
+            except:
+                print("Failed to clean up temporary file")
             continue
-            
+        
+        print("File verified successfully")
+        print("Replacing old file...")
+        
         if replace_file(filename):
+            successful_updates += 1
+            print(f"Successfully replaced {filename}")
             update_local_version(filename, info['version'])
+            print(f"Updated version info to {info['version']}")
             update_display(
                 "Update Success",
                 f"File: {filename}",
@@ -195,8 +252,9 @@ def process_updates(base_url, updates_needed):
                 "Installed OK",
                 beep=True
             )
-            utime.sleep(2)  # Show success message briefly
+            utime.sleep(2)
         else:
+            print(f"Failed to replace {filename}")
             update_display(
                 "Update Failed",
                 f"File: {filename}",
@@ -205,14 +263,19 @@ def process_updates(base_url, updates_needed):
                 beep=True
             )
     
+    print(f"\nUpdate process complete")
+    print(f"Successfully updated {successful_updates} out of {total} files")
+    
     # Final status
     update_display(
         "Update Complete",
         f"{total} files processed",
+        f"{successful_updates} updated",
         "System ready",
-        "Running new version",
         beep=True
     )
+
+    return successful_updates
 
 def update_local_version(filename, version):
     versions = get_local_versions()
@@ -225,10 +288,14 @@ def check_and_update(base_url=UPDATE_SERVER):
     Main update function that can be called from other code.
     Returns UpdateResult object with status and details.
     """
+    print("\nStarting update check and update process...")
+    
     if not network.WLAN(network.STA_IF).isconnected():
+        print("No network connection available")
         return UpdateResult(False, error="No network connection")
 
     try:
+        print(f"Checking for updates at {base_url}")
         update_display(
             "Update Checker",
             "Checking manifest",
@@ -238,15 +305,29 @@ def check_and_update(base_url=UPDATE_SERVER):
         
         updates = check_updates(base_url)
         if not updates:
-            return UpdateResult(True, [])  # Success but no updates needed
-            
+            if updates is False:  # Error occurred
+                print("Update check failed")
+                return UpdateResult(False, error="Failed to check for updates")
+            else:  # No updates needed
+                print("No updates needed")
+                return UpdateResult(True, [])
+        
+        print(f"\nProcessing {len(updates)} updates...")
         updated_files = process_updates(base_url, updates)
+        
+        print("Cleaning up...")
         gc.collect()  # Clean up memory after updates
         
-        return UpdateResult(True, updated_files)
+        if updated_files > 0:
+            print(f"Successfully updated {updated_files} files")
+            return UpdateResult(True, [f[0] for f in updates[:updated_files]])
+        else:
+            print("No files were successfully updated")
+            return UpdateResult(False, error="Failed to update any files")
         
     except Exception as e:
         error_msg = str(e)[:50]  # Truncate very long error messages
+        print(f"Error during update process: {error_msg}")
         update_display(
             "Update Error",
             "Check failed:",
