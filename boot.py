@@ -129,7 +129,14 @@ while utime.time() - start_time < 3:  # 3 second window to check button
         update_display("Boot Status", "Entering", "config mode...")
         print("\nButton pressed - starting config portal...")
         import config_portal
-        config_portal.run_portal()
+        success, new_config = config_portal.run_portal(timeout_minutes=10)
+        if success and new_config:
+            update_display("Boot Status", "New config saved", "Connecting...")
+            if connect_wifi(new_config['ssid'], new_config['password']):
+                sync_time()
+                break
+            else:
+                update_display("Boot Status", "Connection failed", "Try again")
         break
     utime.sleep(0.1)
 
@@ -144,7 +151,9 @@ if config:
             update_display("Boot Status", "WiFi failed", "Starting portal...")
             print("Could not connect to WiFi - starting config portal...")
             import config_portal
-            config_portal.run_portal()
+            success, new_config = config_portal.run_portal(timeout_minutes=10)
+            if success and new_config:
+                machine.reset()  # Reset to apply new configuration
     except Exception as e:
         print(f'WiFi connection error: {str(e)}')
         update_display("Boot Status", "WiFi Error:", str(e)[:16])
@@ -152,36 +161,11 @@ else:
     update_display("Boot Status", "No config found", "Starting portal...")
     print("No WiFi configuration found - starting config portal...")
     import config_portal
-    config_portal.run_portal()
+    success, new_config = config_portal.run_portal(timeout_minutes=10)
+    if success and new_config:
+        machine.reset()  # Reset to apply new configuration
 
 # Final boot status
 if display:
     update_display("Smart Boiler", "System Ready", "")
     display.beep(2)
-
-def run_update_check():
-    """Run update check if network is available"""
-    if network.WLAN(network.STA_IF).isconnected():
-        try:
-            import update_checker
-            update_result = update_checker.check_and_update()
-            
-            if update_result.success:
-                if update_result.updated_files:
-                    print("Updates installed:", update_result.updated_files)
-                    update_display("Update Success", 
-                                 f"{len(update_result.updated_files)} files",
-                                 "updated, Rebooting...")
-                    utime.sleep(2)
-                    machine.reset()  # Restart if files were updated
-                else:
-                    print("No updates needed")
-            else:
-                print("Update check failed:", update_result.error)
-        except Exception as e:
-            print("Error during update check:", str(e))
-    else:
-        print("No network connection - skipping update check")
-
-if network.WLAN(network.STA_IF).isconnected():
-    run_update_check()
