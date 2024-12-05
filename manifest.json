@@ -19,12 +19,6 @@
       "hash": "beed8a2a720f1c9c5aec7a32053bb8e5beb20a62a974bfa642dac286f5ef01bb",
       "size": 13802
     },
-    "config.py": {
-      "version": "1.0",
-      "path": "/config.py",
-      "hash": "07f80bc60dafa6c7d4c6cf549d53dd79e851b46e4c7c05778e9db4e58039b4ee",
-      "size": 1748
-    },
     "encryption_aes.py": {
       "version": "1.0",
       "path": "/encryption_aes.py",
