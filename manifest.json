@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-05T01:36:11Z",
+  "timestamp": "2024-12-05T19:43:17Z",
   "files": {
     "boot.py": {
       "version": "1.7",
@@ -50,10 +50,10 @@
       "size": 26075
     },
     "update_checker.py": {
-      "version": "1.0",
+      "version": "1.1",
       "path": "/update_checker.py",
-      "hash": "a49ebe6fa50d06488e131240023776323572a642eb7f030cff7313b46d8dbd07",
-      "size": 8670
+      "hash": "98e74ed5d7fa06b86a47a4e0495ec5ba54c430f6812ba015b06f9b9148311bee",
+      "size": 12023
     }
   }
 }
