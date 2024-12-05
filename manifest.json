@@ -1,0 +1,59 @@
+{
+  "timestamp": "2024-12-05T01:26:58Z",
+  "files": {
+    "boot.py": {
+      "version": "1.6",
+      "path": "/boot.py",
+      "hash": "a4affaa6e4565e73d44da2d23b06fcaf833ad7d07c301a7d06dbf0cd4f7660d1",
+      "size": 6720
+    },
+    "main.py": {
+      "version": "2.2",
+      "path": "/main.py",
+      "hash": "157dd67b00fe78d5b781707d78937dca40fd759be3ba9faeaa93dd8c2e6c3af9",
+      "size": 1279
+    },
+    "config_portal.py": {
+      "version": "1.2",
+      "path": "/config_portal.py",
+      "hash": "beed8a2a720f1c9c5aec7a32053bb8e5beb20a62a974bfa642dac286f5ef01bb",
+      "size": 13802
+    },
+    "config.py": {
+      "version": "1.0",
+      "path": "/config.py",
+      "hash": "07f80bc60dafa6c7d4c6cf549d53dd79e851b46e4c7c05778e9db4e58039b4ee",
+      "size": 1748
+    },
+    "encryption_aes.py": {
+      "version": "1.0",
+      "path": "/encryption_aes.py",
+      "hash": "eea0c9ef488a4a85e9246d8e6d3363035473982d0bdbb619c2ad0854ada10906",
+      "size": 8133
+    },
+    "IND1.py": {
+      "version": "1.0",
+      "path": "/IND1.py",
+      "hash": "bd1a4e96e5b4f40a589bab23790effe0daa535d7240e1a6b81d0a38013cc94be",
+      "size": 12720
+    },
+    "sx127x.py": {
+      "version": "1.0",
+      "path": "/sx127x.py",
+      "hash": "047c3e11c9f2d7196a5879255245c4900231d46d13917864831f4600afbf1813",
+      "size": 22579
+    },
+    "FrSet.py": {
+      "version": "1.0",
+      "path": "/FrSet.py",
+      "hash": "187176d53413ae732ad453ddcff8c5c685f77fc88fc80e91300d3d814523a3b0",
+      "size": 26075
+    },
+    "update_checker.py": {
+      "version": "1.0",
+      "path": "/update_checker.py",
+      "hash": "a49ebe6fa50d06488e131240023776323572a642eb7f030cff7313b46d8dbd07",
+      "size": 8670
+    }
+  }
+}
