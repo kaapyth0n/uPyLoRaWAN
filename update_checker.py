@@ -15,7 +15,7 @@ except:
     display = None
 
 # Configuration
-UPDATE_SERVER = "http://your-update-server.com/firmware"
+UPDATE_SERVER = "https://raw.githubusercontent.com/kaapyth0n/uPyLoRaWAN/refs/heads/LoRaWAN"
 
 class UpdateResult:
     """Simple class to hold update results"""
