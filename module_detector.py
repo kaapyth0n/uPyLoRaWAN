@@ -24,18 +24,14 @@ class ModuleDetector:
                 'description': 'Temperature sensor module'
             },
             SystemParameters.SSR_MODULE_SLOT: {
-                'name': 'SSR2-2.10',
+                'name': 'SSR2-2',  # Changed from SSR2-2.10 to accept any SSR2-2.x variant
                 'required': True,
-                'description': 'Relay/sensor module'
+                'description': 'Relay module'
             }
         }
         
     def detect_modules(self):
-        """Detect installed modules
-        
-        Returns:
-            tuple: (success (bool), dict of results)
-        """
+        """Detect installed modules"""
         results = {}
         success = True
         
@@ -55,14 +51,14 @@ class ModuleDetector:
                     }
                     continue
                     
-                # Verify module type
+                # Verify module type - check if required name is contained in module type
                 if config['name'] not in str(module_type):
                     if config['required']:
                         success = False
                     results[slot] = {
                         'present': True,
                         'type': str(module_type),
-                        'error': 'Wrong module type',
+                        'error': f'Wrong module type (expected {config["name"]})',
                         'required': config['required']
                     }
                     continue
@@ -84,7 +80,7 @@ class ModuleDetector:
                     'error': str(e),
                     'required': config['required']
                 }
-                
+        
         return success, results
         
     def print_module_status(self, results):
