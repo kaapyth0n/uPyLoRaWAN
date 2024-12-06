@@ -45,6 +45,7 @@ class DisplayManager:
                 return
                 
             screen_content = f"{title}|{line1}|{line2}"
+            print(screen_content)
             if screen_content == self.current_screen:
                 return  # Don't update if content hasn't changed
                 
