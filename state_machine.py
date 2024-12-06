@@ -107,14 +107,19 @@ class StateMachine:
     def _init_sequence(self):
         """Run initialization sequence"""
         try:
+            print("\nStarting initialization sequence...")
+            
             # Initialize display manager first
+            print("1. Initializing display...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Checking hardware"
             )
             
             # Check hardware
+            print("2. Checking hardware...")
             if not self.controller._init_hardware():
+                print("Hardware initialization failed!")
                 self.controller.display_manager.show_status(
                     "Init Failed",
                     "Hardware error",
@@ -122,45 +127,56 @@ class StateMachine:
                 )
                 self.transition_to(SystemState.ERROR)
                 return
-                
+            print("Hardware check passed")
+            
             # Load configuration
+            print("3. Loading configuration...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Loading config"
             )
             if not self.controller.config_manager.load_config():
+                print("Configuration load failed!")
                 self.controller.display_manager.show_status(
                     "Init Failed",
                     "Config error"
                 )
                 self.transition_to(SystemState.ERROR)
                 return
-                
+            print("Configuration loaded")
+            
             # Initialize LoRa
+            print("4. Initializing LoRa...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Starting LoRa"
             )
             if not self.controller.lora_handler.initialize():
+                print("LoRa initialization failed - continuing anyway")
                 self.controller.logger.log_error(
                     'initialization',
                     "LoRa initialization failed",
                     severity=2
                 )
-                # Continue anyway as LoRa is not critical
+            else:
+                print("LoRa initialized")
                 
             # Run diagnostics
+            print("5. Running diagnostics...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Running tests"
             )
             if self.controller.run_diagnostic():
+                print("Diagnostics passed")
                 self.controller.display_manager.show_status(
                     "Ready",
                     "System OK"
                 )
+                print("6. Transitioning to RUNNING state...")
                 self.transition_to(SystemState.RUNNING)
             else:
+                print("Diagnostics failed!")
                 self.controller.display_manager.show_status(
                     "Init Failed",
                     "Diagnostic error"
@@ -168,6 +184,7 @@ class StateMachine:
                 self.transition_to(SystemState.ERROR)
                 
         except Exception as e:
+            print(f"Initialization sequence failed with error: {str(e)}")
             self.controller.logger.log_error(
                 'initialization',
                 f"Initialization failed: {e}",
