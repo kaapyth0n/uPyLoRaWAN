@@ -132,7 +132,7 @@ class ConfigurationManager:
                 print(f"Invalid configuration loaded: {message}")
                 return False
                 
-        except FileNotFoundError:
+        except OSError:
             print("No configuration file found, using defaults")
             self._load_defaults()
             return True
