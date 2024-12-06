@@ -85,12 +85,39 @@ def fetch_manifest(base_url):
         return None
     
 def download_file(base_url, file_info):
+    """Download file and create necessary directories
+    
+    Args:
+        base_url (str): Base URL for downloads
+        file_info (dict): File information from manifest
+    
+    Returns:
+        bool: True if successful
+    """
     try:
-        r = urequests.get(f"{base_url}{file_info['path']}")
+        # Get full path
+        path = file_info['path']
+        if path.startswith('/'):
+            path = path[1:]  # Remove leading slash
+            
+        # Create temp filename
+        temp_path = f"{path}.new"
+        
+        # Ensure directory exists
+        directory = path.rsplit('/', 1)[0] if '/' in path else ''
+        if directory:
+            try:
+                os.makedirs(directory)
+            except OSError:
+                pass  # Directory might exist
+                
+        # Download file
+        r = urequests.get(f"{base_url}/{path}")
         if r.status_code == 200:
-            with open(f"{file_info['path'].split('/')[-1]}.new", 'wb') as f:
+            with open(temp_path, 'wb') as f:
                 f.write(r.content)
             return True
+            
     except Exception as e:
         print(f"Download failed: {e}")
     return False
@@ -113,8 +140,25 @@ def verify_file(filename, expected_hash):
         return False
 
 def replace_file(filename):
+    """Replace old file with new version
+    
+    Args:
+        filename (str): File path
+        
+    Returns:
+        bool: True if successful
+    """
     try:
-        os.rename(f"{filename}.new", filename)
+        temp_file = f"{filename}.new"
+        
+        # Remove old file if it exists
+        try:
+            os.remove(filename)
+        except OSError:
+            pass
+            
+        # Rename new file
+        os.rename(temp_file, filename)
         return True
     except:
         return False

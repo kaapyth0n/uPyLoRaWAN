@@ -1,6 +1,12 @@
 {
-  "timestamp": "2024-12-06T01:22:58Z",
+  "timestamp": "2024-12-06T22:09:48Z",
   "files": {
+    "ttn/ttn_eu.py": {
+      "version": "1.1",
+      "path": "/ttn/ttn_eu.py",
+      "hash": "635ecf6a2895c2c9f0a3539215d71eefa16e2258fcfed852c78157e8a62e6b70",
+      "size": 1658
+    },
     "boot.py": {
       "version": "1.8",
       "path": "/boot.py",
@@ -8,10 +14,10 @@
       "size": 6282
     },
     "main.py": {
-      "version": "2.3",
+      "version": "2.4",
       "path": "/main.py",
-      "hash": "427aff396ab09e2f8f4959c8d8ce226c108ae24e46d0e78c19db1ef44b77f17a",
-      "size": 6896
+      "hash": "90dc08d2cfda4ddf1fbbffdc65a60bd98024260d8791784b2bf50ef906e140ab",
+      "size": 11097
     },
     "config_portal.py": {
       "version": "1.3",
@@ -44,10 +50,10 @@
       "size": 26075
     },
     "update_checker.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/update_checker.py",
-      "hash": "98e74ed5d7fa06b86a47a4e0495ec5ba54c430f6812ba015b06f9b9148311bee",
-      "size": 12023
+      "hash": "fd03368d6dab8708bfd7c11e6e9f4848e2d5c34575ca3b539a3683bea8466d3b",
+      "size": 13102
     },
     "interfaces.py": {
       "version": "1.1",
@@ -56,22 +62,22 @@
       "size": 3849
     },
     "state_machine.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/state_machine.py",
-      "hash": "b87a02729ad7b518485af5c7bf44464d96e49e753247ebbe9c291e8897a9a05c",
-      "size": 7283
+      "hash": "dc4ec64ea1b2f23c6442a13463c5fc069a5e76c97578f88d39fadc323be224f4",
+      "size": 9857
     },
     "temp_controller.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/temp_controller.py",
-      "hash": "e46d9e18f047ddd881fbbdf1a93a20b4c1708be2487ca84b467bf27948b12511",
-      "size": 4565
+      "hash": "36043a68f37103a641f4047d077679307966fd6e2b7556a0ddb43309342d714e",
+      "size": 5228
     },
     "config_manager.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/config_manager.py",
-      "hash": "6d883fdee4f00a4c89c0c03b1db9bf4883af63943d4cadc5839839454323aa3b",
-      "size": 8020
+      "hash": "6ab059dcb88d89f9ae8beb61fecbd95883f14e5fec3a9f16a67127a49ddc2235",
+      "size": 8010
     },
     "error_logger.py": {
       "version": "1.1",
@@ -92,10 +98,10 @@
       "size": 6005
     },
     "display_manager.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/display_manager.py",
-      "hash": "bc01fd1bfbd6a46377f6af9811f221ff542acb435e15ce6a1bcf0d645121b22f",
-      "size": 4260
+      "hash": "06110197fd30f92b67623b606d5f4bda50e849a098f4f6925f8305d5b64909f4",
+      "size": 4294
     },
     "lora_handler.py": {
       "version": "1.1",
@@ -122,10 +128,10 @@
       "size": 7279
     },
     "module_detector.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/module_detector.py",
-      "hash": "d72a1f0ba24f88f22e91fdb89a539bf715b6b6885871ecb85b558281492203d2",
-      "size": 6047
+      "hash": "2ee37d2bf4b111fff0b79f79706b4522ce692caa89cdb8ad4a789a45dd8db221",
+      "size": 6080
     }
   }
 }
