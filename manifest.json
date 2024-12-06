@@ -1,23 +1,23 @@
 {
-  "timestamp": "2024-12-05T19:43:17Z",
+  "timestamp": "2024-12-06T01:22:58Z",
   "files": {
     "boot.py": {
-      "version": "1.7",
+      "version": "1.8",
       "path": "/boot.py",
-      "hash": "a4affaa6e4565e73d44da2d23b06fcaf833ad7d07c301a7d06dbf0cd4f7660d1",
-      "size": 6720
+      "hash": "ed449e5b66519c39bf1526b82b16eeef38e45623e1a2f83ad639fd5d0190ece2",
+      "size": 6282
     },
     "main.py": {
-      "version": "2.2",
+      "version": "2.3",
       "path": "/main.py",
-      "hash": "157dd67b00fe78d5b781707d78937dca40fd759be3ba9faeaa93dd8c2e6c3af9",
-      "size": 1279
+      "hash": "427aff396ab09e2f8f4959c8d8ce226c108ae24e46d0e78c19db1ef44b77f17a",
+      "size": 6896
     },
     "config_portal.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/config_portal.py",
-      "hash": "beed8a2a720f1c9c5aec7a32053bb8e5beb20a62a974bfa642dac286f5ef01bb",
-      "size": 13802
+      "hash": "ab60b7d4d2ba3accd03657c46cce4d21e8f369ada852a11ea54bd4e3c5e794ad",
+      "size": 13650
     },
     "encryption_aes.py": {
       "version": "1.0",
@@ -48,6 +48,84 @@
       "path": "/update_checker.py",
       "hash": "98e74ed5d7fa06b86a47a4e0495ec5ba54c430f6812ba015b06f9b9148311bee",
       "size": 12023
+    },
+    "interfaces.py": {
+      "version": "1.1",
+      "path": "/interfaces.py",
+      "hash": "8a7c58c66fff488b31f38590055299173870f5235a74c6bb8f087761f17b10d8",
+      "size": 3849
+    },
+    "state_machine.py": {
+      "version": "1.1",
+      "path": "/state_machine.py",
+      "hash": "b87a02729ad7b518485af5c7bf44464d96e49e753247ebbe9c291e8897a9a05c",
+      "size": 7283
+    },
+    "temp_controller.py": {
+      "version": "1.1",
+      "path": "/temp_controller.py",
+      "hash": "e46d9e18f047ddd881fbbdf1a93a20b4c1708be2487ca84b467bf27948b12511",
+      "size": 4565
+    },
+    "config_manager.py": {
+      "version": "1.1",
+      "path": "/config_manager.py",
+      "hash": "6d883fdee4f00a4c89c0c03b1db9bf4883af63943d4cadc5839839454323aa3b",
+      "size": 8020
+    },
+    "error_logger.py": {
+      "version": "1.1",
+      "path": "/error_logger.py",
+      "hash": "7745ae2c6dbed7f2037f7ca6fa4dc5c4818958e794cdeb891c049f4a93dc4e71",
+      "size": 5039
+    },
+    "watchdog.py": {
+      "version": "1.1",
+      "path": "/watchdog.py",
+      "hash": "d3c53937500e043d85f582967f22f5049ec2ead51579afce4bf5858e6c1d5b61",
+      "size": 5535
+    },
+    "system_recovery.py": {
+      "version": "1.1",
+      "path": "/system_recovery.py",
+      "hash": "34649681e91d4b1ca3f0e1d8992192d91f4876c628eaf2599d6f53518b5178e2",
+      "size": 6005
+    },
+    "display_manager.py": {
+      "version": "1.1",
+      "path": "/display_manager.py",
+      "hash": "bc01fd1bfbd6a46377f6af9811f221ff542acb435e15ce6a1bcf0d645121b22f",
+      "size": 4260
+    },
+    "lora_handler.py": {
+      "version": "1.1",
+      "path": "/lora_handler.py",
+      "hash": "9d17f7f0437a240bd32a84f33cf7aad0a611090fe93db4f4878178b9c9156ab8",
+      "size": 8107
+    },
+    "constants.py": {
+      "version": "1.1",
+      "path": "/constants.py",
+      "hash": "34e39216ccb23aff2c39508ffa7c923e8c1e23cb98ba123ddaa15c9afa664e42",
+      "size": 2932
+    },
+    "utils.py": {
+      "version": "1.1",
+      "path": "/utils.py",
+      "hash": "73fa89af3a9ea4c7874d824587d4a2c65959440f96724eabca599b28e0b7f006",
+      "size": 5025
+    },
+    "tests.py": {
+      "version": "1.1",
+      "path": "/tests.py",
+      "hash": "d3c3be0321028b3c117165c2a149cc9d37d2083b5dbd8727c4c761fd507eaf7d",
+      "size": 7279
+    },
+    "module_detector.py": {
+      "version": "1.1",
+      "path": "/module_detector.py",
+      "hash": "d72a1f0ba24f88f22e91fdb89a539bf715b6b6885871ecb85b558281492203d2",
+      "size": 6047
     }
   }
 }
