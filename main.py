@@ -87,7 +87,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     
                     # Read temperature and pet watchdog
                     if self.read_temperature():
-                        self.watchdog_manager.temp_watchdog.pet()
+                        self.watchdog_manager.pet('temperature')
                     
                     # Update control logic
                     if self.current_temp is not None and self.setpoint is not None:
@@ -103,7 +103,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         else:
                             self._deactivate_heating()
                         
-                        self.watchdog_manager.control_watchdog.pet()
+                        self.watchdog_manager.pet('control')
                         
                     # Update display
                     self._update_display_status()
@@ -117,7 +117,29 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             except Exception as e:
                 self.state_machine.handle_error(e)
                 time.sleep(5)
-                
+
+    def _update_display_status(self):
+        """Update display with current status"""
+        if self.state_machine.current_state == 'running':
+            if self.setpoint is not None:
+                self.display_manager.show_status(
+                    f"Mode: {self.mode}",
+                    f"Target: {self.setpoint:.1f}°C",
+                    f"Temp: {self.current_temp:.1f}°C" if self.current_temp else "No temp"
+                )
+            else:
+                self.display_manager.show_status(
+                    "Waiting for",
+                    "command from",
+                    "gateway..."
+                )
+        else:
+            self.display_manager.show_status(
+                "System State",
+                self.state_machine.current_state,
+                f"Temp: {self.current_temp:.1f}°C" if self.current_temp else "No temp"
+            )
+
     def read_temperature(self):
         """Read current temperature from IO module"""
         try:
