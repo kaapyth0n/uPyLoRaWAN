@@ -11,12 +11,26 @@ class TemperatureController:
             config_manager: Reference to configuration manager
         """
         self.config = config_manager
-        self.temp_history = deque(maxlen=60)  # Store last 60 readings
-        self.error_history = deque(maxlen=10)  # Store last 10 error values
+        self.temp_history = []  # Replace deque with a list
+        self.max_history_len = 60  # Store up to 60 readings manually
+        self.error_history = []  # Same change for error history
+        self.max_error_len = 10  # Store up to 10 errors manually
         self.last_control_time = 0
         self.integral_error = 0
         self.last_error = 0
         self.min_control_interval = 1.0  # Minimum time between control decisions
+        
+    def add_temp_to_history(self, timestamp, temp):
+        """Add a temperature reading to the history"""
+        if len(self.temp_history) >= self.max_history_len:
+            self.temp_history.pop(0)  # Remove the oldest entry
+        self.temp_history.append((timestamp, temp))
+    
+    def add_error_to_history(self, error):
+        """Add an error value to the history"""
+        if len(self.error_history) >= self.max_error_len:
+            self.error_history.pop(0)  # Remove the oldest entry
+        self.error_history.append(error)
         
     def calculate_control_action(self, current_temp, setpoint, dt):
         """Calculate control action using advanced algorithm
@@ -40,8 +54,8 @@ class TemperatureController:
         error = setpoint - current_temp
         
         # Store history
-        self.temp_history.append((time.time(), current_temp))
-        self.error_history.append(error)
+        self.add_temp_to_history(time.time(), current_temp)
+        self.add_error_to_history(error)
         
         # Calculate integral error with anti-windup
         self.integral_error += error * dt
