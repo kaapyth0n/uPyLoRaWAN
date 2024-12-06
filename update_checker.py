@@ -61,13 +61,25 @@ def get_local_versions():
     except:
         return {}
 
+def get_optimal_chunk_size():
+    """Calculate optimal chunk size based on available memory"""
+    gc.collect()
+    free = gc.mem_free()
+    # Use at most 10% of free memory for chunk size
+    chunk_size = min(256, free // 10)
+    # Ensure minimum chunk size of 64 bytes
+    return max(64, chunk_size)
+
 def fetch_manifest(base_url):
-    """Fetch manifest with memory monitoring"""
+    """Fetch manifest with adaptive chunk size"""
     print("\nMemory before fetch:")
-    gc.collect()  # Force garbage collection
+    gc.collect()
     free = gc.mem_free()
     alloc = gc.mem_alloc()
     print(f"Free: {free}, Allocated: {alloc}, Total: {free + alloc}")
+    
+    chunk_size = get_optimal_chunk_size()
+    print(f"Using chunk size: {chunk_size} bytes")
     
     print(f"\nFetching manifest from {base_url}/manifest.json")
     try:
@@ -87,10 +99,11 @@ def fetch_manifest(base_url):
             # Read response in chunks
             chunks = []
             while True:
-                chunk = r.raw.read(256)  # Read smaller chunks
+                chunk = r.raw.read(chunk_size)
                 if not chunk:
                     break
                 chunks.append(chunk)
+                gc.collect()  # More aggressive garbage collection
                 
             manifest_data = b''.join(chunks)
             gc.collect()  # Clean up before JSON parse
@@ -100,6 +113,8 @@ def fetch_manifest(base_url):
             print(f"Found {len(manifest.get('files', {}))} files in manifest")
             return manifest
             
+        except MemoryError:
+            raise  # Re-raise MemoryError to be caught by retry logic
         except ValueError as e:
             print(f"Failed to parse manifest JSON: {str(e)}")
             print(f"Raw manifest data: {manifest_data[:100]}...")  # Print first 100 chars
@@ -107,6 +122,8 @@ def fetch_manifest(base_url):
         finally:
             r.close()  # Ensure connection is closed
             
+    except MemoryError:
+        raise  # Re-raise MemoryError
     except Exception as e:
         print(f"Failed to fetch manifest: {str(e)}")
         return None
@@ -193,6 +210,7 @@ def replace_file(filename):
         return False
     
 def check_updates(base_url):
+    """Check for updates with retry mechanism"""
     print("\nStarting update check...")
     update_display(
         "Update Checker",
@@ -206,16 +224,31 @@ def check_updates(base_url):
     print(f"Local versions found: {local_versions}")
     
     print("\nFetching manifest from server...")
-    manifest = fetch_manifest(base_url)
+    retries = 3
+    manifest = None
     
-    if not manifest:
+    while retries > 0:
+        try:
+            manifest = fetch_manifest(base_url)
+            if manifest is not None:
+                break
+            retries -= 1
+            if retries > 0:
+                print(f"Retrying manifest fetch... ({retries} attempts left)")
+                gc.collect()
+                time.sleep(1)
+        except MemoryError:
+            print(f"Memory error, retrying... ({retries} attempts left)")
+            gc.collect()
+            retries -= 1
+            time.sleep(1)
+    
+    if manifest is None:
         print("Failed to fetch manifest!")
         update_display(
             "Update Check Failed",
             "Could not fetch",
-            "manifest file",
-            "Check connection",
-            beep=True
+            "manifest file"
         )
         return False
     
