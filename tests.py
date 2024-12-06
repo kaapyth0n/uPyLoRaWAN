@@ -1,5 +1,6 @@
 import time
 import gc
+import network
 
 class TestResult:
     """Test result container"""
@@ -35,8 +36,37 @@ class TestRunner:
         self.test_lora()
         self.test_control()
         self.test_config()
+        self.test_updates()
         
         return self.results
+    
+    def test_updates(self):
+        """Test update status"""
+        try:
+            if not network.WLAN(network.STA_IF).isconnected():
+                self.results.append(TestResult(
+                    "Updates",
+                    True,
+                    "No WiFi connection"
+                ))
+                return
+
+            from update_checker import get_current_versions, is_update_available
+            versions = get_current_versions()
+            update_available = is_update_available()
+            
+            self.results.append(TestResult(
+                "Updates",
+                True,
+                f"{'Update available' if update_available else 'System up to date'}"
+            ))
+            
+        except Exception as e:
+            self.results.append(TestResult(
+                "Updates",
+                False,
+                f"Update check failed: {str(e)}"
+            ))
         
     def test_temperature_sensor(self):
         """Test temperature sensor functionality"""

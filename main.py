@@ -1,5 +1,5 @@
 import time
-import json
+import network
 from machine import Pin, SoftSPI
 from sx127x import TTN, SX127x
 from config import *
@@ -135,11 +135,31 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         print("Starting smart boiler control...")
         self.display_manager.show_status("Starting", "Control Loop")
         last_state = None
+        last_update_check = time.time()
+        UPDATE_CHECK_INTERVAL = 24 * 3600  # Check once per day
         
         while True:
             try:
+                current_time = time.time()
+                
                 # Update watchdogs
                 self.watchdog_manager.check_all()
+                
+                # Periodic update check
+                if (current_time - last_update_check > UPDATE_CHECK_INTERVAL and 
+                    network.WLAN(network.STA_IF).isconnected() and
+                    self.state_machine.current_state == SystemState.RUNNING):
+                    try:
+                        from update_checker import check_and_update
+                        update_result = check_and_update()
+                        if update_result.success and update_result.updated_files:
+                            print(f"Updated {len(update_result.updated_files)} files")
+                            self.state_machine.transition_to(SystemState.INITIALIZING)
+                            return  # Restart main loop after update
+                    except Exception as e:
+                        print(f"Periodic update check failed: {e}")
+                    finally:
+                        last_update_check = current_time
                 
                 # Update state machine
                 self.state_machine.update()

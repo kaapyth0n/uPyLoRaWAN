@@ -1,4 +1,5 @@
 import time
+import network
 from error_logger import ErrorLogger
 
 class SystemState:
@@ -114,8 +115,36 @@ class StateMachine:
                 "Checking hardware"
             )
             
+            # Check for updates
+            print("2. Checking for updates...")
+            self.controller.display_manager.show_status(
+                "Initializing",
+                "Checking updates"
+            )
+            
+            if network.WLAN(network.STA_IF).isconnected():
+                try:
+                    from update_checker import check_and_update
+                    update_result = check_and_update()
+                    if update_result.success:
+                        if update_result.updated_files:
+                            print(f"Updated {len(update_result.updated_files)} files")
+                            self.controller.display_manager.show_status(
+                                "Update Success",
+                                f"Updated {len(update_result.updated_files)}",
+                                "files"
+                            )
+                            time.sleep(2)  # Show update status briefly
+                        else:
+                            print("System up to date")
+                    else:
+                        print(f"Update check failed: {update_result.error}")
+                except Exception as e:
+                    print(f"Update check error: {e}")
+                    # Continue initialization even if update fails
+            
             # Check hardware
-            print("2. Checking hardware...")
+            print("3. Checking hardware...")
             if not self.controller._init_hardware():
                 print("Hardware initialization failed!")
                 self.controller.display_manager.show_status(
@@ -128,7 +157,7 @@ class StateMachine:
             print("Hardware check passed")
             
             # Load configuration
-            print("3. Loading configuration...")
+            print("4. Loading configuration...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Loading config"
@@ -144,7 +173,7 @@ class StateMachine:
             print("Configuration loaded")
             
             # Initialize LoRa
-            print("4. Initializing LoRa...")
+            print("5. Initializing LoRa...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Starting LoRa"
@@ -160,7 +189,7 @@ class StateMachine:
                 print("LoRa initialized")
                 
             # Run diagnostics
-            print("5. Running diagnostics...")
+            print("6. Running diagnostics...")
             self.controller.display_manager.show_status(
                 "Initializing",
                 "Running tests"
