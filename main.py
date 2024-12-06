@@ -49,31 +49,47 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def _init_hardware(self):
         """Initialize hardware components"""
         try:
+            print("\nStarting hardware initialization...")
+            
             # Initialize display
+            print("1. Initializing display...")
             if not self.display_manager.init_display():
+                print("Display initialization failed")
                 self.logger.log_error('hardware', 'Display initialization failed', 2)
                 
+            print("2. Detecting modules...")
             # Initialize module detector
             detector = ModuleDetector(self.fr)
             success, results = detector.detect_modules()
             
             if not success:
+                print("\nModule detection failed:")
                 detector.print_module_status(results)
                 raise Exception("Required modules missing")
                 
+            print("All required modules detected")
+                
+            print("3. Testing IO module...")
             # Initialize IO module
             if not self._test_io_module():
+                print("IO module test failed")
                 raise Exception("IO module test failed")
+            print("IO module test passed")
                 
+            print("4. Testing SSR module...")    
             # Initialize SSR module    
             if not self._test_ssr_module():
+                print("SSR module test failed")
                 raise Exception("SSR module test failed")
-                
+            print("SSR module test passed")
+            
+            print("Hardware initialization completed successfully")
             return True
             
         except Exception as e:
+            print(f"Hardware initialization failed: {str(e)}")
             self.logger.log_error('hardware', f'Hardware initialization failed: {e}', 3)
-        return False
+            return False
     
     def _test_io_module(self):
         """Test IO module functionality"""
