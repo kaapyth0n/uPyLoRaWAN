@@ -58,14 +58,7 @@ class StateMachine:
         return new_state in SystemState.ALLOWED_TRANSITIONS.get(self.current_state, [])
         
     def transition_to(self, new_state):
-        """Handle state transition
-        
-        Args:
-            new_state (str): Target state
-            
-        Returns:
-            bool: True if transition successful
-        """
+        """Handle state transition"""
         if not self.can_transition(new_state):
             self.controller.logger.log_error(
                 'state_transition',
@@ -78,7 +71,12 @@ class StateMachine:
         self.current_state = new_state
         self.state_entry_time = time.time()
         
+        # Reset initialization flag when leaving INITIALIZING state
+        if self.last_state == SystemState.INITIALIZING:
+            self._init_started = False
+        
         # Log transition
+        print(f"State transition: {self.last_state} -> {new_state}")
         self.controller.logger.log_error(
             'state_transition',
             f"State change: {self.last_state} -> {new_state}",
@@ -233,8 +231,12 @@ class StateMachine:
             current_time = time.time()
             
             if self.current_state == SystemState.INITIALIZING:
-                # Check timeout
-                if current_time - self.state_entry_time > 30:  # 30 second timeout
+                if not hasattr(self, '_init_started'):
+                    print("\nStarting initialization sequence...")
+                    self._init_started = True
+                    self._init_sequence()
+                elif current_time - self.state_entry_time > 30:  # 30 second timeout
+                    print("Initialization timeout")
                     self.transition_to(SystemState.ERROR)
                     
             elif self.current_state == SystemState.ERROR:
@@ -253,6 +255,7 @@ class StateMachine:
                         self.transition_to(SystemState.INITIALIZING)
                         
         except Exception as e:
+            print(f"State machine update error: {str(e)}")
             self.handle_error(e)
             
     def _check_recovery_conditions(self):
