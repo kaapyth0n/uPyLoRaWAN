@@ -107,25 +107,64 @@ class StateMachine:
     def _init_sequence(self):
         """Run initialization sequence"""
         try:
+            # Initialize display manager first
+            self.controller.display_manager.show_status(
+                "Initializing",
+                "Checking hardware"
+            )
+            
             # Check hardware
             if not self.controller._init_hardware():
+                self.controller.display_manager.show_status(
+                    "Init Failed",
+                    "Hardware error",
+                    "Check modules"
+                )
                 self.transition_to(SystemState.ERROR)
                 return
                 
             # Load configuration
+            self.controller.display_manager.show_status(
+                "Initializing",
+                "Loading config"
+            )
             if not self.controller.config_manager.load_config():
+                self.controller.display_manager.show_status(
+                    "Init Failed",
+                    "Config error"
+                )
                 self.transition_to(SystemState.ERROR)
                 return
                 
             # Initialize LoRa
+            self.controller.display_manager.show_status(
+                "Initializing",
+                "Starting LoRa"
+            )
             if not self.controller.lora_handler.initialize():
-                self.transition_to(SystemState.ERROR)
-                return
+                self.controller.logger.log_error(
+                    'initialization',
+                    "LoRa initialization failed",
+                    severity=2
+                )
+                # Continue anyway as LoRa is not critical
                 
             # Run diagnostics
+            self.controller.display_manager.show_status(
+                "Initializing",
+                "Running tests"
+            )
             if self.controller.run_diagnostic():
+                self.controller.display_manager.show_status(
+                    "Ready",
+                    "System OK"
+                )
                 self.transition_to(SystemState.RUNNING)
             else:
+                self.controller.display_manager.show_status(
+                    "Init Failed",
+                    "Diagnostic error"
+                )
                 self.transition_to(SystemState.ERROR)
                 
         except Exception as e:
