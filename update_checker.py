@@ -5,6 +5,7 @@ import hashlib
 import os
 import utime
 import gc
+import time
 
 # Import display handling from boot
 try:
@@ -61,9 +62,21 @@ def get_local_versions():
         return {}
 
 def fetch_manifest(base_url):
+    """Fetch manifest with memory monitoring"""
+    print("\nMemory before fetch:")
+    gc.collect()  # Force garbage collection
+    free = gc.mem_free()
+    alloc = gc.mem_alloc()
+    print(f"Free: {free}, Allocated: {alloc}, Total: {free + alloc}")
+    
     print(f"\nFetching manifest from {base_url}/manifest.json")
     try:
-        r = urequests.get(f"{base_url}/manifest.json")
+        # Use smaller buffer size for request
+        r = urequests.get(
+            f"{base_url}/manifest.json",
+            headers={'Accept': 'application/json'},
+            stream=True  # Use streaming to reduce memory usage
+        )
         print(f"Got response with status code: {r.status_code}")
         
         if r.status_code != 200:
@@ -71,18 +84,34 @@ def fetch_manifest(base_url):
             return None
             
         try:
-            manifest_data = r.text
+            # Read response in chunks
+            chunks = []
+            while True:
+                chunk = r.raw.read(256)  # Read smaller chunks
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                
+            manifest_data = b''.join(chunks)
+            gc.collect()  # Clean up before JSON parse
+            
             print("Parsing manifest JSON...")
             manifest = json.loads(manifest_data)
             print(f"Found {len(manifest.get('files', {}))} files in manifest")
             return manifest
+            
         except ValueError as e:
             print(f"Failed to parse manifest JSON: {str(e)}")
             print(f"Raw manifest data: {manifest_data[:100]}...")  # Print first 100 chars
             return None
+        finally:
+            r.close()  # Ensure connection is closed
+            
     except Exception as e:
         print(f"Failed to fetch manifest: {str(e)}")
         return None
+    finally:
+        gc.collect()  # Final cleanup
     
 def download_file(base_url, file_info):
     """Download file and create necessary directories
@@ -338,6 +367,9 @@ def check_and_update(base_url=UPDATE_SERVER):
         print("No network connection available")
         return UpdateResult(False, error="No network connection")
 
+    # Free up memory before starting
+    gc.collect()
+
     try:
         print(f"Checking for updates at {base_url}")
         update_display(
@@ -347,7 +379,24 @@ def check_and_update(base_url=UPDATE_SERVER):
             "Please wait..."
         )
         
-        updates = check_updates(base_url)
+        retries = 3
+        while retries > 0:
+            try:
+                updates = check_updates(base_url)
+                break
+            except MemoryError:
+                print(f"Memory error, retrying... ({retries} attempts left)")
+                gc.collect()
+                retries -= 1
+                time.sleep(1)
+            except Exception as e:
+                print(f"Error checking updates: {e}")
+                break
+        
+        if retries == 0:
+            print("Failed to check updates after retries")
+            return UpdateResult(False, error="Memory error after retries")
+        
         if not updates:
             if updates is False:  # Error occurred
                 print("Update check failed")
