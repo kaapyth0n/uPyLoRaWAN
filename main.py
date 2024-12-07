@@ -95,6 +95,19 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         except Exception as e:
             self.logger.log_error('buttons', f'Button handling failed: {e}', 1)
 
+    def _format_temp(self, temp):
+        """Format temperature value for display
+        
+        Args:
+            temp (float): Temperature value
+            
+        Returns:
+            str: Formatted temperature string
+        """
+        if temp is None:
+            return "---"
+        return f"{temp:.1f}C"
+
     def _init_hardware(self):
         """Initialize hardware components"""
         try:
@@ -269,26 +282,59 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 time.sleep(5)
 
     def _update_display_status(self):
-        """Update display with current status"""
-        if self.state_machine.current_state == 'running':
-            if self.setpoint is not None:
-                self.display_manager.show_status(
-                    f"Mode: {self.mode}",
-                    f"Target: {self.setpoint:.1f}°C",
-                    f"Temp: {self.current_temp:.1f}°C" if self.current_temp else "No temp"
-                )
+        """Update display with current status using compact layout"""
+        try:
+            if self.state_machine.current_state == 'running' and self.display_manager.display:
+                # Calculate time since last state change
+                heating_active = time.time() - self.last_on_time < 5
+                
+                # Format display lines
+                lines = [
+                    "Smart Boiler Status",  # Title
+                    f"Mode: {self.mode.upper()}",  # Operating mode
+                    f"State: {'HEAT' if heating_active else 'IDLE'}", # Heating status
+                    "-" * 21,  # Separator line
+                    f"Target: {self._format_temp(self.setpoint)}", # Target temp
+                    f"Actual: {self._format_temp(self.current_temp)}", # Current temp
+                    f"Error:  {self._format_temp(self.setpoint - self.current_temp if self.current_temp else None)}", # Temp error
+                    f"BTN: 1=Up 2=Down"  # Button help
+                ]
+                
+                # Show all lines
+                self.display_manager.display.erase(0, display=0)
+                y_pos = 0
+                for line in lines:
+                    self.display_manager.display.show_text(
+                        line, 
+                        x=0, 
+                        y=y_pos, 
+                        font=2  # Using smaller font
+                    )
+                    y_pos += 8  # 8 pixel spacing between lines
+                    
+                # Display the buffer
+                self.display_manager.display.show(0)
+                
             else:
+                # Show simplified status for non-running states
                 self.display_manager.show_status(
-                    "Waiting for",
-                    "command from",
-                    "gateway..."
+                    "System Status",
+                    self.state_machine.current_state,
+                    f"Temp: {self._format_temp(self.current_temp)}",
+                    font=2
                 )
-        else:
-            self.display_manager.show_status(
-                "System State",
-                self.state_machine.current_state,
-                f"Temp: {self.current_temp:.1f}°C" if self.current_temp else "No temp"
-            )
+                
+        except Exception as e:
+            self.logger.log_error('display', f'Display update failed: {e}', 1)
+            # Try to show error on display
+            try:
+                self.display_manager.show_status(
+                    "Display Error",
+                    str(e)[:21],
+                    font=2
+                )
+            except:
+                pass  # If this fails too, just continue
 
     def read_temperature(self):
         """Read current temperature from IO module"""
@@ -313,7 +359,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             if time.time() - self.last_off_time >= self.config_manager.get_param('min_off_time'):
                 self.fr.write(6, 0x01, slot=5)
                 self.last_on_time = time.time()
-                self.display_manager.show_heating(self.setpoint, self.current_temp)
         except Exception as e:
             self.logger.log_error('control', f'Heating activation failed: {e}', 3)
             
@@ -323,7 +368,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             if time.time() - self.last_on_time >= self.config_manager.get_param('min_on_time'):
                 self.fr.write(6, 0x00, slot=5)
                 self.last_off_time = time.time()
-                self.display_manager.show_cooling(self.setpoint, self.current_temp)
         except Exception as e:
             self.logger.log_error('control', f'Heating deactivation failed: {e}', 3)
 

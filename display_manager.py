@@ -27,73 +27,38 @@ class DisplayManager:
             self.display = None
             return False
             
-    def show_status(self, title, line1="", line2="", beep=False):
-        """Show status screen
+    def show_status(self, title, *lines, font=4, beep=False):
+        """Show status screen with multiple lines
         
         Args:
             title (str): Title text
-            line1 (str): First line text
-            line2 (str): Second line text
-            beep (bool): Whether to beep
+            *lines (str): Additional lines of text
+            font (int): Font number to use
         """
         if not self.display:
             return
             
         try:
-            current_time = time.time()
-            if current_time - self.last_update < self.update_interval:
-                return
-                
-            screen_content = f"{title}|{line1}|{line2}"
-            print(screen_content)
-            if screen_content == self.current_screen:
-                return  # Don't update if content hasn't changed
-                
             self.display.erase(0, display=0)
-            self.display.show_text(title, x=0, y=0, font=5)
             
-            if line1:
-                self.display.show_text(line1[:21], x=0, y=24, font=2)
-            if line2:
-                self.display.show_text(line2[:21], x=0, y=48, font=2)
-                
+            # Show title
+            self.display.show_text(title[:21], x=0, y=0, font=font)
+            
+            # Show additional lines
+            y_pos = 8 if font == 2 else 24  # Adjust spacing based on font
+            for line in lines:
+                if line:  # Skip empty lines
+                    self.display.show_text(str(line)[:21], x=0, y=y_pos, font=font)
+                    y_pos += 8 if font == 2 else 24
+                    
             self.display.show(0)
             
             if beep:
                 self.display.beep(1)
-                
-            self.last_update = current_time
-            self.current_screen = screen_content
             
         except Exception as e:
             print(f"Display update failed: {e}")
-            
-    def show_heating(self, setpoint, current_temp):
-        """Show heating status screen
-        
-        Args:
-            setpoint (float): Target temperature
-            current_temp (float): Current temperature
-        """
-        self.show_status(
-            "Heating Active",
-            f"Target: {setpoint:.1f}°C",
-            f"Current: {current_temp:.1f}°C"
-        )
-        
-    def show_cooling(self, setpoint, current_temp):
-        """Show cooling status screen
-        
-        Args:
-            setpoint (float): Target temperature
-            current_temp (float): Current temperature
-        """
-        self.show_status(
-            "Cooling",
-            f"Target: {setpoint:.1f}°C",
-            f"Current: {current_temp:.1f}°C"
-        )
-        
+          
     def show_error(self, error_type, message):
         """Show error screen
         
