@@ -13,6 +13,7 @@ from system_recovery import SystemRecovery
 from display_manager import DisplayManager
 from lora_handler import LoRaHandler
 from module_detector import ModuleDetector
+from constants import BoilerDefaults
 
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def __init__(self):
@@ -32,7 +33,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.lora_handler = LoRaHandler(self)
         
         # Initialize state
-        self.setpoint = None
+        self.setpoint = BoilerDefaults.MIN_TEMP  # Changed from None to default
         self.current_temp = None
         self.mode = 'relay'
         self.last_on_time = 0
