@@ -328,6 +328,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     if current_time - self.last_lora_update >= self.lora_update_interval:
                         if self._send_lora_status():
                             self.last_lora_update = current_time
+                            self.watchdog_manager.pet('lora')
                             print("LoRa status sent successfully")
                         else:
                             print("Failed to send LoRa status")
