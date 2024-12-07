@@ -19,11 +19,13 @@ import network
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def __init__(self):
         super().__init__()
+
+        # Initialize state machine first
+        self.state_machine = StateMachine(self)
         
         # Initialize components
         self.logger = ErrorLogger()
         self.config_manager = ConfigurationManager()
-        self.state_machine = StateMachine(self)
         self.temp_controller = TemperatureController(self.config_manager)
         
         # Initialize display manager with controller reference
@@ -56,8 +58,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.last_button_time = 0
         self.button_debounce_delay = 0.5  # 500ms debounce
         
-        # Start state machine
-        self.state_machine.transition_to(SystemState.INITIALIZING)
+        # Finally, set initial state and start initialization
+        self.state_machine.current_state = SystemState.INITIALIZING
 
         # Add LoRa timing control
         self.last_lora_update = 0

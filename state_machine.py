@@ -39,7 +39,7 @@ class StateMachine:
             controller: Reference to main controller
         """
         self.controller = controller
-        self.current_state = SystemState.INITIALIZING
+        self.current_state = None  # Start with no state
         self.last_state = None
         self.state_entry_time = time.time()
         self.error_count = 0
@@ -57,6 +57,8 @@ class StateMachine:
         Returns:
             bool: True if transition is allowed
         """
+        if self.current_state is None:
+            return True
         return new_state in SystemState.ALLOWED_TRANSITIONS.get(self.current_state, [])
         
     def transition_to(self, new_state):
@@ -220,7 +222,7 @@ class StateMachine:
             
             if self.current_state == SystemState.INITIALIZING:
                 if not hasattr(self, '_init_started'):
-                    print("\nStarting initialization sequence...")
+                    print("StateMachine.update: Starting initialization sequence...")
                     self._init_started = True
                     self._init_sequence()
                 elif current_time - self.state_entry_time > 30:  # 30 second timeout
