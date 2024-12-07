@@ -270,4 +270,4 @@ class DisplayManager:
         """
         if temp is None:
             return "---"
-        return f"{temp:.1f}°C"
+        return f"{temp:.1f} C"
