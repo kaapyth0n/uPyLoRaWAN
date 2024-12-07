@@ -38,10 +38,63 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.mode = 'relay'
         self.last_on_time = 0
         self.last_off_time = 0
+        self.last_button_state = 0
+        self.last_button_time = 0
+        self.button_debounce_delay = 0.5  # 500ms debounce
         
         # Start state machine
         self.state_machine.transition_to(SystemState.INITIALIZING)
-        
+
+    def _check_buttons(self):
+        """Handle button presses with debouncing"""
+        try:
+            current_time = time.time()
+            
+            # Check if enough time has passed since last press
+            if current_time - self.last_button_time < self.button_debounce_delay:
+                return
+                
+            # Read button state from IND1-1.1 module (parameter 28)
+            button_state = self.fr.read(28, slot=2)
+            if button_state is None:
+                return
+                
+            # Only process if state changed
+            if button_state != self.last_button_state:
+                self.last_button_state = button_state
+                self.last_button_time = current_time
+                
+                # First button pressed (bit 0)
+                if button_state & 0x01:
+                    # Increase setpoint
+                    new_setpoint = min(
+                        self.setpoint + 1, 
+                        BoilerDefaults.MAX_TEMP
+                    )
+                    if new_setpoint != self.setpoint:
+                        self.setpoint = new_setpoint
+                        print(f"Setpoint increased to {self.setpoint}°C")
+                        # Beep to indicate change
+                        if self.display_manager.display:
+                            self.display_manager.display.beep(1)
+                        
+                # Second button pressed (bit 1)
+                elif button_state & 0x02:
+                    # Decrease setpoint
+                    new_setpoint = max(
+                        self.setpoint - 1,
+                        BoilerDefaults.MIN_TEMP
+                    )
+                    if new_setpoint != self.setpoint:
+                        self.setpoint = new_setpoint
+                        print(f"Setpoint decreased to {self.setpoint}°C")
+                        # Beep to indicate change
+                        if self.display_manager.display:
+                            self.display_manager.display.beep(1)
+                        
+        except Exception as e:
+            self.logger.log_error('buttons', f'Button handling failed: {e}', 1)
+
     def _init_hardware(self):
         """Initialize hardware components"""
         try:
@@ -174,6 +227,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     if self.read_temperature():
                         self.watchdog_manager.pet('temperature')
                         print(f"Temperature: {self.current_temp:.1f}°C")
+
+                    # Add button check to main loop
+                    self._check_buttons()
                     
                     # Update control logic if we have valid setpoint
                     if self.current_temp is not None:
