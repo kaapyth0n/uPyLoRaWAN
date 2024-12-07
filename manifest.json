@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-07T02:14:40Z",
+  "timestamp": "2024-12-08T00:37:53Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -8,22 +8,22 @@
       "size": 1658
     },
     "boot.py": {
-      "version": "1.9",
+      "version": "2.0",
       "path": "/boot.py",
-      "hash": "2582904d357c34d9809e6ca142e3a81fc400c9ac4060cc7da1ea58854ead7ad7",
-      "size": 7199
+      "hash": "fad6d6f4c86af1e8fbb8dafdac288e0ce92795603d9dadced3c9e8f7de671384",
+      "size": 7244
     },
     "main.py": {
-      "version": "2.6",
+      "version": "2.7",
       "path": "/main.py",
-      "hash": "c5510199dc2b1cfaf68c15f5972e0f0c5325000f4ad78766b5bbb87ba496d26c",
-      "size": 11081
+      "hash": "0b81817feee446cdcbc77096980251768b12cbed01f4e201355da22192454b24",
+      "size": 17048
     },
     "config_portal.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/config_portal.py",
-      "hash": "ab60b7d4d2ba3accd03657c46cce4d21e8f369ada852a11ea54bd4e3c5e794ad",
-      "size": 13650
+      "hash": "cffcd00d6663acdc892fde8e27b4206524e62eb2a433aaf6fe45ea3c3fe35a81",
+      "size": 13708
     },
     "encryption_aes.py": {
       "version": "1.0",
@@ -38,10 +38,10 @@
       "size": 12720
     },
     "sx127x.py": {
-      "version": "1.0",
+      "version": "1.1",
       "path": "/sx127x.py",
-      "hash": "047c3e11c9f2d7196a5879255245c4900231d46d13917864831f4600afbf1813",
-      "size": 22579
+      "hash": "e5851985ea8d73e83fa38e1fef6486d6ad562dddc9fd43500991ab495875c8e5",
+      "size": 27303
     },
     "FrSet.py": {
       "version": "1.0",
@@ -50,10 +50,10 @@
       "size": 26075
     },
     "update_checker.py": {
-      "version": "1.5",
+      "version": "1.6",
       "path": "/update_checker.py",
-      "hash": "fb165a33471a2a7f5ab764800cae1196a3dd444ae4f92f8f25fcc3ea2edfcc4b",
-      "size": 16662
+      "hash": "68e5145fa7734ad6ff9c962e77f2cb3cc33647ee3eb7f290264ca2b86476f3e6",
+      "size": 19326
     },
     "interfaces.py": {
       "version": "1.1",
@@ -62,10 +62,10 @@
       "size": 3849
     },
     "state_machine.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/state_machine.py",
-      "hash": "a550ede5d53c78c0f79eddc7127ad405485f210cc1dfb054a01b7fd7ee7ba78d",
-      "size": 10386
+      "hash": "c77fbdd227387e6d1e137642341c22e9c6bdde1e851f26db3c9492aa78c95625",
+      "size": 9564
     },
     "temp_controller.py": {
       "version": "1.2",
@@ -80,16 +80,16 @@
       "size": 8010
     },
     "error_logger.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/error_logger.py",
-      "hash": "7745ae2c6dbed7f2037f7ca6fa4dc5c4818958e794cdeb891c049f4a93dc4e71",
-      "size": 5039
+      "hash": "da43188cb3f624ed60c4320b2a717c77a2af05b83b8ac7b342a6ed92ba68b020",
+      "size": 5041
     },
     "watchdog.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/watchdog.py",
-      "hash": "d3c53937500e043d85f582967f22f5049ec2ead51579afce4bf5858e6c1d5b61",
-      "size": 5535
+      "hash": "c2cb838842971ecfe2fa7d006243a95c0c8feb404dd2fc41bc56be1626107e1a",
+      "size": 5057
     },
     "system_recovery.py": {
       "version": "1.1",
@@ -98,16 +98,16 @@
       "size": 6005
     },
     "display_manager.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/display_manager.py",
-      "hash": "06110197fd30f92b67623b606d5f4bda50e849a098f4f6925f8305d5b64909f4",
-      "size": 4294
+      "hash": "c85ff263f4959b97102f3ced66656a13f044e4e3b39951e0b778a80f843f8da8",
+      "size": 9664
     },
     "lora_handler.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/lora_handler.py",
-      "hash": "9d17f7f0437a240bd32a84f33cf7aad0a611090fe93db4f4878178b9c9156ab8",
-      "size": 8107
+      "hash": "2e986661b4bdb7d34c63df6997e044d4eac2a20c77d632b7f3f799215d945077",
+      "size": 12456
     },
     "constants.py": {
       "version": "1.1",
@@ -116,10 +116,10 @@
       "size": 2932
     },
     "utils.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/utils.py",
-      "hash": "73fa89af3a9ea4c7874d824587d4a2c65959440f96724eabca599b28e0b7f006",
-      "size": 5025
+      "hash": "aa757677718e5a9d365ec1ac4bb17f8e92d8cfa8a456c4f63b57a5b4cef2257b",
+      "size": 4985
     },
     "tests.py": {
       "version": "1.2",
