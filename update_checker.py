@@ -151,18 +151,42 @@ def download_file(base_url, file_info):
         
         # Ensure directory exists
         directory = path.rsplit('/', 1)[0] if '/' in path else ''
+        print(f"\nProcessing download:")
+        print(f"Path: {path}")
+        print(f"Temp path: {temp_path}")
+        print(f"Directory: {directory}")
+        
         if directory:
-            ensure_directory_exists(directory)
+            if not ensure_directory_exists(directory):
+                print("Failed to create directory structure")
+                return False
                 
+            # Verify path is writable
+            success, message = verify_path_access(temp_path)
+            if not success:
+                print(f"Path verification failed: {message}")
+                return False   
+        
         # Download file
+        print(f"Downloading from: {base_url}/{path}")
         r = urequests.get(f"{base_url}/{path}")
+        print(f"Download status: {r.status_code}")
+        
         if r.status_code == 200:
-            with open(temp_path, 'wb') as f:
-                f.write(r.content)
-            return True
+            print(f"Writing to: {temp_path}")
+            try:
+                with open(temp_path, 'wb') as f:
+                    f.write(r.content)
+                print("File written successfully")
+                return True
+            except OSError as e:
+                print(f"Error writing file: {e}")
+                raise
             
     except Exception as e:
         print(f"Download failed: {e}")
+        if isinstance(e, OSError):
+            print(f"OSError number: {e.args[0]}")
     return False
 
 def ensure_directory_exists(directory):
@@ -172,11 +196,14 @@ def ensure_directory_exists(directory):
         directory (str): Directory path to create
     """
     if not directory:  # Handle empty path
-        return
+        return True
         
+    print(f"Creating directory: {directory}")
+    
     try:
         # First check if directory already exists
         os.stat(directory)
+        print(f"Directory already exists: {directory}")
     except OSError:
         # Directory doesn't exist, create it piece by piece
         components = directory.split('/')
@@ -184,15 +211,59 @@ def ensure_directory_exists(directory):
         
         for component in components:
             if component:  # Skip empty components
-                path += component + '/'
+                if path:
+                    path += '/'
+                path += component
                 try:
                     os.stat(path)  # Check if exists
+                    print(f"Path exists: {path}")
                 except OSError:
                     try:
+                        print(f"Creating path: {path}")
                         os.mkdir(path)  # Create if doesn't exist
+                        # Verify directory was created
+                        os.stat(path)
+                        print(f"Created and verified: {path}")
                     except OSError as e:
                         if e.args[0] != 17:  # Ignore "already exists" error
-                            raise  # Re-raise other errors
+                            print(f"Error creating directory {path}: {e}")
+                            return False
+                        else:
+                            print(f"Directory already exists (from error): {path}")
+        return True
+    except Exception as e:
+        print(f"Directory creation failed: {e}")
+        return False
+
+
+def verify_path_access(path):
+    """Verify path exists and is writable
+    
+    Args:
+        path (str): Path to verify
+        
+    Returns:
+        tuple: (success (bool), message (str))
+    """
+    try:
+        # Check parent directory exists and is writable
+        directory = path.rsplit('/', 1)[0] if '/' in path else ''
+        if directory:
+            try:
+                os.stat(directory)
+                print(f"Directory exists: {directory}")
+                # Try to create a test file
+                test_file = f"{directory}/.test"
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+                print("Directory is writable")
+                return True, "Path verified"
+            except OSError as e:
+                return False, f"Directory error: {e}"
+        return True, "No directory needed"
+    except Exception as e:
+        return False, f"Verification error: {e}"
 
 def bytes_to_hex(bytes_data):
     return ''.join('{:02x}'.format(b) for b in bytes_data)
