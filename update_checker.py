@@ -152,10 +152,7 @@ def download_file(base_url, file_info):
         # Ensure directory exists
         directory = path.rsplit('/', 1)[0] if '/' in path else ''
         if directory:
-            try:
-                os.makedirs(directory)
-            except OSError:
-                pass  # Directory might exist
+            ensure_directory_exists(directory)
                 
         # Download file
         r = urequests.get(f"{base_url}/{path}")
@@ -167,6 +164,35 @@ def download_file(base_url, file_info):
     except Exception as e:
         print(f"Download failed: {e}")
     return False
+
+def ensure_directory_exists(directory):
+    """Create directory and parents if they don't exist
+    
+    Args:
+        directory (str): Directory path to create
+    """
+    if not directory:  # Handle empty path
+        return
+        
+    try:
+        # First check if directory already exists
+        os.stat(directory)
+    except OSError:
+        # Directory doesn't exist, create it piece by piece
+        components = directory.split('/')
+        path = ''
+        
+        for component in components:
+            if component:  # Skip empty components
+                path += component + '/'
+                try:
+                    os.stat(path)  # Check if exists
+                except OSError:
+                    try:
+                        os.mkdir(path)  # Create if doesn't exist
+                    except OSError as e:
+                        if e.args[0] != 17:  # Ignore "already exists" error
+                            raise  # Re-raise other errors
 
 def bytes_to_hex(bytes_data):
     return ''.join('{:02x}'.format(b) for b in bytes_data)
