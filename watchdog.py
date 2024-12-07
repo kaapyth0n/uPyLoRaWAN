@@ -68,7 +68,6 @@ class WatchdogManager:
         
         # Create watchdogs
         self.watchdogs = {
-            'communication': SystemWatchdog('communication', timeout=3600),  # 1 hour
             'temperature': SystemWatchdog('temperature', timeout=300),      # 5 minutes
             'control': SystemWatchdog('control', timeout=60),              # 1 minute
             'display': SystemWatchdog('display', timeout=120),             # 2 minutes
@@ -76,7 +75,6 @@ class WatchdogManager:
         }
         
         # Set up callbacks
-        self.watchdogs['communication'].add_callback(self._handle_comm_timeout)
         self.watchdogs['temperature'].add_callback(self._handle_temp_timeout)
         self.watchdogs['control'].add_callback(self._handle_control_timeout)
         self.watchdogs['display'].add_callback(self._handle_display_timeout)
@@ -114,15 +112,6 @@ class WatchdogManager:
         if name in self.watchdogs:
             self.watchdogs[name].enabled = False
             
-    def _handle_comm_timeout(self):
-        """Handle communication timeout"""
-        self.controller.logger.log_error(
-            'watchdog',
-            'Communication timeout - no commands received',
-            severity=3
-        )
-        self.controller.state_machine.transition_to('safe_mode')
-        
     def _handle_temp_timeout(self):
         """Handle temperature reading timeout"""
         self.controller.logger.log_error(

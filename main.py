@@ -30,6 +30,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.recovery_manager = SystemRecovery(self)
         
         # Initialize FrSet interface
+        print("Initializing FrSet interface in SBI _init_...")
         self.fr = FrSet()
         self.lora_handler = LoRaHandler(self)
         

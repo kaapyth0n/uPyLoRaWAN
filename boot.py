@@ -8,6 +8,7 @@ from IND1 import Module_IND1
 # Initialize display globally so it's available throughout the boot process
 display = None
 try:
+    print("Initializing display in boot...")
     display = Module_IND1(2)  # IND1-1.1 module in slot 2
     print("Display initialized successfully")
 except:

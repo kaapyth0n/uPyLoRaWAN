@@ -19,6 +19,7 @@ class DisplayManager:
             bool: True if successful
         """
         try:
+            print("Initializing display in DisplayManager...")
             self.display = Module_IND1(self.display_slot)
             self.show_status("Display", "Initialized", "OK")
             return True

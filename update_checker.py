@@ -10,6 +10,7 @@ import time
 # Import display handling from boot
 try:
     from IND1 import Module_IND1
+    print("Initializing display in update_checker...")
     display = Module_IND1(2)  # IND1-1.1 module in slot 2
 except:
     print("Display not found or initialization failed")

@@ -22,6 +22,7 @@ def run_portal(timeout_minutes=10):
     # Initialize display
     display = None
     try:
+        print("Initializing display in config_portal...")
         display = Module_IND1(2)
     except:
         print("Warning: Display not found")

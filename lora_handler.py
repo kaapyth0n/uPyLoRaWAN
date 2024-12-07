@@ -22,12 +22,14 @@ class LoRaHandler:
         self.initialized = False
         
     def initialize(self):
-        """Initialize LoRa module
-        
-        Returns:
-            bool: True if successful
-        """
+        """Initialize LoRa module with thorough initialization"""
         try:
+            # Clear any existing state
+            self.lora = None
+            self.initialized = False
+            
+            print("Initializing LoRa module...")
+            
             # Initialize LoRaWAN with config
             ttn = TTN(
                 ttn_config['devaddr'],
@@ -41,18 +43,48 @@ class LoRaHandler:
                 baudrate=5000000,
                 polarity=0,
                 phase=0,
-                sck=Pin(device_config['sck']),
-                mosi=Pin(device_config['mosi']),
-                miso=Pin(device_config['miso'])
+                sck=Pin(device_config['sck'], Pin.OUT),
+                mosi=Pin(device_config['mosi'], Pin.OUT),
+                miso=Pin(device_config['miso'], Pin.IN)
             )
             
-            # Initialize LoRa
-            self.lora = SX127x(
-                device_spi,
-                pins=device_config,
-                lora_parameters=lora_parameters,
-                ttn_config=ttn
-            )
+            # Create reset pin and perform reset cycle
+            reset_pin = Pin(device_config['reset'], Pin.OUT)
+            reset_pin.value(0)
+            time.sleep_ms(200)
+            reset_pin.value(1)
+            time.sleep_ms(200)
+            
+            # Initialize LoRa with retry
+            retry_count = 0
+            while retry_count < 3:
+                try:
+                    self.lora = SX127x(
+                        device_spi,
+                        pins=device_config,
+                        lora_parameters=lora_parameters,
+                        ttn_config=ttn
+                    )
+                    break
+                except Exception as e:
+                    print(f"Init attempt {retry_count + 1} failed: {e}")
+                    retry_count += 1
+                    if retry_count >= 3:
+                        raise
+                    time.sleep(1)
+                    
+            if not self.lora:
+                raise RuntimeError("LoRa initialization failed")
+            
+            # Verify module responds correctly
+            from sx127x import REG_VERSION
+            version = self.lora.read_register(REG_VERSION)
+            if version != 0x12:
+                raise RuntimeError(f"Invalid version: {version}")
+                
+            # Verify RF parameters
+            if not self.lora.validate_rf_state():
+                raise RuntimeError("RF validation failed")
             
             # Set receive callback
             self.lora.on_receive(self._handle_received)
@@ -61,37 +93,92 @@ class LoRaHandler:
             self.lora.receive()
             
             self.initialized = True
-            self.controller.logger.log_error(
-                'lora',
-                'LoRa initialized successfully',
-                severity=1
-            )
+            print("LoRa initialization successful")
             return True
             
         except Exception as e:
-            self.controller.logger.log_error(
-                'lora',
-                f'LoRa initialization failed: {e}',
-                severity=3
-            )
+            print(f"LoRa initialization failed: {e}")
             self.initialized = False
+            self.lora = None
+            return False
+        
+    def reinitialize_from_scratch(self):
+        """Completely reinitialize LoRa from scratch"""
+        print("\nPerforming complete LoRa reinitialization...")
+        
+        try:
+            # First cleanup old instance if exists
+            if self.lora:
+                try:
+                    # Try to put module in sleep mode
+                    self.lora.sleep()
+                    # Allow time for sleep command
+                    time.sleep_ms(100)
+                    
+                    # Clear reference to SPI
+                    if hasattr(self.lora, '_spi'):
+                        try:
+                            self.lora._spi.deinit()
+                        except:
+                            pass
+                    
+                    self.lora = None
+                except:
+                    pass
+            
+            # Small delay before reinitialization
+            time.sleep_ms(500)
+            
+            print("Initializing new LoRa instance...")
+            return self.initialize()
+            
+        except Exception as e:
+            print(f"Complete reinitialization failed: {e}")
+            self.initialized = False
+            self.lora = None
             return False
         
     def send_data(self, data, data_length, frame_counter, timeout=5):
+        """Send data with complete reinitialization on failure"""
+        if not self.lora:
+            if not self.reinitialize_from_scratch():
+                return False
+                
+        retry_count = 0
+        max_retries = 3
+
         if not self.lora:
             return False
-        try:
-            self.lora.send_data(data=data, data_length=data_length, 
-                            frame_counter=frame_counter)
-            self.packets_sent += 1
-            return True
-        except Exception as e:
-            self.controller.logger.log_error(
-                'lora',
-                f'Send failed: {e}',
-                severity=2
-            )
-            return False
+        
+        while retry_count < max_retries:
+            try:
+                # First check module state
+                from sx127x import REG_OP_MODE
+                op_mode = self.lora.read_register(REG_OP_MODE)
+                if op_mode in [0x00, 0xFF] or not self.lora.validate_rf_state():
+                    print(f"Invalid module state detected (mode: 0x{op_mode:02x})")
+                    # If in invalid state, try complete reinitialization
+                    if not self.reinitialize_from_scratch():
+                        raise RuntimeError("Failed to reinitialize module")
+                
+                self.lora.send_data(data=data, data_length=data_length, 
+                                frame_counter=frame_counter)
+                self.packets_sent += 1
+                return True
+                
+            except Exception as e:
+                print(f"Send failed (attempt {retry_count + 1}/{max_retries}): {str(e)}")
+                retry_count += 1
+                
+                if retry_count < max_retries:
+                    print("Attempting complete reinitialization...")
+                    if self.reinitialize_from_scratch():
+                        time.sleep(1)  # Wait before retry
+                        continue
+                    
+            time.sleep(1)  # Brief delay between retries
+                
+        return False
             
     def send_status(self):
         """Send current status via LoRaWAN"""
