@@ -14,6 +14,7 @@ from display_manager import DisplayManager
 from lora_handler import LoRaHandler
 from module_detector import ModuleDetector
 from constants import BoilerDefaults
+import network
 
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def __init__(self):
@@ -285,7 +286,14 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         """Update display with current status using compact layout"""
         try:
             if self.state_machine.current_state == 'running' and self.display_manager.display:
-                # Calculate time since last state change
+                # Get WiFi status
+                wifi = network.WLAN(network.STA_IF)
+                wifi_status = "WiFi: ON" if wifi.isconnected() else "WiFi: OFF"
+                
+                # Get LoRa packet counts
+                lora_stats = f"LoRa: {self.lora_handler.packets_sent}/{self.lora_handler.packets_received}"
+                
+                # Calculate heating status
                 heating_active = time.time() - self.last_on_time < 5
                 
                 # Format display lines
@@ -296,8 +304,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     "-" * 21,  # Separator line
                     f"Target: {self._format_temp(self.setpoint)}", # Target temp
                     f"Actual: {self._format_temp(self.current_temp)}", # Current temp
-                    f"Error:  {self._format_temp(self.setpoint - self.current_temp if self.current_temp else None)}", # Temp error
-                    f"BTN: 1=Up 2=Down"  # Button help
+                    wifi_status,  # WiFi connection status
+                    lora_stats   # LoRa TX/RX packet counts
                 ]
                 
                 # Show all lines

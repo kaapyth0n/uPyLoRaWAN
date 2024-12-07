@@ -15,6 +15,8 @@ class LoRaHandler:
         self.controller = controller
         self.lora = None
         self.frame_counter = 0
+        self.packets_sent = 0      # Add counter for sent packets
+        self.packets_received = 0  # Add counter for received packets
         self.last_status_time = 0
         self.status_interval = 300  # 5 minutes between status updates
         self.initialized = False
@@ -74,6 +76,22 @@ class LoRaHandler:
             )
             self.initialized = False
             return False
+        
+    def send_data(self, data, data_length, frame_counter, timeout=5):
+        if not self.lora:
+            return False
+        try:
+            self.lora.send_data(data=data, data_length=data_length, 
+                            frame_counter=frame_counter)
+            self.packets_sent += 1
+            return True
+        except Exception as e:
+            self.controller.logger.log_error(
+                'lora',
+                f'Send failed: {e}',
+                severity=2
+            )
+            return False
             
     def send_status(self):
         """Send current status via LoRaWAN"""
@@ -120,7 +138,7 @@ class LoRaHandler:
             msg.append(1 if status['heating'] else 0)
             
             # Send message
-            self.lora.send_data(msg, len(msg), self.frame_counter)
+            self.send_data(msg, len(msg), self.frame_counter)
             self.frame_counter += 1
             
             self.last_status_time = time.time()
@@ -148,6 +166,7 @@ class LoRaHandler:
             payload: Message payload
         """
         try:
+            self.packets_received += 1
             if len(payload) < 2:
                 return
                 
