@@ -135,7 +135,7 @@ class WatchdogManager:
         self.controller.logger.log_error(
             'watchdog',
             'Display update timeout',
-            severity=1
+            severity=2
         )
         # Try to reinitialize display
         self.controller.display_manager.init_display()

@@ -25,8 +25,20 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.config_manager = ConfigurationManager()
         self.state_machine = StateMachine(self)
         self.temp_controller = TemperatureController(self.config_manager)
-        self.display_manager = DisplayManager()
+        
+        # Initialize display manager with controller reference
+        self.display_manager = DisplayManager(self)
+        
+        # Initialize watchdog manager before other components
         self.watchdog_manager = WatchdogManager(self)
+        
+        # Only enable display watchdog if display initialization succeeds
+        if self.display_manager.init_display():
+            print("Display initialized - enabling display watchdog")
+        else:
+            print("Display not available - disabling display watchdog")
+            self.watchdog_manager.disable('display')
+        
         self.recovery_manager = SystemRecovery(self)
         
         # Initialize FrSet interface
@@ -345,66 +357,39 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 time.sleep(5)
 
     def _update_display_status(self):
-        """Update display with current status using compact layout"""
+        """Update display with current system status using DisplayManager"""
+        
         try:
-            if self.state_machine.current_state == 'running' and self.display_manager.display:
-                # Get WiFi status
-                wifi = network.WLAN(network.STA_IF)
-                wifi_status = "WiFi: ON" if wifi.isconnected() else "WiFi: OFF"
-                
-                # Get LoRa packet counts
-                lora_stats = f"LoRa: {self.lora_handler.packets_sent}/{self.lora_handler.packets_received}"
-                
-                # Calculate heating status
-                heating_active = time.time() - self.last_on_time < 5
-                
-                # Format display lines
-                lines = [
-                    "Smart Boiler Status",  # Title
-                    f"Mode: {self.mode.upper()}",  # Operating mode
-                    f"State: {'HEAT' if heating_active else 'IDLE'}", # Heating status
-                    "-" * 21,  # Separator line
-                    f"Target: {self._format_temp(self.setpoint)}", # Target temp
-                    f"Actual: {self._format_temp(self.current_temp)}", # Current temp
-                    wifi_status,  # WiFi connection status
-                    lora_stats   # LoRa TX/RX packet counts
-                ]
-                
-                # Show all lines
-                self.display_manager.display.erase(0, display=0)
-                y_pos = 0
-                for line in lines:
-                    self.display_manager.display.show_text(
-                        line, 
-                        x=0, 
-                        y=y_pos, 
-                        font=2  # Using smaller font
-                    )
-                    y_pos += 8  # 8 pixel spacing between lines
-                    
-                # Display the buffer
-                self.display_manager.display.show(0)
-                
-            else:
-                # Show simplified status for non-running states
-                self.display_manager.show_status(
-                    "System Status",
-                    self.state_machine.current_state,
-                    f"Temp: {self._format_temp(self.current_temp)}",
-                    font=2
+            # Get WiFi status
+            wifi = network.WLAN(network.STA_IF)
+            
+            # Prepare status information
+            status = {
+                'mode': self.mode,
+                'heating_active': time.time() - self.last_on_time < 5,
+                'target_temp': self.setpoint,
+                'current_temp': self.current_temp,
+                'wifi_connected': wifi.isconnected(),
+                'lora_tx': self.lora_handler.packets_sent,
+                'lora_rx': self.lora_handler.packets_received
+            }
+            
+            # Use display manager to show status
+            success = self.display_manager.show_system_status(status)
+            
+            if not success:
+                self.logger.log_error(
+                    'display',
+                    'Failed to update status display',
+                    severity=1
                 )
                 
         except Exception as e:
-            self.logger.log_error('display', f'Display update failed: {e}', 1)
-            # Try to show error on display
-            try:
-                self.display_manager.show_status(
-                    "Display Error",
-                    str(e)[:21],
-                    font=2
-                )
-            except:
-                pass  # If this fails too, just continue
+            self.logger.log_error(
+                'display',
+                f'Display status update error: {e}',
+                severity=2
+            )
 
     def read_temperature(self):
         """Read current temperature from IO module"""
