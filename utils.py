@@ -47,9 +47,9 @@ def validate_temperature(temp):
     except:
         return False, "Invalid temperature format"
         
-    if temp < BoilerDefaults.MIN_TEMP:
+    if temp < -55:
         return False, f"Temperature too low: {temp}"
-    if temp > BoilerDefaults.MAX_TEMP:
+    if temp > 125:
         return False, f"Temperature too high: {temp}"
         
     return True, "Temperature valid"

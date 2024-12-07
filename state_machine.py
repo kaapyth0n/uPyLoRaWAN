@@ -100,7 +100,6 @@ class StateMachine:
             )
         elif self.current_state == SystemState.RUNNING:
             self._reset_error_count()
-            self.controller.run_diagnostic()
         elif self.current_state == SystemState.INITIALIZING:
             self._init_sequence()
             
@@ -160,28 +159,8 @@ class StateMachine:
                 )
             else:
                 print("LoRa initialized")
-                
-            # Run diagnostics
-            print("6. Running diagnostics...")
-            self.controller.display_manager.show_status(
-                "Initializing",
-                "Running tests"
-            )
-            if self.controller.run_diagnostic():
-                print("Diagnostics passed")
-                self.controller.display_manager.show_status(
-                    "Ready",
-                    "System OK"
-                )
                 print("6. Transitioning to RUNNING state...")
                 self.transition_to(SystemState.RUNNING)
-            else:
-                print("Diagnostics failed!")
-                self.controller.display_manager.show_status(
-                    "Init Failed",
-                    "Diagnostic error"
-                )
-                self.transition_to(SystemState.ERROR)
                 
         except Exception as e:
             print(f"Initialization sequence failed with error: {str(e)}")

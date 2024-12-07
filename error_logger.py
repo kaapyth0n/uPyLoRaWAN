@@ -57,7 +57,7 @@ class ErrorLogger:
         self._check_save()
         
         # Print critical errors immediately
-        if severity >= self.ERROR:
+        if severity >= self.WARNING:
             print(f"ERROR: {error_type} - {message}")
             
     def get_recent_errors(self, count=10, min_severity=1):

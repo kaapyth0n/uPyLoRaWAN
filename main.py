@@ -12,7 +12,6 @@ from watchdog import WatchdogManager
 from system_recovery import SystemRecovery
 from display_manager import DisplayManager
 from lora_handler import LoRaHandler
-from constants import BoilerDefaults
 from module_detector import ModuleDetector
 
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
@@ -28,9 +27,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.watchdog_manager = WatchdogManager(self)
         self.recovery_manager = SystemRecovery(self)
         
-        # Initialize hardware
+        # Initialize FrSet interface
         self.fr = FrSet()
-        self._init_hardware()
         self.lora_handler = LoRaHandler(self)
         
         # Initialize state
@@ -238,7 +236,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def read_temperature(self):
         """Read current temperature from IO module"""
         try:
-            temp = self.fr.read(12, slot=6)  # Parameter 12 is T_L2 temperature
+            temp = self.fr.read(6, slot=6)  # Parameter 6 is T_L1 temperature
             if temp is not None:
                 # Validate reading
                 valid, message = utils.validate_temperature(temp)
