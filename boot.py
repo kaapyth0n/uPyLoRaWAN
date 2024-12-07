@@ -115,6 +115,35 @@ def sync_time():
         update_display("Boot Status", "Time sync", "failed!")
         return False
 
+def check_updates():
+    try:
+        print("\nChecking for updates...")
+        if display:
+            update_display(
+                "Boot",
+                "Checking for",
+                "updates..."
+            )
+            
+        import update_checker
+        result = update_checker.check_and_update()
+        
+        if result.success and result.updated_files:
+            print(f"Updated {len(result.updated_files)} files, restarting...")
+            if display:
+                update_display(
+                    "Update Complete",
+                    f"{len(result.updated_files)} files",
+                    "updated"
+                )
+            utime.sleep(2)  # Show status
+            import machine
+            machine.reset()
+            
+    except Exception as e:
+        print(f"Update check failed: {e}")
+        # Continue boot process even if update fails
+
 # Initial boot message
 if display:
     #display.beep(1)
@@ -147,6 +176,7 @@ if config:
     try:
         if connect_wifi(config['ssid'], config['password']):
             sync_time()
+            check_updates()
         else:
             update_display("Boot Status", "WiFi failed", "Starting portal...")
             print("Could not connect to WiFi - starting config portal...")

@@ -1,6 +1,4 @@
 import time
-import network
-from error_logger import ErrorLogger
 
 class SystemState:
     """System state definitions"""
@@ -10,6 +8,8 @@ class SystemState:
     SAFE_MODE = "safe_mode"       # Critical error state
     CONFIGURING = "configuring"   # System configuration in progress
     DIAGNOSTICS = "diagnostics"   # Running diagnostics
+    
+    UPDATE_CHECK_INTERVAL = 24 * 3600  # Check once per day
     
     # State severity levels
     SEVERITY = {
@@ -115,33 +115,9 @@ class StateMachine:
                 "Checking hardware"
             )
             
-            # Check for updates
-            print("2. Checking for updates...")
-            self.controller.display_manager.show_status(
-                "Initializing",
-                "Checking updates"
-            )
-            
-            if network.WLAN(network.STA_IF).isconnected():
-                try:
-                    from update_checker import check_and_update
-                    update_result = check_and_update()
-                    if update_result.success:
-                        if update_result.updated_files:
-                            print(f"Updated {len(update_result.updated_files)} files")
-                            self.controller.display_manager.show_status(
-                                "Update Success",
-                                f"Updated {len(update_result.updated_files)}",
-                                "files"
-                            )
-                            time.sleep(2)  # Show update status briefly
-                        else:
-                            print("System up to date")
-                    else:
-                        print(f"Update check failed: {update_result.error}")
-                except Exception as e:
-                    print(f"Update check error: {e}")
-                    # Continue initialization even if update fails
+            # Set the time since when we check for updates
+            print("2. Set the update check timer...")
+            self.last_update_check = time.time()
             
             # Check hardware
             print("3. Checking hardware...")
@@ -258,6 +234,13 @@ class StateMachine:
         """
         try:
             current_time = time.time()
+
+            # Check for updates periodically (e.g., every 24 hours)
+            if (current_time - self.last_update_check > SystemState.UPDATE_CHECK_INTERVAL):
+                print("Scheduling periodic update check...")
+                import machine
+                machine.reset()
+                # System will reset here
             
             if self.current_state == SystemState.INITIALIZING:
                 if not hasattr(self, '_init_started'):
