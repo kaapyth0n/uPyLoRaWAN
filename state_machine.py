@@ -46,6 +46,7 @@ class StateMachine:
         self.max_errors = 3
         self.error_window = 3600  # 1 hour
         self.last_error_time = 0
+        self.last_update_check = time.time()
         
     def can_transition(self, new_state):
         """Check if transition to new state is allowed
@@ -114,10 +115,6 @@ class StateMachine:
                 "Initializing",
                 "Checking hardware"
             )
-            
-            # Set the time since when we check for updates
-            print("2. Set the update check timer...")
-            self.last_update_check = time.time()
             
             # Check hardware
             print("3. Checking hardware...")
