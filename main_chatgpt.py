@@ -3,7 +3,7 @@ import utime
 import struct
 import urandom
 from sx127x import TTN, SX127x
-from machine import Pin, SPI
+from machine import Pin, SoftSPI
 from config import *
 
 __DEBUG__ = True
@@ -11,14 +11,14 @@ __DEBUG__ = True
 # Create TTN configuration object
 ttn_config = TTN(ttn_config['devaddr'], ttn_config['nwkey'], ttn_config['app'], country=ttn_config['country'])
 
-# Initialize SPI for the LoRa module
-device_spi = SPI(
-    device_config['spi_unit'],
-    baudrate=10000000, 
-    polarity=0, phase=0, bits=8, firstbit=SPI.MSB,
-    sck=Pin(device_config['sck'], Pin.OUT, Pin.PULL_DOWN),
-    mosi=Pin(device_config['mosi'], Pin.OUT, Pin.PULL_UP),
-    miso=Pin(device_config['miso'], Pin.IN, Pin.PULL_UP)
+# Initialize SoftSPI for LoRa module
+device_spi = SoftSPI(
+    baudrate=5000000,  # You can adjust this if needed
+    polarity=0, 
+    phase=0,
+    sck=Pin(device_config['sck'], Pin.OUT),
+    mosi=Pin(device_config['mosi'], Pin.OUT),
+    miso=Pin(device_config['miso'], Pin.IN)
 )
 
 # Initialize the LoRa object
