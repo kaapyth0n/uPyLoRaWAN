@@ -556,7 +556,8 @@ class SX127x:
                     trigger=Pin.IRQ_RISING, handler = self.handle_on_receive
                 )
             else:
-                self._pin_rx_done.detach_irq()
+                #self._pin_rx_done.detach_irq():
+                self._pin_rx_done.irq(handler = None, trigger = 0)
 
 
     def handle_on_receive(self, event_source):
