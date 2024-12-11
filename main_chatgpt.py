@@ -12,7 +12,7 @@ ttn = TTN(ttn_config['devaddr'], ttn_config['nwkey'], ttn_config['app'], country
 
 # Initialize SoftSPI
 device_spi = SoftSPI(
-    baudrate=5000000, 
+    baudrate=1000000,  # Use a conservative speed to ensure stable SPI communication
     polarity=0, 
     phase=0,
     sck=Pin(device_config['sck'], Pin.OUT),
@@ -50,34 +50,51 @@ lora.on_receive(on_receive)
 
 def set_class_c_rx_params():
     """
-    Configure the radio for continuous reception on the RX2 frequency.
-    For EU868, RX2 frequency is 869.525 MHz and data rate SF12BW125 by default.
+    Configure the radio for continuous reception on the RX2 frequency and DR for EU868.
+    RX2: 869.525 MHz, SF12BW125.
     """
     lora.standby()
     freq = 869.525e6
     frf = int((freq / 32000000.0) * 524288)
 
-    # Set frequency registers
+    # Set frequency registers for 869.525 MHz
     lora.write_register(0x06, (frf >> 16) & 0xFF)
     lora.write_register(0x07, (frf >> 8) & 0xFF)
     lora.write_register(0x08, frf & 0xFF)
 
-    # Set data rate to SF12BW125
-    # This can be done using `lora.set_bandwidth("SF12BW125")`
+    # Set SF12BW125 for downlink reception
     lora.set_bandwidth("SF12BW125")
-    # Enable CRC if required by your network
     lora.enable_CRC(True)
 
     # Put into continuous receive mode
     lora.receive()
 
-# Set the device into Class C continuous reception mode on RX2 parameters
-set_class_c_rx_params()
+def set_uplink_params():
+    """
+    Configure the radio for uplink transmission in EU868.
+    We'll use 868.1 MHz and SF7BW125 for the uplink, which is a standard TTN channel.
+    """
+    lora.standby()
+    freq = 868.1e6
+    frf = int((freq / 32000000.0) * 524288)
+
+    # Set frequency registers for 868.1 MHz
+    lora.write_register(0x06, (frf >> 16) & 0xFF)
+    lora.write_register(0x07, (frf >> 8) & 0xFF)
+    lora.write_register(0x08, frf & 0xFF)
+
+    # Set SF7BW125 for uplink (common TTN config)
+    lora.set_bandwidth("SF7BW125")
+    lora.enable_CRC(True)
+    # TX power level is defined in config or you can adjust with lora.set_tx_power(level)
 
 print("LoRaWAN Class C device started.")
 print("Device is continuously listening on RX2 frequency (869.525 MHz, SF12BW125).")
 print("It will send an uplink message once per minute and then return to continuous RX.")
 print("Any downlink from the gateway will be received and displayed immediately.")
+
+# Start in continuous RX mode for Class C
+set_class_c_rx_params()
 
 while True:
     # Prepare uplink payload
@@ -91,7 +108,10 @@ while True:
         print("Payload (epoch, temp):", epoch, temperature)
         print("Payload (raw):", payload)
 
-    # Temporarily leave continuous RX mode to send uplink
+    # Before TX, configure uplink frequency and DR
+    set_uplink_params()
+
+    # Send uplink
     try:
         lora.send_data(data=payload, data_length=len(payload), frame_counter=frame_counter)
         print("Uplink message sent successfully.")
