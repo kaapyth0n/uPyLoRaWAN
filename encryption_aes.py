@@ -39,10 +39,72 @@ class AES:
         self.encrypt_payload(aes_data)
         return aes_data
 
-    def decrypt_payload(self, cipher):
+    def decrypt_payload(self, cipher, direction=1):
+        """
+        Decrypts a LoRaWAN FRMPayload given the keys, device address, frame counter, and direction.
+        
+        :param bytearray cipher: The encrypted FRMPayload data.
+        :param int direction: 0 for uplink, 1 for downlink (default: 1 for downlink).
+        :return: The decrypted payload as a bytearray.
+        """
         _aes = aes(self._app_key, 1)
-        print(cipher)
-        return cipher
+
+        data = bytearray(cipher)  # copy to modify in-place
+        block_a = bytearray(16)
+
+        # Calculate required number of blocks
+        num_blocks = len(data) // 16
+        incomplete_block_size = len(data) % 16
+        if incomplete_block_size != 0:
+            num_blocks += 1
+
+        k = 0
+        i = 1
+        while i <= num_blocks:
+            # Construct block A
+            block_a[0] = 0x01
+            block_a[1] = 0x00
+            block_a[2] = 0x00
+            block_a[3] = 0x00
+            block_a[4] = 0x00
+            # direction bit: 0=up,1=down
+            block_a[5] = direction & 0xFF
+
+            # DevAddr (LSB) - reverse order since original code took MSB first
+            block_a[6] = self._device_address[3]
+            block_a[7] = self._device_address[2]
+            block_a[8] = self._device_address[1]
+            block_a[9] = self._device_address[0]
+
+            # Frame counter (2 bytes, LSB)
+            block_a[10] = self.frame_counter & 0x00FF
+            block_a[11] = (self.frame_counter >> 8) & 0x00FF
+
+            block_a[12] = 0x00
+            block_a[13] = 0x00
+            block_a[14] = 0x00
+            block_a[15] = i
+
+            # Encrypt block_a to get S-block
+            s_block = bytearray(_aes.encrypt(block_a))
+
+            # XOR with data
+            if i != num_blocks:
+                # full 16-byte block
+                for j in range(16):
+                    data[k] ^= s_block[j]
+                    k += 1
+            else:
+                # last block (may be incomplete)
+                if incomplete_block_size == 0:
+                    incomplete_block_size = 16
+                for j in range(incomplete_block_size):
+                    data[k] ^= s_block[j]
+                    k += 1
+
+            i += 1
+
+        return data
 
     def encrypt_payload(self, data):
         """Encrypts data payload.
