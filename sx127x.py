@@ -276,148 +276,31 @@ class SX127x:
         self.write_register(REG_FIFO_ADDR_PTR, FifoTxBaseAddr)
         self.write_register(REG_PAYLOAD_LENGTH, 0)
 
-    def validate_rf_state(self):
-        """Validate RF parameters before transmission"""
-        print("\nValidating RF state:")
-        
-        # Check frequency
-        msb = self.read_register(REG_FRF_MSB)
-        mid = self.read_register(REG_FRF_MID)
-        lsb = self.read_register(REG_FRF_LSB)
-        print(f"Frequency registers: MSB=0x{msb:02x}, MID=0x{mid:02x}, LSB=0x{lsb:02x}")
-        
-        # Check power config
-        pa_config = self.read_register(REG_PA_CONFIG)
-        print(f"PA config: 0x{pa_config:02x}")
-        
-        # Check modem config
-        modem_config = self.read_register(REG_FEI_MSB)
-        print(f"Modem config: 0x{modem_config:02x}")
-        
-        # Validate frequency
-        expected_freq = self._frequencies[self._actual_channel]
-        frequency_ok = (msb == expected_freq[0] and 
-                    mid == expected_freq[1] and 
-                    lsb == expected_freq[2])
-        
-        # PA config only needs to have PA_BOOST bit set (0x80)
-        pa_ok = (pa_config & PA_BOOST) == PA_BOOST
-        
-        # Only check if frequency is correct, as PA config can vary
-        return frequency_ok
-
     def end_packet(self, timeout=5):
-        """Enhanced packet transmission with validation"""
-        current_mode = self.read_register(REG_OP_MODE)
-        print(f"Current mode before TX: 0x{current_mode:02x}")
-        
-        if current_mode == MODE_SLEEP or current_mode == 0x00:
-            print("Warning: Device was in sleep mode, transitioning to standby")
-            self.standby()
-            utime.sleep_ms(10)
-        
-        # Validate RF parameters
-        if not self.validate_rf_state():
-            print("RF parameter validation failed, reconfiguring...")
-            self.standby()  # This will restore parameters
-            if not self.validate_rf_state():
-                raise RuntimeError("Failed to restore RF parameters")
-        
-        # Clear any pending IRQ flags
-        self.write_register(REG_IRQ_FLAGS, 0xFF)
-        utime.sleep_ms(10)
-        
-        # Now transition to TX
+        # put in TX mode
         self.write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX)
-        print("\nStarting packet transmission...")
 
         start = utime.time()
         timed_out = False
 
-        while not timed_out:
-            irq_flags = self.read_register(REG_IRQ_FLAGS)
-            op_mode = self.read_register(REG_OP_MODE)
-            print(f"IRQ Flags: 0x{irq_flags:02x}, Op Mode: 0x{op_mode:02x}")
+        # wait for TX done, standby automatically on TX_DONE
+        #self.read_register(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK == 0 and \
+        irq_value = self.read_register(REG_IRQ_FLAGS)
+        while not timed_out and \
+              irq_value & IRQ_TX_DONE_MASK == 0:
             
-            if irq_flags & IRQ_TX_DONE_MASK:
-                print("TX_DONE flag received")
-                break  # Success - don't check mode as it automatically changes to STDBY
-                
             if utime.time() - start >= timeout:
-                print(f"Timeout after {timeout} seconds")
-                print(f"Final IRQ Flags: 0x{irq_flags:02x}")
-                print(f"Final Op Mode: 0x{op_mode:02x}")
                 timed_out = True
-            
-            utime.sleep_ms(100)
+            else:
+                irq_value = self.read_register(REG_IRQ_FLAGS)
 
-        # Clear IRQ's and return to standby
-        self.write_register(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK)
-        self.standby()
-        self.collect_garbage()
-        
         if timed_out:
             raise RuntimeError("Timeout during packet send")
 
-    def reset_module(self):
-        """Perform complete module reset and reinitialization"""
-        print("Performing full module reset...")
-        
-        # Toggle reset pin with longer delays
-        if "reset" in self._pins:
-            self._reset.value(False)
-            utime.sleep_ms(200)  # Longer reset pulse
-            self._reset.value(True)
-            utime.sleep_ms(200)  # Longer startup delay
+        # clear IRQ's
+        self.write_register(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK)
 
-        # Force to sleep mode first
-        self.write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP)
-        utime.sleep_ms(10)
-        
-        # Check version register to confirm communication
-        version = self.read_register(REG_VERSION)
-        if version != 0x12:
-            raise RuntimeError(f"Invalid version after reset: {version}")
-        
-        print("Reinitializing module configuration...")
-        
-        # Re-init all parameters in correct sequence
-        self.sleep()
-        
-        # Set frequency registers
-        if self._channel is not None:
-            self.set_frequency(self._channel)
-        
-        # Set data rate and bandwidth
-        self.set_bandwidth(self._parameters["signal_bandwidth"])
-        
-        # Set base addresses
-        self.write_register(REG_FIFO_TX_BASE_ADDR, FifoTxBaseAddr)
-        self.write_register(REG_FIFO_RX_BASE_ADDR, FifoRxBaseAddr)
-        
-        # Set LNA boost
-        self.write_register(REG_LNA, self.read_register(REG_LNA) | 0x03)
-        
-        # Set auto AGC
-        self.write_register(REG_MODEM_CONFIG, 0x04)
-        
-        # Set remaining parameters
-        self.implicit_header_mode(self._parameters['implicit_header'])
-        self.set_tx_power(self._parameters['tx_power_level'])
-        self.set_coding_rate(self._parameters['coding_rate'])
-        self.set_preamble_length(self._parameters['preamble_length'])
-        self.set_sync_word(self._parameters['sync_word'])
-        self.enable_CRC(self._parameters['enable_CRC'])
-        self.set_spreading_factor(self._parameters['spreading_factor'])
-        
-        # Clear any pending IRQ flags
-        self.write_register(REG_IRQ_FLAGS, 0xFF)
-        
-        # Verify configuration
-        if not self.validate_rf_state():
-            raise RuntimeError("Failed to restore configuration")
-            
-        print("Reset and reinitialization complete")
+        self.collect_garbage()
 
     def write(self, buffer, buffer_length):
         # update length
