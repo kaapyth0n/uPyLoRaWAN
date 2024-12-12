@@ -38,7 +38,7 @@ def on_receive(lora, data):
     else:
         try:
             hex_repr = data.hex()
-            ascii_repr = data.decode('utf-8', errors='replace')
+            ascii_repr = data.decode('utf-8')
             print("Raw Received Data (hex):", hex_repr)
             print("Raw Received Data (ascii):", ascii_repr)
         except Exception as e:
