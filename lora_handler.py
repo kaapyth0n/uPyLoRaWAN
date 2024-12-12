@@ -4,7 +4,21 @@ from sx127x import TTN, SX127x
 from config import device_config, lora_parameters, ttn_config
 
 class LoRaHandler:
-    """Handles LoRaWAN communication"""
+    """
+LoRaWAN Handler for Class C operation
+
+This handler manages LoRaWAN communication in Class C mode, which means:
+- Continuous reception on RX2 window (869.525 MHz, SF12BW125)
+- Transmission on uplink frequency (868.1 MHz, SF7BW125)
+- Proper IQ inversion handling (inverted for RX, normal for TX)
+- Automatic return to RX after transmission
+
+The handler provides:
+- Reliable message transmission with retries
+- Continuous downlink reception
+- Automatic mode switching
+- Error recovery with reinitalization
+"""
     
     def __init__(self, controller):
         """Initialize LoRa handler
@@ -22,7 +36,7 @@ class LoRaHandler:
         self.initialized = False
         
     def initialize(self):
-        """Initialize LoRa module with thorough initialization"""
+        """Initialize LoRa module with proper RX setup"""
         try:
             # Clear any existing state
             self.lora = None
@@ -76,21 +90,12 @@ class LoRaHandler:
             if not self.lora:
                 raise RuntimeError("LoRa initialization failed")
             
-            # Verify module responds correctly
-            from sx127x import REG_VERSION
-            version = self.lora.read_register(REG_VERSION)
-            if version != 0x12:
-                raise RuntimeError(f"Invalid version: {version}")
-                
-            # Verify RF parameters
-            if not self.lora.validate_rf_state():
-                raise RuntimeError("RF validation failed")
-            
             # Set receive callback
             self.lora.on_receive(self._handle_received)
             
-            # Start receiving
-            self.lora.receive()
+            # Configure for RX mode
+            if not self._set_rx_mode():
+                raise RuntimeError("Failed to set RX mode")
             
             self.initialized = True
             print("LoRa initialization successful")
@@ -138,8 +143,73 @@ class LoRaHandler:
             self.lora = None
             return False
         
+    def _set_rx_mode(self):
+        """Configure radio for reception (RX2 window)"""
+        if not self.lora:
+            return False
+            
+        try:
+            self.lora.standby()
+            freq = 869.525e6
+            frf = int((freq / 32000000.0) * 524288)
+            
+            # Set frequency registers for 869.525 MHz
+            self.lora.write_register(0x06, (frf >> 16) & 0xFF)
+            self.lora.write_register(0x07, (frf >> 8) & 0xFF)
+            self.lora.write_register(0x08, frf & 0xFF)
+            
+            # Set SF12BW125 for RX
+            self.lora.set_bandwidth("SF12BW125")
+            self.lora.enable_CRC(True)
+            
+            # Invert IQ for downlinks
+            self.lora.invert_IQ(True)
+            
+            # Enter continuous receive mode
+            self.lora.receive()
+            return True
+            
+        except Exception as e:
+            self.controller.logger.log_error(
+                'lora',
+                f'RX mode setup failed: {e}',
+                severity=2
+            )
+            return False
+
+    def _set_tx_mode(self):
+        """Configure radio for transmission"""
+        if not self.lora:
+            return False
+            
+        try:
+            self.lora.standby()
+            freq = 868.1e6
+            frf = int((freq / 32000000.0) * 524288)
+            
+            # Set frequency registers for 868.1 MHz
+            self.lora.write_register(0x06, (frf >> 16) & 0xFF)
+            self.lora.write_register(0x07, (frf >> 8) & 0xFF)
+            self.lora.write_register(0x08, frf & 0xFF)
+            
+            # Set SF7BW125 for uplink
+            self.lora.set_bandwidth("SF7BW125")
+            self.lora.enable_CRC(True)
+            
+            # Normal IQ for uplinks
+            self.lora.invert_IQ(False)
+            return True
+            
+        except Exception as e:
+            self.controller.logger.log_error(
+                'lora',
+                f'TX mode setup failed: {e}',
+                severity=2
+            )
+            return False
+        
     def send_data(self, data, data_length, frame_counter, timeout=5):
-        """Send data with complete reinitialization on failure"""
+        """Send data with proper TX configuration"""
         if not self.lora:
             if not self.reinitialize_from_scratch():
                 return False
@@ -152,20 +222,19 @@ class LoRaHandler:
         
         while retry_count < max_retries:
             try:
-                # First check module state
-                from sx127x import REG_OP_MODE
-                op_mode = self.lora.read_register(REG_OP_MODE)
-                if op_mode in [0x00, 0xFF] or not self.lora.validate_rf_state():
-                    print(f"Invalid module state detected (mode: 0x{op_mode:02x})")
-                    # If in invalid state, try complete reinitialization
-                    if not self.reinitialize_from_scratch():
-                        raise RuntimeError("Failed to reinitialize module")
-                
+                # Set TX mode
+                if not self._set_tx_mode():
+                    raise RuntimeError("Failed to set TX mode")
+                    
+                # Send the data
                 self.lora.send_data(data=data, data_length=data_length, 
                                 frame_counter=frame_counter)
                 self.packets_sent += 1
-                return True
                 
+                # Return to RX mode
+                self._set_rx_mode()
+                return True
+
             except Exception as e:
                 print(f"Send failed (attempt {retry_count + 1}/{max_retries}): {str(e)}")
                 retry_count += 1
