@@ -155,8 +155,8 @@ class SX127x:
 
         # setting pins
         if "dio_0" in self._pins:
-            self._pin_rx_done = Pin(self._pins["dio_0"], Pin.IN)
-            self._irq = Pin(self._pins["dio_0"], Pin.IN)
+            self._pin_rx_done = Pin(self._pins["dio_0"], Pin.IN, Pin.PULL_UP)
+            self._irq = Pin(self._pins["dio_0"], Pin.IN, Pin.PULL_UP)
         if "ss" in self._pins:
             self._pin_ss = Pin(self._pins["ss"], Pin.OUT)
         if "led" in self._pins:
@@ -673,7 +673,8 @@ class SX127x:
                     trigger=Pin.IRQ_RISING, handler = self.handle_on_receive
                 )
             else:
-                self._pin_rx_done.detach_irq()
+                #self._pin_rx_done.detach_irq():
+                self._pin_rx_done.irq(handler = None, trigger = 0)
 
 
     def handle_on_receive(self, event_source):
