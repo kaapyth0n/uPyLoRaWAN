@@ -314,7 +314,7 @@ The handler provides:
             return self.send_status()
         return True
             
-    def _handle_received(self, lora, payload):
+    def _handle_received(self, lora, payload: bytearray):
         """Handle received LoRaWAN message
         
         Args:
@@ -325,6 +325,8 @@ The handler provides:
             self.packets_received += 1
             if len(payload) < 2:
                 return
+            
+            print("Decrypted Payload (hex):", payload.hex())
                 
             # Get message type
             msg_type = payload[0]
