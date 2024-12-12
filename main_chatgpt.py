@@ -16,7 +16,7 @@ ttn = TTN(ttn_config['devaddr'], ttn_config['nwkey'], ttn_config['app'], country
 
 # Initialize SoftSPI
 device_spi = SoftSPI(
-    baudrate=1000000,  # conservative speed for reliability
+    baudrate=5000000,
     polarity=0, 
     phase=0,
     sck=Pin(device_config['sck'], Pin.OUT),
