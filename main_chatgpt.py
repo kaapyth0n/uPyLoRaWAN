@@ -4,8 +4,12 @@ import urandom
 from sx127x import TTN, SX127x
 from machine import Pin, SoftSPI
 from config import *
+import uLoRaWAN
 
 __DEBUG__ = True
+
+nwkey = ttn_config['nwkey']  # NwkSKey
+appkey = ttn_config['app']   # AppSKey
 
 # Initialize TTN configuration
 ttn = TTN(ttn_config['devaddr'], ttn_config['nwkey'], ttn_config['app'], country=ttn_config['country'])
@@ -36,14 +40,35 @@ def on_receive(lora, data):
     if not data:
         print("Received empty or invalid message.")
     else:
+        # Create a PhyPayload object with your LoRaWAN keys
+        phy = uLoRaWAN.new(nwkey, appkey)
         try:
-            hex_repr = data.hex()
-            ascii_repr = data.decode('utf-8')
-            print("Raw Received Data (hex):", hex_repr)
-            print("Raw Received Data (ascii):", ascii_repr)
+            # Read the raw LoRaWAN packet
+            phy.read(list(data))
+            
+            # Validate MIC
+            if phy.valid_mic():
+                # Decrypt payload
+                decrypted_payload = phy.get_payload()
+                # decrypted_payload is a list of ints, convert to bytes
+                decrypted_bytes = bytes(decrypted_payload)
+                print("Decrypted Payload (hex):", decrypted_bytes.hex())
+                
+                # Now decode as ASCII or UTF-8 (if it's text)
+                try:
+                    ascii_repr = decrypted_bytes.decode('utf-8')
+                except Exception:
+                    try:
+                        ascii_repr = decrypted_bytes.decode('ascii', 'ignore')
+                    except Exception:
+                        ascii_repr = "Unable to decode as ASCII or UTF-8."
+
+                print("Decrypted Payload (ascii):", ascii_repr)
+            else:
+                print("Invalid MIC, message integrity check failed.")
         except Exception as e:
-            print("Error decoding message:", e)
-            print("Received message (raw):", data)
+            print("Error decrypting message:", e)
+
     print(">>> End of incoming message.\n")
 
 lora.on_receive(on_receive)
