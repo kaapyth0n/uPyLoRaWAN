@@ -49,9 +49,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.lora_handler = LoRaHandler(self)
         
         # Initialize state
-        self.setpoint = BoilerDefaults.MIN_TEMP  # Changed from None to default
         self.current_temp = None
-        self.mode = 'relay'
         self.last_on_time = 0
         self.last_off_time = 0
         self.last_button_state = 0
@@ -64,6 +62,14 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         # Add LoRa timing control
         self.last_lora_update = 0
         self.lora_update_interval = 60  # Send every 60 seconds
+
+    def _get_setpoint(self):
+        """Get setpoint from configuration"""
+        return self.config_manager.get_param('setpoint')
+    
+    def _get_mode(self):
+        """Get mode from configuration"""
+        return self.config_manager.get_param('mode')
 
     def _check_buttons(self):
         """Handle button presses with debouncing"""
@@ -84,33 +90,24 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 self.last_button_state = button_state
                 self.last_button_time = current_time
                 
+                new_setpoint = self._get_setpoint()
                 # First button pressed (bit 0)
                 if button_state & 0x01:
                     # Increase setpoint
-                    new_setpoint = min(
-                        self.setpoint + 1, 
-                        BoilerDefaults.MAX_TEMP
-                    )
-                    if new_setpoint != self.setpoint:
-                        self.setpoint = new_setpoint
-                        print(f"Setpoint increased to {self.setpoint}°C")
-                        # Beep to indicate change
-                        if self.display_manager.display:
-                            self.display_manager.display.beep(1)
-                        
+                    new_setpoint = self._get_setpoint() + 1
                 # Second button pressed (bit 1)
                 elif button_state & 0x02:
                     # Decrease setpoint
-                    new_setpoint = max(
-                        self.setpoint - 1,
-                        BoilerDefaults.MIN_TEMP
-                    )
-                    if new_setpoint != self.setpoint:
-                        self.setpoint = new_setpoint
-                        print(f"Setpoint decreased to {self.setpoint}°C")
-                        # Beep to indicate change
-                        if self.display_manager.display:
-                            self.display_manager.display.beep(1)
+                    new_setpoint = self._get_setpoint() - 1
+                
+                success, message = self.config_manager.set_param('setpoint', new_setpoint)
+                if success:
+                    print(f"Setpoint changed to {new_setpoint}°C")
+                    # Beep to indicate change
+                    if self.display_manager.display:
+                        self.display_manager.display.beep(1)
+                else:
+                    print(f"Failed to change setpoint: {message}")
                         
         except Exception as e:
             self.logger.log_error('buttons', f'Button handling failed: {e}', 1)
@@ -234,8 +231,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 msg[2] = 0xFF
                 
             # Convert setpoint
-            if self.setpoint is not None:
-                setpoint_fixed = int(self.setpoint * 10)
+            if self._get_setpoint() is not None:
+                setpoint_fixed = int(self._get_setpoint() * 10)
                 msg[3] = (setpoint_fixed >> 8) & 0xFF
                 msg[4] = setpoint_fixed & 0xFF
             else:
@@ -314,11 +311,11 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     
                     # Update control logic if we have valid setpoint
                     if self.current_temp is not None:
-                        if self.setpoint is not None:
+                        if self._get_setpoint() is not None:
                             dt = current_time - self.temp_controller.last_control_time
                             should_heat, error = self.temp_controller.calculate_control_action(
                                 self.current_temp,
-                                self.setpoint,
+                                self._get_setpoint(),
                                 dt
                             )
                             
@@ -367,9 +364,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             
             # Prepare status information
             status = {
-                'mode': self.mode,
+                'mode': self._get_mode(),
                 'heating_active': time.time() - self.last_on_time < 5,
-                'target_temp': self.setpoint,
+                'target_temp': self._get_setpoint(),
                 'current_temp': self.current_temp,
                 'wifi_connected': wifi.isconnected(),
                 'lora_tx': self.lora_handler.packets_sent,
