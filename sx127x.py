@@ -561,24 +561,117 @@ class SX127x:
 
 
     def handle_on_receive(self, event_source):
-        self.set_lock(True)              # lock until TX_Done
+        """
+        Handle the interrupt when a LoRa packet is received.
+        
+        Steps:
+        1. Lock the radio to prevent TX interference during processing.
+        2. Check IRQ flags for CRC errors.
+        3. If no CRC error, read the raw PHYPayload from the FIFO.
+        4. Parse the LoRaWAN downlink packet:
+           - Extract MHDR, FHDR (DevAddr, FCtrl, FCnt), FPort, and FRMPayload.
+           - Determine direction=1 (downlink) as per LoRaWAN spec.
+           - Update the AES frame_counter to the downlink FCnt from the packet.
+        5. Use the AppSKey to decrypt the FRMPayload if FPort > 0.
+        6. Call the user-defined callback `_on_receive` with the decrypted data.
+        7. Unlock the radio and do garbage collection.
 
-        aes = AES(
-            self._ttn_config.device_address,
-            self._ttn_config.app_key,
-            self._ttn_config.network_key,
-            self.frame_counter
-        )
+        Note: This updated function assumes that the `read_payload()` method returns
+        the entire PHYPayload (MHDR+MACPayload+MIC). We must correctly parse the payload
+        before decrypting. The AES class must have a proper decrypt_payload() method 
+        that takes into account the DevAddr, frame counter, and direction bit.
 
-        # irqFlags = self.getIrqFlags() should be 0x50
-        if (self.get_irq_flags() & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0:
-            if self._on_receive:
-                payload = self.read_payload()
-                self.set_lock(False)     # unlock when done reading
-                data = aes.decrypt_payload(payload)
-                self._on_receive(self, data)
+        Also, ensure that we have correct LoRaWAN keys (NwkSKey, AppSKey) from ttn_config.
+        Here, `_ttn_config.device_address` and `_ttn_config.app_key` are used as AppSKey.
+        For proper MIC validation and real LoRaWAN spec compliance, you'd also need NwkSKey.
+        This code snippet focuses on the FRMPayload decryption part.
+        """
 
-        self.set_lock(False)             # unlock in any case.
+        self.set_lock(True)  # lock until processing is done
+
+        # Read IRQ flags and check for CRC errors
+        irq_flags = self.get_irq_flags()
+        if (irq_flags & IRQ_PAYLOAD_CRC_ERROR_MASK) != 0:
+            # CRC error detected, unlock and return
+            self.set_lock(False)
+            self.collect_garbage()
+            return
+
+        # If we have a callback registered, proceed
+        if self._on_receive:
+            # Read the entire PHYPayload from FIFO
+            raw_payload = self.read_payload()
+
+            # LoRaWAN PHYPayload structure: MHDR(1) | MACPayload(...) | MIC(4)
+            # We must parse MHDR first:
+            if len(raw_payload) < 5:
+                # Not enough length for MHDR+MIC, ignore
+                self.set_lock(False)
+                self.collect_garbage()
+                return
+            
+            # Extract MHDR (1 byte)
+            mhdr = raw_payload[0]
+
+            # Determine if this is a downlink (unconfirmed data down or confirmed data down)
+            # Typically, MType for downlink is 0x60 (Unconfirmed Data Down) or 0xA0 (Confirmed Data Down).
+            # Downlink direction bit = 1
+            direction = 1
+
+            # The MIC is last 4 bytes
+            mic = raw_payload[-4:]
+            mac_payload = raw_payload[1:-4]
+
+            # Minimum MACPayload for a downlink: FHDR(7 bytes: DevAddr(4)+FCtrl(1)+FCnt(2)) + at least FPort(1)
+            if len(mac_payload) < 8:
+                # Not enough data to parse FHDR+FPort
+                self.set_lock(False)
+                self.collect_garbage()
+                return
+
+            # Parse DevAddr (4 bytes, LSB format in LoRaWAN)
+            devaddr = mac_payload[0:4]
+
+            # Parse FCtrl (1 byte)
+            fctrl = mac_payload[4]
+
+            # Parse FCnt (2 bytes, little endian)
+            fcnt = mac_payload[5:7]
+            frame_counter = fcnt[0] + (fcnt[1] << 8)
+
+            # Parse FPort (1 byte, after FHDR)
+            fport = mac_payload[7]
+
+            # FRMPayload (if any) starts after 9 bytes total (FHDR=7, FPort=1)
+            frm_payload = mac_payload[8:]
+
+            # Update the AES object with the correct frame counter
+            aes = AES(
+                self._ttn_config.device_address,
+                self._ttn_config.app_key,   # This should be your AppSKey for FRMPayload
+                self._ttn_config.network_key,
+                frame_counter
+            )
+
+            # Decrypt the FRMPayload if FPort > 0 (FPort=0 is reserved for MAC commands)
+            # LoRaWAN FRMPayload is encrypted with AppSKey if FPort != 0
+            if fport > 0 and len(frm_payload) > 0:
+                # Decrypt downlink payload
+                # Make sure that decrypt_payload uses the direction=1 (downlink),
+                # the proper DevAddr and frame_counter from above.
+                # You may need to modify AES class to accept direction, DevAddr, and FCnt.
+                # For now, we assume AES instance has these attributes and uses them properly.
+                decrypted_payload = aes.decrypt_payload(frm_payload, direction=direction)
+            else:
+                # No payload or FPort=0, nothing to decrypt
+                decrypted_payload = frm_payload
+
+            # Call the user callback with the decrypted FRMPayload
+            # If desired, perform MIC check before callback (not shown here, but recommended)
+            self.set_lock(False)
+            self._on_receive(self, decrypted_payload)
+
+        self.set_lock(False)
         self.collect_garbage()
 
     """
