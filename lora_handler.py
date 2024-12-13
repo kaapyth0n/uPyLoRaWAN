@@ -330,12 +330,16 @@ The handler provides:
                 
             # Get message type
             msg_type = payload[0]
+            print("Message Type:", msg_type)
             
             if msg_type == 0:  # Configuration message
+                print("Configuration Message")
                 self._handle_config(payload[1:])
             elif msg_type == 1:  # Command message
+                print("Command Message")
                 self._handle_command(payload[1:])
             elif msg_type == 2:  # Query message
+                print("Query Message")
                 self._handle_query(payload[1:])
                 
         except Exception as e:
@@ -353,18 +357,22 @@ The handler provides:
         try:
             # Get mode
             mode = 'sensor' if payload[0] else 'relay'
+            print("Mode:", mode)
             
             # Get setpoint (fixed point, 1 decimal place)
             setpoint = ((payload[1] << 8) | payload[2]) / 10.0
+            print("Setpoint:", setpoint)
             
             # Update configuration
             success, message = self.controller.config_manager.set_param('mode', mode)
             if success:
                 self.controller.mode = mode
-                
+            print("Mode Update:", success, message)    
+            
             success, message = self.controller.config_manager.set_param('setpoint', setpoint)
             if success:
                 self.controller.setpoint = setpoint
+            print("Setpoint Update:", success, message)
                 
             # Send confirmation
             self.send_status()
