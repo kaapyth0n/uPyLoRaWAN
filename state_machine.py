@@ -1,4 +1,5 @@
 import time
+import machine
 
 class SystemState:
     """System state definitions"""
@@ -8,6 +9,7 @@ class SystemState:
     SAFE_MODE = "safe_mode"       # Critical error state
     CONFIGURING = "configuring"   # System configuration in progress
     DIAGNOSTICS = "diagnostics"   # Running diagnostics
+    RESETTING = "resetting"       # Resetting system
     
     UPDATE_CHECK_INTERVAL = 24 * 3600  # Check once per day
     
@@ -18,17 +20,18 @@ class SystemState:
         ERROR: 2,
         SAFE_MODE: 3,
         CONFIGURING: 1,
-        DIAGNOSTICS: 1
+        DIAGNOSTICS: 1,
+        RESETTING: 3
     }
     
     # Allowed state transitions
     ALLOWED_TRANSITIONS = {
-        INITIALIZING: [RUNNING, ERROR, SAFE_MODE],
-        RUNNING: [ERROR, SAFE_MODE, CONFIGURING, DIAGNOSTICS],
-        ERROR: [RUNNING, SAFE_MODE],
-        SAFE_MODE: [INITIALIZING],  # Only after manual intervention
-        CONFIGURING: [RUNNING, ERROR],
-        DIAGNOSTICS: [RUNNING, ERROR]
+        INITIALIZING: [RUNNING, ERROR, SAFE_MODE, RESETTING],
+        RUNNING: [ERROR, SAFE_MODE, CONFIGURING, DIAGNOSTICS, RESETTING],
+        ERROR: [RUNNING, SAFE_MODE, RESETTING],
+        SAFE_MODE: [INITIALIZING, RESETTING],  # Only after manual intervention
+        CONFIGURING: [RUNNING, ERROR, RESETTING],
+        DIAGNOSTICS: [RUNNING, ERROR, RESETTING]
     }
 
 class StateMachine:
@@ -229,8 +232,7 @@ class StateMachine:
             # Check for updates periodically (e.g., every 24 hours)
             if (current_time - self.last_update_check > SystemState.UPDATE_CHECK_INTERVAL):
                 print("Scheduling periodic update check...")
-                import machine
-                machine.reset()
+                self.transition_to(SystemState.RESETTING)
                 # System will reset here
             
             if self.current_state == SystemState.INITIALIZING:
@@ -256,6 +258,12 @@ class StateMachine:
                     if self._check_recovery_conditions():
                         self._reset_error_count()
                         self.transition_to(SystemState.INITIALIZING)
+                    else:
+                        self.transition_to(SystemState.RESETTING)
+            
+            elif self.current_state == SystemState.RESETTING:
+                # Reset system
+                machine.reset()
                         
         except Exception as e:
             print(f"State machine update error: {str(e)}")

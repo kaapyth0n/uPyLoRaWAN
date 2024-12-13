@@ -348,7 +348,7 @@ The handler provides:
                 f'Message handling failed: {e}',
                 severity=2
             )
-            
+
     def _handle_config(self, payload):
         """Handle configuration message"""
         if len(payload) < 3:
@@ -392,11 +392,13 @@ The handler provides:
         try:
             command = payload[0]
             
-            if command == 0:  # Reset
+            if command == 0:  # Reinitialize
                 self.controller.state_machine.transition_to('initializing')
-            elif command == 1:  # Run diagnostic
+            elif command == 1:  # Reset
+                self.controller.state_machine.transition_to('resetting')
+            elif command == 2:  # Run diagnostic
                 self.controller.run_diagnostic()
-            elif command == 2:  # Clear errors
+            elif command == 3:  # Clear errors
                 self.controller.logger.clear_errors()
                 
             # Send status after command

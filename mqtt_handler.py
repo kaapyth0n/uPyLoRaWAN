@@ -185,8 +185,10 @@ class MQTTHandler:
         try:
             command = data.get('command')
             
-            if command == 'reset':
+            if command == 'reinitialize':
                 self.controller.state_machine.transition_to('initializing')
+            elif command == 'reset':
+                self.controller.state_machine.transition_to('resetting')
             elif command == 'diagnostic':
                 self.controller.run_diagnostic()
             elif command == 'clear_errors':
