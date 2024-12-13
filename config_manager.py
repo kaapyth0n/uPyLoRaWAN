@@ -19,6 +19,12 @@ class ConfigurationManager:
                 'allowed_values': ['relay', 'sensor'],
                 'default': 'relay'
             },
+            'setpoint': {
+                'type': float,
+                'min': 0,
+                'max': 100,
+                'default': BoilerDefaults.DEFAULT_TEMP
+            },
             'min_temp': {
                 'type': float,
                 'min': 0,
@@ -200,6 +206,13 @@ class ConfigurationManager:
         valid, message = self.validate_param(param_name, value)
         if not valid:
             return False, message
+        
+        print(f"Setting {param_name} to {value}")
+        print(f"Current value: {self.current_config.get(param_name)}")
+        
+        # Check if value has changed
+        if self.current_config.get(param_name) == value:
+            return True, "No change"
             
         # Store change
         self.current_config[param_name] = value
