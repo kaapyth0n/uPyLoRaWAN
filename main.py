@@ -391,6 +391,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 'target_temp': self._get_setpoint(),
                 'current_temp': self.current_temp,
                 'wifi_connected': wifi.isconnected(),
+                'mqtt_connected': self.mqtt_handler.initialized,
+                'mqtt_tx': self.mqtt_handler.messages_published,
+                'mqtt_rx': self.mqtt_handler.messages_received,
                 'lora_tx': self.lora_handler.packets_sent,
                 'lora_rx': self.lora_handler.packets_received
             }

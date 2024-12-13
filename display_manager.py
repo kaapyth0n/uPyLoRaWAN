@@ -197,6 +197,9 @@ class DisplayManager:
                 - target_temp: Target temperature
                 - current_temp: Current temperature
                 - wifi_connected: WiFi connection status
+                - mqtt_connected: MQTT connection status
+                - mqtt_tx: MQTT packets transmitted
+                - mqtt_rx: MQTT packets received
                 - lora_tx: LoRa packets transmitted
                 - lora_rx: LoRa packets received
                 
@@ -220,19 +223,18 @@ class DisplayManager:
             self.display.show_text(mode_text, x=0, y=8, font=2)
             self.display.show_text(heating_text, x=0, y=16, font=2)
             
-            # Separator line
-            self.display.show_text("-" * 21, x=0, y=24, font=2)
-            
             # Temperature information
             target_text = f"Target: {self._format_temp(status['target_temp'])}"
             current_text = f"Actual: {self._format_temp(status['current_temp'])}"
-            self.display.show_text(target_text, x=0, y=32, font=2)
-            self.display.show_text(current_text, x=0, y=40, font=2)
+            self.display.show_text(target_text, x=0, y=24, font=2)
+            self.display.show_text(current_text, x=0, y=32, font=2)
             
             # Network status
             wifi_text = f"WiFi: {'ON' if status['wifi_connected'] else 'OFF'}"
+            mqtt_text = f"MQTT: {'ON' if status['mqtt_connected'] else 'OFF'} {status['mqtt_tx']}/{status['mqtt_rx']}"
             lora_text = f"LoRa: {status['lora_tx']}/{status['lora_rx']}"
-            self.display.show_text(wifi_text, x=0, y=48, font=2)
+            self.display.show_text(wifi_text, x=0, y=40, font=2)
+            self.display.show_text(mqtt_text, x=0, y=48, font=2)
             self.display.show_text(lora_text, x=0, y=56, font=2)
             
             # Display the buffer
