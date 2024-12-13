@@ -204,8 +204,10 @@ class MQTTHandler:
         """
         try:
             value = data.get('value')
+            print(f"Received config update for {param}: {value}")
             if value is not None:
-                self.controller.config_manager.set_param(param, value)
+                success, message = self.controller.config_manager.set_param(param, value)
+                print(f"Config update result: {success}, {message}")
                 
         except Exception as e:
             print(f"Error handling config: {e}")

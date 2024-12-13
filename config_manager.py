@@ -83,7 +83,7 @@ class ConfigurationManager:
         
         # Type check
         if not isinstance(value, param_def['type']):
-            return False, f"Invalid type for {param_name}: expected {param_def['type'].__name__}"
+            return False, f"Invalid type for {param_name}: expected {param_def['type'].__name__}, got {type(value).__name__}"
             
         # Value checks
         if 'allowed_values' in param_def:
