@@ -159,8 +159,21 @@ class StateMachine:
                     "LoRa initialization failed",
                     severity=2
                 )
+            print("LoRa initialized")
+            # Initialize MQTT
+            print("Initializing MQTT...")
+            self.controller.display_manager.show_status(
+                "Initializing",
+                "Starting MQTT"
+            )
+            if not self.controller.mqtt_handler.initialize():
+                print("MQTT initialization failed - continuing anyway")
+                self.controller.logger.log_error(
+                    'initialization',
+                    "MQTT initialization failed",
+                    severity=2
+                )
             else:
-                print("LoRa initialized")
                 print("6. Transitioning to RUNNING state...")
                 self.transition_to(SystemState.RUNNING)
                 

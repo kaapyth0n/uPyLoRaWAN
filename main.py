@@ -12,6 +12,7 @@ from watchdog import WatchdogManager
 from system_recovery import SystemRecovery
 from display_manager import DisplayManager
 from lora_handler import LoRaHandler
+from mqtt_handler import MQTTHandler
 from module_detector import ModuleDetector
 from constants import BoilerDefaults
 import network
@@ -47,6 +48,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         print("Initializing FrSet interface in SBI _init_...")
         self.fr = FrSet()
         self.lora_handler = LoRaHandler(self)
+
+        # Initialize MQTT handler
+        self.mqtt_handler = MQTTHandler(self)
         
         # Initialize state
         self.current_temp = None
@@ -343,6 +347,24 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                             print("LoRa status sent successfully")
                         else:
                             print("Failed to send LoRa status")
+
+                    
+                    # Check MQTT connection
+                    if self.mqtt_handler.initialized:
+                        if not self.mqtt_handler.check_connection():
+                            continue
+                            
+                        # Check for messages
+                        self.mqtt_handler.check_msg()
+                        
+                        # Publish periodic updates
+                        if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
+                            # Publish temperature
+                            self.mqtt_handler.publish_data('temperature', self.current_temp)
+                            # Publish mode
+                            self.mqtt_handler.publish_data('mode', self.config_manager.get_param('mode'))
+                            # Publish setpoint
+                            self.mqtt_handler.publish_data('setpoint', self.config_manager.get_param('setpoint'))
                             
                     # Update display
                     self._update_display_status()
