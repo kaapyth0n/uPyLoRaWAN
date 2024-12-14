@@ -176,9 +176,9 @@ class StateMachine:
                     "MQTT initialization failed",
                     severity=2
                 )
-            else:
-                print("6. Transitioning to RUNNING state...")
-                self.transition_to(SystemState.RUNNING)
+            print("MQTT initialized")
+            print("6. Transitioning to RUNNING state...")
+            self.transition_to(SystemState.RUNNING)
                 
         except Exception as e:
             print(f"Initialization sequence failed with error: {str(e)}")
