@@ -329,9 +329,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     # Update display and pet watchdog if successful
                     if self._update_display_status():
                         self.watchdog_manager.pet('display')
-                            
-                    # Update display
-                    self._update_display_status()
                     
                 # Small delay
                 time.sleep(1)
