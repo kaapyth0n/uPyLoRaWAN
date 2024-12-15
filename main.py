@@ -429,21 +429,39 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             return False
 
     def read_temperature(self):
-        """Read current temperature from IO module"""
-        try:
-            temp = self.fr.read(6, slot=6)  # Parameter 6 is T_L1 temperature
-            if temp is not None:
-                # Validate reading
-                valid, message = utils.validate_temperature(temp)
-                if valid:
-                    self.current_temp = temp
-                    return temp
-                else:
-                    self.logger.log_error('temperature', f'Invalid reading: {message}', 2)
-            return None
-        except Exception as e:
-            self.logger.log_error('temperature', f'Temperature read failed: {e}', 2)
-            return None
+        """Read temperature from IO module with retry mechanism and validation"""
+        MAX_RETRIES = 3
+        retry_count = 0
+        
+        while retry_count < MAX_RETRIES:
+            try:
+                # Clear any pending errors
+                self.fr.read(2, slot=6)  # Read and clear error register
+                
+                # Read temperature
+                temp = self.fr.read(6, slot=6)
+                if temp is not None:
+                    # Validate reading
+                    valid, message = utils.validate_temperature(temp)
+                    if valid:
+                        self.current_temp = temp
+                        return temp
+                    else:
+                        self.logger.log_error('temperature', f'Invalid reading: {message}', 1)
+                
+                retry_count += 1
+                if retry_count < MAX_RETRIES:
+                    time.sleep(0.1)  # Small delay between retries
+                    
+            except Exception as e:
+                self.logger.log_error('temperature', f'Read failed: {e}', 2)
+                retry_count += 1
+                if retry_count < MAX_RETRIES:
+                    time.sleep(0.1)
+                    
+        # All retries failed
+        self.logger.log_error('temperature', 'All temperature read attempts failed', 3)
+        return None
         
     def _activate_heating(self):
         """Activate heating with safety checks"""
