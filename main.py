@@ -14,7 +14,6 @@ from display_manager import DisplayManager
 from lora_handler import LoRaHandler
 from mqtt_handler import MQTTHandler
 from module_detector import ModuleDetector
-from constants import BoilerDefaults
 import network
 
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
@@ -307,7 +306,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 elif current_state == SystemState.RUNNING:
                     current_time = time.time()
                     
-                    # Read temperature and pet watchdog
+                    # Read temperature and pet watchdog if successful
                     if self.read_temperature():
                         self.watchdog_manager.pet('temperature')
                         print(f"Temperature: {self.current_temp:.1f}°C")
@@ -315,58 +314,20 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     # Add button check to main loop
                     self._check_buttons()
                     
-                    # Update control logic if we have valid setpoint
-                    if self.current_temp is not None:
-                        if self._get_setpoint() is not None:
-                            dt = current_time - self.temp_controller.last_control_time
-                            should_heat, error = self.temp_controller.calculate_control_action(
-                                self.current_temp,
-                                self._get_setpoint(),
-                                dt
-                            )
-                            
-                            if should_heat:
-                                self._activate_heating()
-                                print("Heating active")
-                            else:
-                                self._deactivate_heating()
-                                print("Heating inactive")
-                            
-                            self.watchdog_manager.pet('control')
-                        else:
-                            print("Waiting for setpoint...")
-                            self.display_manager.show_status(
-                                "Running",
-                                "Waiting for",
-                                "setpoint..."
-                            )
-                            
-                    # Check if it's time to send LoRa update
-                    if current_time - self.last_lora_update >= self.lora_update_interval:
-                        if self._send_lora_status():
-                            self.last_lora_update = current_time
-                            self.watchdog_manager.pet('lora')
-                            print("LoRa status sent successfully")
-                        else:
-                            print("Failed to send LoRa status")
-
+                    # Handle control logic
+                    if self._update_control_logic():
+                        self.watchdog_manager.pet('control')
                     
-                    # Check MQTT connection
-                    if self.mqtt_handler.initialized:
-                        if not self.mqtt_handler.check_connection():
-                            continue
-                            
-                        # Check for messages
-                        self.mqtt_handler.check_msg()
-                        
-                        # Publish periodic updates
-                        if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
-                            # Publish temperature
-                            self.mqtt_handler.publish_data('temperature', self.current_temp)
-                            # Publish mode
-                            self.mqtt_handler.publish_data('mode', self.config_manager.get_param('mode'))
-                            # Publish setpoint
-                            self.mqtt_handler.publish_data('setpoint', self.config_manager.get_param('setpoint'))
+                    # Handle LoRa communication
+                    if self._handle_lora_communication():
+                        self.watchdog_manager.pet('lora')
+                    
+                    # Handle MQTT if enabled
+                    self._handle_mqtt_communication()
+                    
+                    # Update display and pet watchdog if successful
+                    if self._update_display_status():
+                        self.watchdog_manager.pet('display')
                             
                     # Update display
                     self._update_display_status()
@@ -378,6 +339,54 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 print(f"Error in main loop: {str(e)}")
                 self.state_machine.handle_error(e)
                 time.sleep(5)
+
+    def _update_control_logic(self):
+        """Update control logic and return success status"""
+        try:
+            if self.current_temp is not None and self._get_setpoint() is not None:
+                dt = time.time() - self.temp_controller.last_control_time
+                should_heat, error = self.temp_controller.calculate_control_action(
+                    self.current_temp,
+                    self._get_setpoint(),
+                    dt
+                )
+                
+                if should_heat:
+                    self._activate_heating()
+                else:
+                    self._deactivate_heating()
+                return True
+            return False
+        except Exception as e:
+            self.logger.log_error('control', f'Control logic error: {e}', 2)
+            return False
+
+    def _handle_lora_communication(self):
+        """Handle LoRa communication and return success status"""
+        try:
+            current_time = time.time()
+            if current_time - self.last_lora_update >= self.lora_update_interval:
+                if self._send_lora_status():
+                    self.last_lora_update = current_time
+                    return True
+            return False
+        except Exception as e:
+            self.logger.log_error('lora', f'LoRa communication error: {e}', 2)
+            return False
+
+    def _handle_mqtt_communication(self):
+        """Handle MQTT communication"""
+        try:
+            if self.mqtt_handler.initialized:
+                if self.mqtt_handler.check_connection():
+                    self.mqtt_handler.check_msg()
+                    current_time = time.time()
+                    if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
+                        self.mqtt_handler.publish_data('temperature', self.current_temp)
+                        self.mqtt_handler.publish_data('mode', self._get_mode())
+                        self.mqtt_handler.publish_data('setpoint', self._get_setpoint())
+        except Exception as e:
+            self.logger.log_error('mqtt', f'MQTT communication error: {e}', 2)
 
     def _update_display_status(self):
         """Update display with current system status using DisplayManager"""
@@ -409,6 +418,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     'Failed to update status display',
                     severity=1
                 )
+            return success
                 
         except Exception as e:
             self.logger.log_error(
@@ -416,6 +426,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 f'Display status update error: {e}',
                 severity=2
             )
+            return False
 
     def read_temperature(self):
         """Read current temperature from IO module"""

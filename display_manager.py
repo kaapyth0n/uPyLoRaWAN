@@ -245,10 +245,6 @@ class DisplayManager:
             self.consecutive_failures = 0
             self.last_update = time.time()
             
-            # Pet watchdog if controller is available
-            if self.controller and hasattr(self.controller, 'watchdog_manager'):
-                self.controller.watchdog_manager.pet('display')
-                
         except Exception as e:
             print(f"Status display update failed: {e}")
             self.consecutive_failures += 1
