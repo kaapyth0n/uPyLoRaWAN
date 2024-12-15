@@ -79,8 +79,8 @@ class WatchdogManager:
             'lora': SystemWatchdog('lora', timeout=3600)                   # 1 hour
         }
         
-        # Initialize hardware watchdog with maximum safe timeout
-        self.hw_watchdog = machine.WDT(timeout=self.MAX_HW_TIMEOUT)
+        # Initialize hardware watchdog with None until needed
+        self.hw_watchdog = None
         
         # Set up callbacks
         self.watchdogs['main'].add_callback(self._handle_main_timeout)
@@ -96,7 +96,11 @@ class WatchdogManager:
         # Check software watchdogs
         for watchdog in self.watchdogs.values():
             watchdog.check()
-            
+        
+        # Initialize hardware watchdog with maximum safe timeout if not yet initialized
+        if self.hw_watchdog == None:
+            self.hw_watchdog = machine.WDT(timeout=self.MAX_HW_TIMEOUT)
+        
         # Feed hardware watchdog
         try:
             self.hw_watchdog.feed()
