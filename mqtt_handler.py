@@ -240,7 +240,7 @@ class MQTTHandler:
                 'temperature': self.controller.current_temp,
                 'setpoint': self.controller.config_manager.get_param('setpoint'),
                 'mode': self.controller.config_manager.get_param('mode'),
-                'heating': time.time() - self.controller.last_on_time < 5
+                'heating': self.controller.heating_active
             }
             
             self.publish_data('status', status)

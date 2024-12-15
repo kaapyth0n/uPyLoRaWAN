@@ -54,8 +54,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         
         # Initialize state
         self.current_temp = None
-        self.last_on_time = 0
-        self.last_off_time = 0
+        self.heating_active = False  # Track current heating state
+        self.last_state_change = 0  # Track when we last changed state
         self.last_button_state = 0
         self.last_button_time = 0
         self.button_debounce_delay = 0.5  # 500ms debounce
@@ -244,7 +244,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 msg[4] = 0xFF
                 
             # Add heating state
-            msg[5] = 1 if (time.time() - self.last_on_time < 5) else 0
+            msg[5] = 1 if self.heating_active else 0
             
             # Send message
             return self.lora_handler.send_data(
@@ -399,7 +399,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Prepare status information
             status = {
                 'mode': self._get_mode(),
-                'heating_active': time.time() - self.last_on_time < 5,
+                'heating_active': self.heating_active,
                 'target_temp': self._get_setpoint(),
                 'current_temp': self.current_temp,
                 'wifi_connected': wifi.isconnected(),
@@ -465,23 +465,31 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         return None
         
     def _activate_heating(self):
-        """Activate heating with safety checks"""
+        """Activate heating with safety checks and state transition tracking"""
         try:
-            if time.time() - self.last_off_time >= self.config_manager.get_param('min_off_time'):
-                self.fr.write(6, 0x01, slot=5)
-                self.last_on_time = time.time()
+            # Only proceed if currently inactive
+            if not self.heating_active:
+                # Check if enough time has passed since last state change
+                if time.time() - self.last_state_change >= self.config_manager.get_param('min_off_time'):
+                    self.fr.write(6, 0x01, slot=5)
+                    self.last_state_change = time.time()
+                    self.heating_active = True
         except Exception as e:
             self.logger.log_error('control', f'Heating activation failed: {e}', 3)
             
     def _deactivate_heating(self):
-        """Deactivate heating with safety checks"""
+        """Deactivate heating with safety checks and state transition tracking"""
         try:
-            if time.time() - self.last_on_time >= self.config_manager.get_param('min_on_time'):
-                self.fr.write(6, 0x00, slot=5)
-                self.last_off_time = time.time()
+            # Only proceed if currently active
+            if self.heating_active:
+                # Check if enough time has passed since last state change
+                if time.time() - self.last_state_change >= self.config_manager.get_param('min_on_time'):
+                    self.fr.write(6, 0x00, slot=5)
+                    self.last_state_change = time.time()
+                    self.heating_active = False
         except Exception as e:
             self.logger.log_error('control', f'Heating deactivation failed: {e}', 3)
-
+            
     def _safe_shutdown(self):
         """Safely shut down system components"""
         try:

@@ -280,7 +280,7 @@ The handler provides:
                 'mode': self.controller.mode,
                 'temp': self.controller.current_temp,
                 'setpoint': self.controller.setpoint,
-                'heating': time.time() - self.controller.last_on_time < 5
+                'heating': self.controller.heating_active
             }
             
             # Convert to binary format

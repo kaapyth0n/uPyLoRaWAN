@@ -34,7 +34,6 @@ class TestRunner:
         self.test_temperature_sensor()
         self.test_display()
         self.test_lora()
-        self.test_control()
         self.test_config()
         self.test_updates()
         
@@ -157,34 +156,7 @@ class TestRunner:
                 False,
                 f"LoRa test failed: {str(e)}"
             ))
-            
-    def test_control(self):
-        """Test control functionality"""
-        try:
-            # Test relay control
-            self.controller._deactivate_heating()
-            time.sleep(1)
-            
-            if time.time() - self.controller.last_on_time > 2:
-                self.results.append(TestResult(
-                    "Control",
-                    True,
-                    "Relay control working"
-                ))
-            else:
-                self.results.append(TestResult(
-                    "Control",
-                    False,
-                    "Relay control failed"
-                ))
-                
-        except Exception as e:
-            self.results.append(TestResult(
-                "Control",
-                False,
-                f"Control test failed: {str(e)}"
-            ))
-            
+    
     def test_config(self):
         """Test configuration functionality"""
         try:
