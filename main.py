@@ -15,6 +15,7 @@ from lora_handler import LoRaHandler
 from mqtt_handler import MQTTHandler
 from module_detector import ModuleDetector
 import network
+import machine
 
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def __init__(self):
@@ -480,6 +481,39 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 self.last_off_time = time.time()
         except Exception as e:
             self.logger.log_error('control', f'Heating deactivation failed: {e}', 3)
+
+    def _safe_shutdown(self):
+        """Safely shut down system components"""
+        try:
+            # Deactivate heating
+            self._deactivate_heating()
+            
+            # Close LoRa
+            if self.lora_handler.lora:
+                self.lora_handler.lora.sleep()
+                
+            # Update display
+            if self.display_manager:
+                self.display_manager.show_status(
+                    "System Shutdown",
+                    "Safe mode",
+                    "Restarting..."
+                )
+                
+            # Log shutdown
+            self.logger.log_error(
+                'system',
+                'Safe shutdown initiated',
+                severity=3
+            )
+            
+        except Exception as e:
+            print(f"Shutdown error: {e}")
+            
+        finally:
+            # Force reset after brief delay
+            time.sleep(1)
+            machine.reset()
 
 if __name__ == '__main__':
     controller = SmartBoilerInterface()
