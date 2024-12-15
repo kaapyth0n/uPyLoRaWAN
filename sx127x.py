@@ -81,7 +81,7 @@ IRQ_RX_TIME_OUT_MASK = 0x80
 # Buffer size
 MAX_PKT_LENGTH = 255
 
-__DEBUG__ = True
+__DEBUG__ = False
 
 class TTN:
     """ TTN Class.
