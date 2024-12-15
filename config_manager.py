@@ -1,9 +1,8 @@
 import json
-import time
 from constants import BoilerDefaults
 
 class ConfigurationManager:
-    """Manages system configuration including validation and persistence"""
+    """Manages system configuration including validation and persistence with parameter enumeration support"""
     
     def __init__(self):
         self.config_version = 0
@@ -15,47 +14,55 @@ class ConfigurationManager:
         # Parameter definitions with validation rules
         self.parameter_definitions = {
             'mode': {
+                'id': 0,  # Add ID for each parameter
                 'type': str,
                 'allowed_values': ['relay', 'sensor'],
                 'default': 'relay'
             },
             'setpoint': {
+                'id': 1,
                 'type': float,
                 'min': 0,
                 'max': 100,
                 'default': BoilerDefaults.DEFAULT_TEMP
             },
             'min_temp': {
+                'id': 2,
                 'type': float,
                 'min': 0,
                 'max': 100,
                 'default': BoilerDefaults.MIN_TEMP
             },
             'max_temp': {
+                'id': 3,
                 'type': float,
                 'min': 0,
                 'max': 100,
                 'default': BoilerDefaults.MAX_TEMP
             },
             'hysteresis': {
+                'id': 4,
                 'type': float,
                 'min': 0.1,
                 'max': 25.0,
                 'default': BoilerDefaults.HYSTERESIS
             },
             'min_on_time': {
+                'id': 5,
                 'type': int,
                 'min': 10,
                 'max': 300,
                 'default': BoilerDefaults.MIN_ON_TIME
             },
             'min_off_time': {
+                'id': 6,
                 'type': int,
                 'min': 10,
                 'max': 300,
                 'default': BoilerDefaults.MIN_OFF_TIME
             },
             'watchdog_timeout': {
+                'id': 7,
                 'type': int,
                 'min': 60,
                 'max': 7200,
@@ -63,8 +70,60 @@ class ConfigurationManager:
             }
         }
         
+        # Create reverse mapping from ID to parameter name
+        self.id_to_param = {}
+        for param_name, param_def in self.parameter_definitions.items():
+            self.id_to_param[param_def['id']] = param_name
+        
         # Load configuration on init
         self.load_config()
+        
+    def get_param_by_id(self, param_id):
+        """Get parameter value by ID
+        
+        Args:
+            param_id (int): Parameter ID
+            
+        Returns:
+            Parameter value or None if not found
+        """
+        param_name = self.id_to_param.get(param_id)
+        if param_name:
+            return self.get_param(param_name)
+        return None
+        
+    def set_param_by_id(self, param_id, value):
+        """Set parameter value by ID
+        
+        Args:
+            param_id (int): Parameter ID
+            value: Parameter value
+            
+        Returns:
+            tuple: (success (bool), message (str))
+        """
+        param_name = self.id_to_param.get(param_id)
+        if not param_name:
+            return False, f"Invalid parameter ID: {param_id}"
+            
+        return self.set_param(param_name, value)
+        
+    def get_param_info(self, param_id=None, param_name=None):
+        """Get parameter information
+        
+        Args:
+            param_id (int, optional): Parameter ID
+            param_name (str, optional): Parameter name
+            
+        Returns:
+            dict: Parameter definition or None if not found
+        """
+        if param_id is not None:
+            param_name = self.id_to_param.get(param_id)
+            
+        if param_name:
+            return self.parameter_definitions.get(param_name)
+        return None
         
     def validate_param(self, param_name, value):
         """Validate a single parameter value
@@ -173,7 +232,7 @@ class ConfigurationManager:
                 
             # Save new configuration
             with open(self.config_file, 'w') as f:
-                json.dump(self.current_config, f)  # Removed indent parameter
+                json.dump(self.current_config, f)
             return True
             
         except Exception as e:
@@ -223,36 +282,3 @@ class ConfigurationManager:
             return True, "Parameter updated successfully"
         else:
             return False, "Failed to save configuration"
-            
-    def apply_config(self, new_config):
-        """Apply new configuration
-        
-        Args:
-            new_config (dict): New configuration
-            
-        Returns:
-            tuple: (success (bool), message (str))
-        """
-        # Validate new configuration
-        valid, message = self.validate_config(new_config)
-        if not valid:
-            return False, message
-            
-        # Store current config as backup
-        old_config = self.current_config.copy()
-        
-        try:
-            # Apply new configuration
-            self.current_config.update(new_config)
-            self.config_version += 1
-            
-            # Save configuration
-            if self.save_config():
-                return True, "Configuration updated successfully"
-            else:
-                self.current_config = old_config
-                return False, "Failed to save configuration"
-                
-        except Exception as e:
-            self.current_config = old_config
-            return False, f"Error applying configuration: {e}"
