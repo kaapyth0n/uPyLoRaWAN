@@ -2,7 +2,12 @@ import json
 from constants import BoilerDefaults
 
 class ConfigurationManager:
-    """Manages system configuration including validation and persistence with parameter enumeration support"""
+    """
+    Manages system configuration
+    - including validation and persistence
+    - with parameter enumeration support
+    - with change notifications
+    """
     
     def __init__(self):
         self.config_version = 0
@@ -10,6 +15,9 @@ class ConfigurationManager:
         self.current_config = {}
         self.config_file = 'boiler_config.json'
         self.backup_file = 'boiler_config.backup.json'
+
+        # Add callback list for parameter changes
+        self.change_callbacks = []
         
         # Parameter definitions with validation rules
         self.parameter_definitions = {
@@ -78,6 +86,24 @@ class ConfigurationManager:
         # Load configuration on init
         self.load_config()
         
+    def add_change_callback(self, callback):
+        """Add callback for parameter changes
+        
+        Args:
+            callback: Function(param_name, value) to call on change
+        """
+        if callback not in self.change_callbacks:
+            self.change_callbacks.append(callback)
+    
+    def remove_change_callback(self, callback):
+        """Remove change callback
+        
+        Args:
+            callback: Callback to remove
+        """
+        if callback in self.change_callbacks:
+            self.change_callbacks.remove(callback)
+    
     def get_param_by_id(self, param_id):
         """Get parameter value by ID
         
@@ -93,7 +119,7 @@ class ConfigurationManager:
         return None
         
     def set_param_by_id(self, param_id, value):
-        """Set parameter value by ID
+        """Set parameter value by ID with change notification
         
         Args:
             param_id (int): Parameter ID
@@ -279,6 +305,12 @@ class ConfigurationManager:
         
         # Save configuration
         if self.save_config():
+            # Notify callbacks of change
+            for callback in self.change_callbacks:
+                try:
+                    callback(param_name, value)
+                except Exception as e:
+                    print(f"Change callback error: {e}")
             return True, "Parameter updated successfully"
         else:
             return False, "Failed to save configuration"
