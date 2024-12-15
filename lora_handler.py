@@ -18,12 +18,23 @@ The handler provides:
 - Continuous downlink reception
 - Automatic mode switching
 - Error recovery with reinitalization
+- Parameter change notifications
 """
     
     # Message types
-    MSG_CONFIG = 0x00
-    MSG_COMMAND = 0x01
-    MSG_QUERY = 0x02
+    MSG_CONFIG = 0x01
+    MSG_COMMAND = 0x02
+    MSG_QUERY = 0x03
+    MSG_ACK = 0x04
+    MSG_NOTIFY = 0x05
+    
+    # Status codes
+    STATUS_SUCCESS = 0x00
+    STATUS_INVALID_PARAM = 0x01
+    STATUS_INVALID_VALUE = 0x02
+    STATUS_WRITE_FAILED = 0x03
+    STATUS_TYPE_ERROR = 0x04
+    STATUS_DECODE_ERROR = 0x05
     
     def __init__(self, controller):
         """Initialize LoRa handler
@@ -39,6 +50,11 @@ The handler provides:
         self.last_status_time = 0
         self.status_interval = 300  # 5 minutes between status updates
         self.initialized = False
+        self.msg_sequence = 0  # Track message sequence
+
+        # Set up parameter change callback
+        if hasattr(self.controller.config_manager, 'add_change_callback'):
+            self.controller.config_manager.add_change_callback(self._on_param_change)
         
     def initialize(self):
         """Initialize LoRa module with proper RX setup"""
@@ -428,40 +444,45 @@ The handler provides:
             )
 
     def _handle_config(self, payload):
-        """Handle configuration message
+        """Handle configuration message with acknowledgment
         
         Args:
             payload (bytes): Message payload excluding message type
         """
-        if len(payload) < 2:  # Need at least parameter ID and 1 byte value
+        if len(payload) < 3:  # Need sequence, param ID and value
             print("Config message too short")
             return False
             
         try:
-            # Get parameter ID from first byte
-            param_id = payload[0]
+            # Get sequence and parameter ID
+            sequence = payload[0]
+            param_id = payload[1]
             
             # Get parameter info
             param_info = self.controller.config_manager.get_param_info(param_id=param_id)
             if not param_info:
                 print(f"Invalid parameter ID: {param_id}")
+                self._send_ack(sequence, param_id, self.STATUS_INVALID_PARAM)
                 return False
                 
-            # Decode parameter value from remaining bytes
-            value = self._decode_parameter_value(param_info, payload[1:])
+            # Decode parameter value
+            value = self._decode_parameter_value(param_info, payload[2:])
             if value is None:
                 print("Value decoding failed")
+                self._send_ack(sequence, param_id, self.STATUS_DECODE_ERROR)
                 return False
                 
             # Set parameter value
             success, message = self.controller.config_manager.set_param_by_id(param_id, value)
+
+            # Send acknowledgment
+            status = self.STATUS_SUCCESS if success else self.STATUS_WRITE_FAILED
+            self._send_ack(sequence, param_id, status)            
+
             if success:
                 print(f"Parameter {param_id} set to {value}")
             else:
                 print(f"Parameter set failed: {message}")
-                
-            # Send confirmation
-            self.send_param_value(param_id)
 
             return success
             
@@ -472,6 +493,11 @@ The handler provides:
                 severity=2
             )
             print(f"Config handling error: {e}")
+            # Try to send error acknowledgment
+            try:
+                self._send_ack(sequence, param_id, self.STATUS_TYPE_ERROR)
+            except:
+                pass
             return False
 
     def send_param_value(self, param_id):
@@ -559,7 +585,101 @@ The handler provides:
                 f'Query failed: {e}',
                 severity=2
             )
+
+    def _encode_message_header(self, msg_type, sequence=None):
+        """Encode message header bytes
+        
+        Args:
+            msg_type (int): Message type
+            sequence (int, optional): Message sequence number
             
+        Returns:
+            bytearray: Encoded header
+        """
+        header = bytearray()
+        header.append(msg_type)
+        
+        # Add sequence if provided, otherwise increment
+        if sequence is None:
+            sequence = self.msg_sequence
+            self.msg_sequence = (self.msg_sequence + 1) & 0xFF
+            
+        header.append(sequence)
+        return header
+
+    def _send_ack(self, sequence, param_id, status):
+        """Send acknowledgment message
+        
+        Args:
+            sequence (int): Original message sequence
+            param_id (int): Parameter ID
+            status (int): Status code
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            msg = bytearray()
+            msg.extend(self._encode_message_header(self.MSG_ACK, sequence))
+            msg.append(param_id)
+            msg.append(status)
+            
+            # Send ACK message
+            return self.send_data(msg, len(msg), self.frame_counter)
+            
+        except Exception as e:
+            print(f"ACK send error: {e}")
+            return False
+    
+    def _send_notification(self, param_id, value, param_info):
+        """Send parameter change notification
+        
+        Args:
+            param_id (int): Parameter ID
+            value: Parameter value
+            param_info (dict): Parameter definition
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            msg = bytearray()
+            msg.extend(self._encode_message_header(self.MSG_NOTIFY))
+            msg.append(param_id)
+            
+            # Encode parameter value
+            encoded_value = self._encode_parameter_value(param_info, value)
+            if encoded_value is None:
+                return False
+                
+            msg.extend(encoded_value)
+            
+            # Send notification
+            return self.send_data(msg, len(msg), self.frame_counter)
+            
+        except Exception as e:
+            print(f"Notification send error: {e}")
+            return False
+    
+    def _on_param_change(self, param_name, value):
+        """Handle parameter change notification
+        
+        Args:
+            param_name (str): Parameter name
+            value: New parameter value
+        """
+        try:
+            # Get parameter info
+            param_info = self.controller.config_manager.get_param_info(param_name=param_name)
+            if not param_info:
+                return
+                
+            # Send notification
+            self._send_notification(param_info['id'], value, param_info)
+            
+        except Exception as e:
+            print(f"Change notification error: {e}")
+    
     def send_diagnostic(self):
         """Send diagnostic results"""
         pass  # TODO: Implement diagnostic message format
