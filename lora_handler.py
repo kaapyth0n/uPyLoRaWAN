@@ -20,6 +20,11 @@ The handler provides:
 - Error recovery with reinitalization
 """
     
+    # Message types
+    MSG_CONFIG = 0x00
+    MSG_COMMAND = 0x01
+    MSG_QUERY = 0x02
+    
     def __init__(self, controller):
         """Initialize LoRa handler
         
@@ -313,6 +318,79 @@ The handler provides:
         if time.time() - self.last_status_time >= self.status_interval:
             return self.send_status()
         return True
+
+    def _encode_parameter_value(self, param_info, value):
+        """Encode parameter value to bytes based on parameter type
+        
+        Args:
+            param_info (dict): Parameter definition
+            value: Parameter value
+            
+        Returns:
+            bytes: Encoded value
+        """
+        try:
+            param_type = param_info['type']
+            
+            if param_type == int:
+                # Encode integers as 2 bytes, big endian
+                return value.to_bytes(2, 'big', signed=True)
+                
+            elif param_type == float:
+                # Encode floats as fixed point with 2 decimal places
+                # This gives range of ±2³¹/10 with 0.1 resolution
+                fixed_point = int(value * 10)
+                return fixed_point.to_bytes(2, 'big', signed=True)
+                
+            elif param_type == str:
+                # For string parameters, encode allowed values as index
+                if 'allowed_values' in param_info:
+                    try:
+                        index = param_info['allowed_values'].index(value)
+                        return index.to_bytes(1, 'big')
+                    except ValueError:
+                        raise ValueError(f"Invalid string value: {value}")
+                        
+            raise ValueError(f"Unsupported parameter type: {param_type}")
+            
+        except Exception as e:
+            print(f"Value encoding error: {e}")
+            return None
+            
+    def _decode_parameter_value(self, param_info, encoded_bytes):
+        """Decode parameter value from bytes based on parameter type
+        
+        Args:
+            param_info (dict): Parameter definition
+            encoded_bytes (bytes): Encoded value
+            
+        Returns:
+            Decoded value
+        """
+        try:
+            param_type = param_info['type']
+            
+            if param_type == int:
+                # Decode 2-byte signed integer
+                return int.from_bytes(encoded_bytes, 'big', signed=True)
+                
+            elif param_type == float:
+                # Decode fixed point value
+                fixed_point = int.from_bytes(encoded_bytes, 'big', signed=True)
+                return fixed_point / 10.0
+                
+            elif param_type == str:
+                # For string parameters, decode index to allowed value
+                if 'allowed_values' in param_info:
+                    index = int.from_bytes(encoded_bytes, 'big')
+                    if 0 <= index < len(param_info['allowed_values']):
+                        return param_info['allowed_values'][index]
+                        
+            raise ValueError(f"Unsupported parameter type: {param_type}")
+            
+        except Exception as e:
+            print(f"Value decoding error: {e}")
+            return None
             
     def _handle_received(self, lora, payload: bytearray):
         """Handle received LoRaWAN message
@@ -332,13 +410,13 @@ The handler provides:
             msg_type = payload[0]
             print("Message Type:", msg_type)
             
-            if msg_type == 0:  # Configuration message
+            if msg_type == self.MSG_CONFIG:  # Configuration message
                 print("Configuration Message")
                 self._handle_config(payload[1:])
-            elif msg_type == 1:  # Command message
+            elif msg_type == self.MSG_COMMAND:  # Command message
                 print("Command Message")
                 self._handle_command(payload[1:])
-            elif msg_type == 2:  # Query message
+            elif msg_type == self.MSG_QUERY:  # Query message
                 print("Query Message")
                 self._handle_query(payload[1:])
                 
@@ -350,32 +428,42 @@ The handler provides:
             )
 
     def _handle_config(self, payload):
-        """Handle configuration message"""
-        if len(payload) < 3:
-            return
+        """Handle configuration message
+        
+        Args:
+            payload (bytes): Message payload excluding message type
+        """
+        if len(payload) < 2:  # Need at least parameter ID and 1 byte value
+            print("Config message too short")
+            return False
             
         try:
-            # Get mode
-            mode = 'sensor' if payload[0] else 'relay'
-            print("Mode:", mode)
+            # Get parameter ID from first byte
+            param_id = payload[0]
             
-            # Get setpoint (fixed point, 1 decimal place)
-            setpoint = ((payload[1] << 8) | payload[2]) / 10.0
-            print("Setpoint:", setpoint)
-            
-            # Update configuration
-            success, message = self.controller.config_manager.set_param('mode', mode)
+            # Get parameter info
+            param_info = self.controller.config_manager.get_param_info(param_id=param_id)
+            if not param_info:
+                print(f"Invalid parameter ID: {param_id}")
+                return False
+                
+            # Decode parameter value from remaining bytes
+            value = self._decode_parameter_value(param_info, payload[1:])
+            if value is None:
+                print("Value decoding failed")
+                return False
+                
+            # Set parameter value
+            success, message = self.controller.config_manager.set_param_by_id(param_id, value)
             if success:
-                self.controller.mode = mode
-            print("Mode Update:", success, message)    
-            
-            success, message = self.controller.config_manager.set_param('setpoint', setpoint)
-            if success:
-                self.controller.setpoint = setpoint
-            print("Setpoint Update:", success, message)
+                print(f"Parameter {param_id} set to {value}")
+            else:
+                print(f"Parameter set failed: {message}")
                 
             # Send confirmation
-            self.send_status()
+            self.send_param_value(param_id)
+
+            return success
             
         except Exception as e:
             self.controller.logger.log_error(
@@ -383,7 +471,46 @@ The handler provides:
                 f'Configuration failed: {e}',
                 severity=2
             )
+            print(f"Config handling error: {e}")
+            return False
+
+    def send_param_value(self, param_id):
+        """Send parameter value via LoRaWAN
+        
+        Args:
+            param_id (int): Parameter ID
             
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # Get parameter info and value
+            param_info = self.controller.config_manager.get_param_info(param_id=param_id)
+            if not param_info:
+                return False
+                
+            param_name = self.controller.config_manager.id_to_param[param_id]
+            value = self.controller.config_manager.get_param(param_name)
+            
+            # Encode message
+            msg = bytearray()
+            msg.append(self.MSG_CONFIG)  # Message type
+            msg.append(param_id)         # Parameter ID
+            
+            # Encode value
+            encoded_value = self._encode_parameter_value(param_info, value)
+            if encoded_value is None:
+                return False
+                
+            msg.extend(encoded_value)
+            
+            # Send message
+            return self.send_data(msg, len(msg), self.frame_counter)
+            
+        except Exception as e:
+            print(f"Parameter send error: {e}")
+            return False
+        
     def _handle_command(self, payload):
         """Handle command message"""
         if len(payload) < 1:
