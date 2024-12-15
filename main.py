@@ -269,6 +269,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         
         while True:
             try:
+                # Start of main loop - pet the main watchdog
+                self.watchdog_manager.pet('main')
                 current_time = time.time()
                 
                 # Update watchdogs

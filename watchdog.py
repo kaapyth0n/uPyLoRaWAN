@@ -1,4 +1,5 @@
 import time
+import machine
 
 class SystemWatchdog:
     """Individual watchdog timer implementation"""
@@ -68,22 +69,41 @@ class WatchdogManager:
         
         # Create watchdogs
         self.watchdogs = {
+            'main': SystemWatchdog('main', timeout=600),                     # 10 minutes
             'temperature': SystemWatchdog('temperature', timeout=300),      # 5 minutes
             'control': SystemWatchdog('control', timeout=60),              # 1 minute
             'display': SystemWatchdog('display', timeout=120),             # 2 minutes
             'lora': SystemWatchdog('lora', timeout=3600)                   # 1 hour
         }
         
+        # Initialize hardware watchdog with 8 second timeout
+        self.hw_watchdog = machine.WDT(timeout=3600000)  # 1 hour in ms
+        self.last_hw_feed = time.time()
+        self.hw_feed_interval = 4  # Feed hardware watchdog every 4 seconds
+        
         # Set up callbacks
+        self.watchdogs['main'].add_callback(self._handle_main_timeout)
         self.watchdogs['temperature'].add_callback(self._handle_temp_timeout)
         self.watchdogs['control'].add_callback(self._handle_control_timeout)
         self.watchdogs['display'].add_callback(self._handle_display_timeout)
         self.watchdogs['lora'].add_callback(self._handle_lora_timeout)
         
     def check_all(self):
-        """Check all watchdogs"""
+        """Check all watchdogs and feed hardware watchdog if needed"""
+        current_time = time.time()
+        
+        # Check software watchdogs
         for watchdog in self.watchdogs.values():
             watchdog.check()
+            
+        # Feed hardware watchdog if interval elapsed
+        if current_time - self.last_hw_feed >= self.hw_feed_interval:
+            try:
+                self.hw_watchdog.feed()
+                self.last_hw_feed = current_time
+            except:
+                # If we can't feed watchdog, system will reset soon
+                print("Failed to feed hardware watchdog!")
             
     def pet(self, name):
         """Pet specific watchdog
@@ -112,6 +132,15 @@ class WatchdogManager:
         if name in self.watchdogs:
             self.watchdogs[name].enabled = False
             
+    def _handle_main_timeout(self):
+        """Handle main loop watchdog timeout"""
+        self.controller.logger.log_error(
+            'watchdog',
+            'Main loop watchdog timeout',
+            severity=3
+        )
+        # Don't feed hardware watchdog - let system reset
+
     def _handle_temp_timeout(self):
         """Handle temperature reading timeout"""
         self.controller.logger.log_error(
