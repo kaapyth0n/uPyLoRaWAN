@@ -63,10 +63,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
 
-        # Add LoRa timing control
-        self.last_lora_update = 0
-        self.lora_update_interval = 60  # Send every 60 seconds
-
     def _get_setpoint(self):
         """Get setpoint from configuration"""
         return self.config_manager.get_param('setpoint')
@@ -213,54 +209,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             self.logger.log_error('hardware', f'SSR module test failed: {e}', 2)
             return False
         
-    def _send_lora_status(self):
-        """Send current status via LoRa
-        Should be called periodically (every minute)"""
-        if not self.lora_handler.initialized:
-            return False
-            
-        try:
-            # Create status message
-            # Format: [Message Type (1 byte), Temp*10 (2 bytes), Setpoint*10 (2 bytes), Heating (1 byte)]
-            msg = bytearray(6)
-            msg[0] = 0x01  # Message type: status update
-            
-            # Convert temperature values to fixed point (1 decimal place)
-            if self.current_temp is not None:
-                temp_fixed = int(self.current_temp * 10)
-                msg[1] = (temp_fixed >> 8) & 0xFF
-                msg[2] = temp_fixed & 0xFF
-            else:
-                msg[1] = 0xFF  # Invalid temperature marker
-                msg[2] = 0xFF
-                
-            # Convert setpoint
-            if self._get_setpoint() is not None:
-                setpoint_fixed = int(self._get_setpoint() * 10)
-                msg[3] = (setpoint_fixed >> 8) & 0xFF
-                msg[4] = setpoint_fixed & 0xFF
-            else:
-                msg[3] = 0xFF  # Invalid setpoint marker
-                msg[4] = 0xFF
-                
-            # Add heating state
-            msg[5] = 1 if self.heating_active else 0
-            
-            # Send message
-            return self.lora_handler.send_data(
-                msg,
-                len(msg),
-                self.lora_handler.frame_counter
-            )
-            
-        except Exception as e:
-            self.logger.log_error(
-                'lora',
-                f'Status send failed: {e}',
-                severity=2
-            )
-            return False
-
     def run(self):
         """Main control loop"""
         print("Starting smart boiler control...")
@@ -365,11 +313,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def _handle_lora_communication(self):
         """Handle LoRa communication and return success status"""
         try:
-            current_time = time.time()
-            if current_time - self.last_lora_update >= self.lora_update_interval:
-                if self._send_lora_status():
-                    self.last_lora_update = current_time
-                    return True
+            if self.lora_handler.send_periodic_status():
+                return True
             return False
         except Exception as e:
             self.logger.log_error('lora', f'LoRa communication error: {e}', 2)
