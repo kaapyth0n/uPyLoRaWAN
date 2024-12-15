@@ -277,9 +277,9 @@ The handler provides:
         try:
             # Create status message
             status = {
-                'mode': self.controller.mode,
+                'mode': self.controller.config_manager.get_param('mode'),
                 'temp': self.controller.current_temp,
-                'setpoint': self.controller.setpoint,
+                'setpoint': self.controller.config_manager.get_param('setpoint'),
                 'heating': self.controller.heating_active
             }
             
