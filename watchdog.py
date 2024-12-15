@@ -57,7 +57,10 @@ class SystemWatchdog:
                 print(f"Watchdog callback error: {e}")
 
 class WatchdogManager:
-    """Manages multiple system watchdogs"""
+    """Manages multiple system watchdogs with hardware watchdog integration"""
+    
+    # Maximum hardware watchdog timeout (ms)
+    MAX_HW_TIMEOUT = 8388
     
     def __init__(self, controller):
         """Initialize watchdog manager
@@ -76,10 +79,8 @@ class WatchdogManager:
             'lora': SystemWatchdog('lora', timeout=3600)                   # 1 hour
         }
         
-        # Initialize hardware watchdog with 8 second timeout
-        self.hw_watchdog = machine.WDT(timeout=3600000)  # 1 hour in ms
-        self.last_hw_feed = time.time()
-        self.hw_feed_interval = 4  # Feed hardware watchdog every 4 seconds
+        # Initialize hardware watchdog with maximum safe timeout
+        self.hw_watchdog = machine.WDT(timeout=self.MAX_HW_TIMEOUT)
         
         # Set up callbacks
         self.watchdogs['main'].add_callback(self._handle_main_timeout)
@@ -96,15 +97,12 @@ class WatchdogManager:
         for watchdog in self.watchdogs.values():
             watchdog.check()
             
-        # Feed hardware watchdog if interval elapsed
-        if current_time - self.last_hw_feed >= self.hw_feed_interval:
-            try:
-                self.hw_watchdog.feed()
-                self.last_hw_feed = current_time
-            except:
-                # If we can't feed watchdog, system will reset soon
-                print("Failed to feed hardware watchdog!")
-            
+        # Feed hardware watchdog
+        try:
+            self.hw_watchdog.feed()
+        except:
+            print("Failed to feed hardware watchdog!")
+        
     def pet(self, name):
         """Pet specific watchdog
         
@@ -133,13 +131,12 @@ class WatchdogManager:
             self.watchdogs[name].enabled = False
             
     def _handle_main_timeout(self):
-        """Handle main loop watchdog timeout"""
+        """Handle main loop watchdog timeout - don't feed HW watchdog"""
         self.controller.logger.log_error(
             'watchdog',
             'Main loop watchdog timeout',
             severity=3
         )
-        # Don't feed hardware watchdog - let system reset
 
     def _handle_temp_timeout(self):
         """Handle temperature reading timeout"""
@@ -157,7 +154,6 @@ class WatchdogManager:
             'Control loop timeout',
             severity=2
         )
-        # Just log warning for control timeout
         
     def _handle_display_timeout(self):
         """Handle display timeout"""
