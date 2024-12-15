@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-08T00:42:08Z",
+  "timestamp": "2024-12-16T00:51:46Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -14,10 +14,10 @@
       "size": 7244
     },
     "main.py": {
-      "version": "2.7",
+      "version": "2.8",
       "path": "/main.py",
-      "hash": "0b81817feee446cdcbc77096980251768b12cbed01f4e201355da22192454b24",
-      "size": 17048
+      "hash": "0a71353c1c4546cf5b221d2652a34f0398ceb27759fec8ca3e804d492cd6d72a",
+      "size": 18532
     },
     "config_portal.py": {
       "version": "1.4",
@@ -26,10 +26,10 @@
       "size": 13708
     },
     "encryption_aes.py": {
-      "version": "1.0",
+      "version": "1.1",
       "path": "/encryption_aes.py",
-      "hash": "eea0c9ef488a4a85e9246d8e6d3363035473982d0bdbb619c2ad0854ada10906",
-      "size": 8133
+      "hash": "5e4b9dd4606de62df0870c554d3dce70de2f628abf7754c27ed122f5adcb8329",
+      "size": 10243
     },
     "IND1.py": {
       "version": "1.0",
@@ -38,10 +38,10 @@
       "size": 12720
     },
     "sx127x.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/sx127x.py",
-      "hash": "e5851985ea8d73e83fa38e1fef6486d6ad562dddc9fd43500991ab495875c8e5",
-      "size": 27303
+      "hash": "fec25c155de99ed7624d1b93e8bfcc6dff1ce1ad0f13ac0b4f6e4a7c29481edb",
+      "size": 26982
     },
     "FrSet.py": {
       "version": "1.0",
@@ -62,10 +62,10 @@
       "size": 3849
     },
     "state_machine.py": {
-      "version": "1.5",
+      "version": "1.6",
       "path": "/state_machine.py",
-      "hash": "c77fbdd227387e6d1e137642341c22e9c6bdde1e851f26db3c9492aa78c95625",
-      "size": 9564
+      "hash": "8a9b8e900380b620956148d06243d41271917405bffb5c4b222f46b80fb0a7d8",
+      "size": 10481
     },
     "temp_controller.py": {
       "version": "1.2",
@@ -74,10 +74,10 @@
       "size": 5228
     },
     "config_manager.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/config_manager.py",
-      "hash": "6ab059dcb88d89f9ae8beb61fecbd95883f14e5fec3a9f16a67127a49ddc2235",
-      "size": 8010
+      "hash": "8c854eae057cd6baa50075f335bd0245ffc5207ac8c31287295aead6d39f751b",
+      "size": 10506
     },
     "error_logger.py": {
       "version": "1.2",
@@ -86,10 +86,10 @@
       "size": 5041
     },
     "watchdog.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/watchdog.py",
-      "hash": "c2cb838842971ecfe2fa7d006243a95c0c8feb404dd2fc41bc56be1626107e1a",
-      "size": 5057
+      "hash": "bf219ec49172df0a9dcd2f5777052819e7ad886d697ec803b78b15fc0ffce9e2",
+      "size": 6131
     },
     "system_recovery.py": {
       "version": "1.1",
@@ -98,21 +98,21 @@
       "size": 6005
     },
     "display_manager.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/display_manager.py",
-      "hash": "0eb22ff42cd03d5ba812c59bb703a7d3f55beaebb36ed31f5755b08cb1f80a30",
-      "size": 9663
+      "hash": "ce96e1398f692a804ab2fb4c92449ce8738c39601fa11de65e79f0aa94ce9d93",
+      "size": 9683
     },
     "lora_handler.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/lora_handler.py",
-      "hash": "2e986661b4bdb7d34c63df6997e044d4eac2a20c77d632b7f3f799215d945077",
-      "size": 12456
+      "hash": "d86e13246a04034e0b2b91c069e00ef469ccae76d403cdeef770ba0b0d443a35",
+      "size": 23847
     },
     "constants.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/constants.py",
-      "hash": "34e39216ccb23aff2c39508ffa7c923e8c1e23cb98ba123ddaa15c9afa664e42",
+      "hash": "bce0ed33f4e7b8de4be747793175cee7d76f42c481ba4910b799f622431d7194",
       "size": 2932
     },
     "utils.py": {
@@ -122,16 +122,22 @@
       "size": 4985
     },
     "tests.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/tests.py",
-      "hash": "a206e813285d392518baf4f08d447100a2f1d5942fc26cec699bb996d3b22946",
-      "size": 8241
+      "hash": "fdaf369dd24e089eb27484e5144078e9d51dfb59e5f914b3641ffbc0cbc98be3",
+      "size": 7365
     },
     "module_detector.py": {
       "version": "1.2",
       "path": "/module_detector.py",
       "hash": "2ee37d2bf4b111fff0b79f79706b4522ce692caa89cdb8ad4a789a45dd8db221",
       "size": 6080
+    },
+    "mqtt_handler.py": {
+      "version": "1.3",
+      "path": "/mqtt_handler.py",
+      "hash": "d86e0753cf502eb25b399e0c973ef9865db0ee141ce881328c42adb78f5ade92",
+      "size": 9116
     }
   }
 }
