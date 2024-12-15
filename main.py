@@ -266,6 +266,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         print("Starting smart boiler control...")
         self.display_manager.show_status("Starting", "Control Loop")
         last_state = None
+        last_temperature = None
         
         while True:
             try:
@@ -310,7 +311,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     # Read temperature and pet watchdog if successful
                     if self.read_temperature():
                         self.watchdog_manager.pet('temperature')
-                        print(f"Temperature: {self.current_temp:.1f}°C")
+                        if last_temperature != self.current_temp:
+                            last_temperature = self.current_temp
+                            print(f"Temperature: {self.current_temp:.1f}°C")
 
                     # Add button check to main loop
                     self._check_buttons()
