@@ -48,7 +48,6 @@ The handler provides:
         self.packets_sent = 0      # Add counter for sent packets
         self.packets_received = 0  # Add counter for received packets
         self.last_status_time = 0
-        self.status_interval = 300  # 5 minutes between status updates
         self.initialized = False
         self.msg_sequence = 0  # Track message sequence
 
@@ -315,11 +314,12 @@ The handler provides:
             msg.append(1 if status['heating'] else 0)
             
             # Send message
-            self.send_data(msg, len(msg), self.frame_counter)
-            self.frame_counter += 1
-            
-            self.last_status_time = time.time()
-            return True
+            if self.send_data(msg, len(msg), self.frame_counter):
+                self.frame_counter += 1
+                self.last_status_time = time.time()
+                return True
+                
+            return False
             
         except Exception as e:
             self.controller.logger.log_error(
@@ -328,11 +328,19 @@ The handler provides:
                 severity=2
             )
             return False
-            
+        
     def send_periodic_status(self):
-        """Send status update if interval has elapsed"""
-        if time.time() - self.last_status_time >= self.status_interval:
+        """Send status update if keepalive interval has elapsed"""
+        # Get current keepalive interval from config
+        keepalive = self.controller.config_manager.get_param('lora_keepalive')
+        
+        # Use default if config read fails
+        if keepalive is None:
+            keepalive = 300  # 5 minute fallback
+            
+        if time.time() - self.last_status_time >= keepalive:
             return self.send_status()
+        
         return True
 
     def _encode_parameter_value(self, param_info, value):

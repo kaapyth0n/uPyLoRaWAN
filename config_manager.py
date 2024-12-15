@@ -75,6 +75,13 @@ class ConfigurationManager:
                 'min': 60,
                 'max': 7200,
                 'default': BoilerDefaults.WATCHDOG_TIMEOUT
+            },
+            'lora_keepalive': {
+                'id': 8,
+                'type': int,
+                'min': 1,   # Minimum 1 second
+                'max': 3600, # Maximum 1 hour
+                'default': 300  # Default 5 minutes
             }
         }
         
