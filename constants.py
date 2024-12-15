@@ -7,7 +7,7 @@ class BoilerDefaults:
     DEFAULT_TEMP = 40.0    # Default target temperature (°C)
     
     # Control parameters
-    HYSTERESIS = 1.0       # Temperature hysteresis (°C)
+    HYSTERESIS = 5.0       # Temperature hysteresis (°C)
     MIN_ON_TIME = 60       # Minimum burner on time (seconds)
     MIN_OFF_TIME = 60      # Minimum burner off time (seconds)
     

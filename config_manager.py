@@ -40,7 +40,7 @@ class ConfigurationManager:
             'hysteresis': {
                 'type': float,
                 'min': 0.1,
-                'max': 5.0,
+                'max': 25.0,
                 'default': BoilerDefaults.HYSTERESIS
             },
             'min_on_time': {
