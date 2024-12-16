@@ -284,35 +284,31 @@ The handler provides:
                 'heating': self.controller.heating_active
             }
             
-            # Convert to binary format
-            msg = bytearray()
+            # Create status message
+            # Format: [Message Type (1 byte), Temp*10 (2 bytes), Setpoint*10 (2 bytes), Heating (1 byte)]
+            msg = bytearray(6)
+            msg[0] = 0x01  # Message type: status update
             
-            # Add message type (0 = status)
-            msg.append(0)
-            
-            # Add mode (0 = relay, 1 = sensor)
-            msg.append(1 if status['mode'] == 'sensor' else 0)
-            
-            # Add temperature (fixed point, 1 decimal place)
-            if status['temp'] is not None:
-                temp = int(status['temp'] * 10)
-                msg.append((temp >> 8) & 0xFF)
-                msg.append(temp & 0xFF)
+            # Convert temperature values to fixed point (1 decimal place)
+            if self.controller.current_temp is not None:
+                temp_fixed = int(self.controller.current_temp * 10)
+                msg[1] = (temp_fixed >> 8) & 0xFF
+                msg[2] = temp_fixed & 0xFF
             else:
-                msg.append(0xFF)
-                msg.append(0xFF)
+                msg[1] = 0xFF  # Invalid temperature marker
+                msg[2] = 0xFF
                 
-            # Add setpoint
+            # Convert setpoint
             if status['setpoint'] is not None:
-                setpoint = int(status['setpoint'] * 10)
-                msg.append((setpoint >> 8) & 0xFF)
-                msg.append(setpoint & 0xFF)
+                setpoint_fixed = int(status['setpoint'] * 10)
+                msg[3] = (setpoint_fixed >> 8) & 0xFF
+                msg[4] = setpoint_fixed & 0xFF
             else:
-                msg.append(0xFF)
-                msg.append(0xFF)
+                msg[3] = 0xFF  # Invalid setpoint marker
+                msg[4] = 0xFF
                 
-            # Add heating status
-            msg.append(1 if status['heating'] else 0)
+            # Add heating state
+            msg[5] = 1 if self.controller.heating_active else 0
             
             # Send message
             if self.send_data(msg, len(msg), self.frame_counter):
