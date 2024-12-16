@@ -33,6 +33,21 @@ Also there is a RFM95W LoRa module (M3+M4 slots) connected to the following pins
 On start, the controller loads and runs boot.py file and FrSet.py file is also loaded. FrSet.py is designed to help dealing with the FR modules. Then the controller runs main.py file.
 I have also the sample code for dealing with the IND1-1.1 module called IND1_DEMO, it uses a more high-level library called IND1.
 
+# Wi-Fi
+If Wi-Fi wasn't configured before, or if the device can't connect with the provided credentials, on boot the device starts the AP with an internal web-server which works on http://192.168.4.1 and shows an interface to set the local Wi-Fi connection. After 10 minutes of inactivity, the AP shuts down and the program execution continues. If the Wi-Fi was set, the device reboots.
+
+Internal AP:
+
+- AP_SSID = f"SBI-Config-{DEVICE_ID}"
+- AP_PASSWORD = "configure"
+
+If there's no Wi-Fi visible or you don't see your router's SSID, refresh the page - that triggers the SSID search process.
+
+# Setup
+1. Connect the device using the USB adapter
+2. Upload: config.py, wifi_config.json, boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
+3. Restart, set up the WiFi, it will download all the other files then
+
 # Licenses
 * Apache 2.0
 
