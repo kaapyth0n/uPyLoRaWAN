@@ -9,8 +9,7 @@ The SBI acts as a Class C device, as it's connected to mains.
 Main branch is called LoRaWAN, click on [here](https://github.com/kaapyth0n/uPyLoRaWAN/tree/LoRaWAN).
 
 # Hardware
-The device is a FB2-3_14 board (Fractal Set)[https://drive.google.com/file/d/1T3OamZlSymlYZOmwFk_QJ0Zuoa1NRuzf/view?usp=drive_link
-] with Raspberry Pi Pico W module as a controller and MicroPython installed there.
+The device is a FB2-3_14 board [Fractal Set](https://drive.google.com/file/d/1T3OamZlSymlYZOmwFk_QJ0Zuoa1NRuzf/view?usp=drive_link) with Raspberry Pi Pico W module as a controller and MicroPython installed there.
 
 On this board additionally installed are:
 
