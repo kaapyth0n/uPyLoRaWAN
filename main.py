@@ -220,10 +220,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             try:
                 # Start of main loop - pet the main watchdog
                 self.watchdog_manager.pet('main')
-                current_time = time.time()
-                
-                # Update watchdogs
-                self.watchdog_manager.check_all()
                 
                 # Update state machine
                 self.state_machine.update()
@@ -254,7 +250,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     time.sleep(30)  # Long wait in safe mode
                     
                 elif current_state == SystemState.RUNNING:
-                    current_time = time.time()
                     
                     # Read temperature and pet watchdog if successful
                     if self.read_temperature():
@@ -281,6 +276,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     if self._update_display_status():
                         self.watchdog_manager.pet('display')
                     
+                # Update watchdogs
+                self.watchdog_manager.check_all()
+                
                 # Small delay
                 time.sleep(1)
                 
