@@ -406,32 +406,87 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         # All retries failed
         self.logger.log_error('temperature', 'All temperature read attempts failed', 3)
         return None
+    
+    def _verify_relay_state(self, expected_state, retries=3):
+        """Verify relay state matches expected value
         
+        Args:
+            expected_state (int): Expected state (0 or 1)
+            retries (int): Number of read retries
+            
+        Returns:
+            bool: True if state matches expected
+        """
+        retry_count = 0
+        while retry_count < retries:
+            try:
+                # Read current relay state (parameter 6 on slot 5)
+                current_state = self.fr.read(6, slot=5)
+                if current_state == expected_state:
+                    return True
+                retry_count += 1
+                time.sleep(0.1)  # Small delay between retries
+            except Exception as e:
+                retry_count += 1
+                if retry_count == retries:
+                    self.logger.log_error(
+                        'control',
+                        f'Failed to verify relay state: {e}',
+                        severity=2
+                    )
+        return False
+
     def _activate_heating(self):
-        """Activate heating with safety checks and state transition tracking"""
+        """Activate heating with safety checks, validation and state transition tracking"""
         try:
             # Only proceed if currently inactive
             if not self.heating_active:
+                current_time = time.time()
                 # Check if enough time has passed since last state change
-                if time.time() - self.last_state_change >= self.config_manager.get_param('min_off_time'):
+                if current_time - self.last_state_change >= self.config_manager.get_param('min_off_time'):
+                    # Attempt to write new state
                     self.fr.write(6, 0x01, slot=5)
-                    self.last_state_change = time.time()
-                    self.heating_active = True
+                    
+                    # Verify state change
+                    if self._verify_relay_state(1):
+                        # Print successful transition
+                        print(f'Heating activated after {current_time - self.last_state_change:.1f}s off')
+                        self.last_state_change = current_time
+                        self.heating_active = True
+                    else:
+                        self.logger.log_error(
+                            'control',
+                            'Failed to activate heating - state verification failed',
+                            severity=3
+                        )
         except Exception as e:
-            self.logger.log_error('control', f'Heating activation failed: {e}', 3)
+            self.logger.log_error('control', f'Heating activation failed: {e}', severity=3)
             
     def _deactivate_heating(self):
-        """Deactivate heating with safety checks and state transition tracking"""
+        """Deactivate heating with safety checks, validation and state transition tracking"""
         try:
             # Only proceed if currently active
             if self.heating_active:
+                current_time = time.time()
                 # Check if enough time has passed since last state change
-                if time.time() - self.last_state_change >= self.config_manager.get_param('min_on_time'):
+                if current_time - self.last_state_change >= self.config_manager.get_param('min_on_time'):
+                    # Attempt to write new state
                     self.fr.write(6, 0x00, slot=5)
-                    self.last_state_change = time.time()
-                    self.heating_active = False
+                    
+                    # Verify state change
+                    if self._verify_relay_state(0):
+                        # Print successful transition
+                        print(f'Heating deactivated after {current_time - self.last_state_change:.1f}s on')
+                        self.last_state_change = current_time
+                        self.heating_active = False
+                    else:
+                        self.logger.log_error(
+                            'control',
+                            'Failed to deactivate heating - state verification failed',
+                            severity=3
+                        )
         except Exception as e:
-            self.logger.log_error('control', f'Heating deactivation failed: {e}', 3)
+            self.logger.log_error('control', f'Heating deactivation failed: {e}', severity=3)
             
     def _safe_shutdown(self):
         """Safely shut down system components"""
