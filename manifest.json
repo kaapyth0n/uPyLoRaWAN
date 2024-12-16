@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-16T00:51:46Z",
+  "timestamp": "2024-12-16T01:26:16Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -14,10 +14,10 @@
       "size": 7244
     },
     "main.py": {
-      "version": "2.8",
+      "version": "2.9",
       "path": "/main.py",
-      "hash": "0a71353c1c4546cf5b221d2652a34f0398ceb27759fec8ca3e804d492cd6d72a",
-      "size": 18532
+      "hash": "58b6630bcde91998f1cbdde5868adff96186aaed8497f921cf89103a6ed89f82",
+      "size": 20813
     },
     "config_portal.py": {
       "version": "1.4",
@@ -74,10 +74,10 @@
       "size": 5228
     },
     "config_manager.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/config_manager.py",
-      "hash": "8c854eae057cd6baa50075f335bd0245ffc5207ac8c31287295aead6d39f751b",
-      "size": 10506
+      "hash": "38753f36b875624fd1dbecbbb9519451de5f1c7b2a37b549df17d1bf2d1e9987",
+      "size": 10504
     },
     "error_logger.py": {
       "version": "1.2",
