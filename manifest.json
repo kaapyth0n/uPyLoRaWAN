@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-16T01:26:16Z",
+  "timestamp": "2024-12-16T23:41:33Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -8,10 +8,10 @@
       "size": 1658
     },
     "boot.py": {
-      "version": "2.0",
+      "version": "2.1",
       "path": "/boot.py",
-      "hash": "fad6d6f4c86af1e8fbb8dafdac288e0ce92795603d9dadced3c9e8f7de671384",
-      "size": 7244
+      "hash": "ef45f8f10d67cbcbd7f845e48efdba7eb3103425a0656fd57b50103bdbc97559",
+      "size": 7394
     },
     "main.py": {
       "version": "2.9",
@@ -20,10 +20,10 @@
       "size": 20813
     },
     "config_portal.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/config_portal.py",
-      "hash": "cffcd00d6663acdc892fde8e27b4206524e62eb2a433aaf6fe45ea3c3fe35a81",
-      "size": 13708
+      "hash": "dc03fd0ca22f8fc879cd41ac80081a8fce998b5969f491121e6f4ffd7c573dab",
+      "size": 15680
     },
     "encryption_aes.py": {
       "version": "1.1",
@@ -104,10 +104,10 @@
       "size": 9683
     },
     "lora_handler.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/lora_handler.py",
-      "hash": "d86e13246a04034e0b2b91c069e00ef469ccae76d403cdeef770ba0b0d443a35",
-      "size": 23847
+      "hash": "d7a6121faf7b99c634c84ae885e97e4d6eee808be07da2c7142363a3f7373aca",
+      "size": 23925
     },
     "constants.py": {
       "version": "1.2",
