@@ -58,14 +58,14 @@ class ConfigurationManager:
             'min_on_time': {
                 'id': 5,
                 'type': int,
-                'min': 10,
+                'min': 1,
                 'max': 300,
                 'default': BoilerDefaults.MIN_ON_TIME
             },
             'min_off_time': {
                 'id': 6,
                 'type': int,
-                'min': 10,
+                'min': 1,
                 'max': 300,
                 'default': BoilerDefaults.MIN_OFF_TIME
             },
