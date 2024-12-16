@@ -3,7 +3,6 @@ import utime
 import json
 import socket
 import ubinascii
-import machine
 from IND1 import Module_IND1
 
 class PortalTimeout(Exception):
@@ -18,6 +17,8 @@ def run_portal(timeout_minutes=10):
     """
     start_time = utime.time()
     timeout = timeout_minutes * 60  # Convert to seconds
+    ap = None
+    s = None
     
     # Initialize display
     display = None
@@ -76,19 +77,41 @@ def run_portal(timeout_minutes=10):
             raise RuntimeError('Failed to start AP')
 
     def save_config(ssid, password):
+        """Save WiFi configuration to file
+        
+        Args:
+            ssid (str): WiFi network name
+            password (str): WiFi password
+            
+        Returns:
+            dict: Saved configuration or None if failed
+        """
         try:
             config = {'ssid': ssid, 'password': password}
             with open('wifi_config.json', 'w') as f:
                 json.dump(config, f)
             return config
-        except:
+        except Exception as e:
+            print(f"Error saving config: {e}")
             return None
 
     def cleanup(ap, socket):
+        """Clean up network resources
+        
+        Args:
+            ap: Access point interface
+            socket: Server socket
+        """
         if socket:
-            socket.close()
+            try:
+                socket.close()
+            except:
+                pass
         if ap:
-            ap.active(False)
+            try:
+                ap.active(False)
+            except:
+                pass
         update_display("Portal Closed", "Returning to", "main program", beep=True)
 
     def scan_wifi():
@@ -254,8 +277,22 @@ def run_portal(timeout_minutes=10):
     """
 
     def url_decode(s):
-        # Simple URL decoder that handles the basics including %21 for !
-        s = s.replace('+', ' ')  # First replace + with space
+        """Decode URL-encoded string
+        
+        Args:
+            s (str): URL-encoded string
+            
+        Returns:
+            str: Decoded string
+        
+        Note:
+            Handles basic URL encoding including %xx sequences
+            and + for spaces
+        """
+        # First replace + with space
+        s = s.replace('+', ' ')
+        
+        # Handle %xx sequences
         i = 0
         while i < len(s):
             if s[i] == '%' and i + 2 < len(s):
@@ -269,36 +306,77 @@ def run_portal(timeout_minutes=10):
         return s
 
     def parse_request(request):
-        try:
-            # Split request into headers and body
-            headers, body = request.split('\r\n\r\n', 1)
+        """Parse HTTP request into components
+        
+        Args:
+            request (str): Raw HTTP request
             
-            # Find Content-Length if it exists
+        Returns:
+            dict: Parsed parameters
+        """
+        try:
+            # Split request into lines
+            request_lines = request.split('\r\n')
+            
+            # Parse request line
+            method, path, _ = request_lines[0].split(' ')
+            
+            # Initialize parameters dict
+            params = {
+                'method': method,
+                'path': path
+            }
+            
+            # Handle URL parameters in GET request
+            if '?' in path:
+                path, query = path.split('?', 1)
+                params['path'] = path
+                query_params = {}
+                for param in query.split('&'):
+                    if '=' in param:
+                        key, value = param.split('=', 1)
+                        query_params[key] = url_decode(value)
+                params['query'] = query_params
+                
+            # Find end of headers
+            try:
+                headers_end = request.index('\r\n\r\n')
+                headers = request[0:headers_end]
+                body = request[headers_end + 4:]
+            except ValueError:
+                headers = request
+                body = ""
+                
+            # Parse Content-Length
             content_length = 0
             for line in headers.split('\r\n'):
                 if line.startswith('Content-Length:'):
                     content_length = int(line.split(':')[1].strip())
                     break
                     
-            # Parse parameters from body
-            params = {}
-            if body and '=' in body:
+            # Parse POST data if present
+            if method == 'POST' and body:
                 body = body[:content_length] if content_length else body
+                post_params = {}
                 pairs = body.split('&')
                 for pair in pairs:
                     if '=' in pair:
                         key, value = pair.split('=', 1)
-                        # URL decode the value
-                        params[key] = url_decode(value)
+                        post_params[key] = url_decode(value)
+                params['post'] = post_params
+                
             return params
+            
         except Exception as e:
             print(f'Error parsing request: {str(e)}')
-            return {}
+            return {'method': 'GET', 'path': '/', 'error': str(e)}
 
     try:
         # Start AP
         ap = start_ap()
-        
+        if not ap:
+            return False, None
+            
         # Start web server
         s = socket.socket()
         s.bind(('', 80))
@@ -312,31 +390,28 @@ def run_portal(timeout_minutes=10):
                 print(f'Client connected: {addr}')
                 
                 request = conn.recv(1024).decode()
+                params = parse_request(request)
                 
-                if 'POST /save' in request:
-                    # Parse POST data
-                    body = request.split('\r\n\r\n', 1)[1]
-                    params = {}
-                    for param in body.split('&'):
-                        if '=' in param:
-                            key, value = param.split('=', 1)
-                            params[key] = value.replace('+', ' ')
-
-                    ssid = params.get('ssid') or params.get('manual-ssid')
-                    password = params.get('password', '')
-
+                if params.get('error'):
+                    print(f"Request parsing error: {params['error']}")
+                    continue
+                    
+                if params['method'] == 'POST' and params['path'] == '/save':
+                    post_data = params.get('post', {})
+                    ssid = post_data.get('ssid') or post_data.get('manual-ssid')
+                    password = post_data.get('password', '')
+                    
                     if ssid:
                         config = save_config(ssid, password)
                         if config:
-                            response = """
-                            <html><body>
-                            <h2 style='color:green'>Configuration saved!</h2>
-                            <p>Device will restart in 3 seconds...</p>
-                            </body></html>
-                            """
                             conn.send('HTTP/1.1 200 OK\n')
                             conn.send('Content-Type: text/html\n\n')
-                            conn.send(response)
+                            conn.send("""
+                                <html><body>
+                                <h2 style='color:green'>Configuration saved!</h2>
+                                <p>Device will restart in 3 seconds...</p>
+                                </body></html>
+                            """)
                             conn.close()
                             cleanup(ap, s)
                             return True, config
@@ -344,7 +419,7 @@ def run_portal(timeout_minutes=10):
                 # Serve main page
                 conn.send('HTTP/1.1 200 OK\n')
                 conn.send('Content-Type: text/html\n\n')
-                conn.send(get_html())  # Assuming get_html() exists from original
+                conn.send(get_html())
                 
             except OSError:
                 # Socket timeout - check portal timeout
@@ -359,23 +434,19 @@ def run_portal(timeout_minutes=10):
                 
             except Exception as e:
                 print(f'Error: {e}')
-                if conn:
-                    conn.close()
-                    
+                
             finally:
                 if conn:
                     conn.close()
-
-        # Timeout reached
+                    
         raise PortalTimeout()
-
-    except PortalTimeout:
-        print("Portal timeout reached")
-        update_display("Portal Timeout", "Configuration", "not saved", beep=True)
         
     except Exception as e:
         print(f"Portal error: {e}")
-        update_display("Portal Error", str(e)[:21], "Closing...", beep=True)
+        update_display("Portal Error", 
+                            str(e)[:21], 
+                            "Closing...", 
+                            beep=True)
         
     finally:
         cleanup(ap, s)
