@@ -179,12 +179,14 @@ if config:
             sync_time()
             check_updates()
         else:
-            update_display("Boot Status", "WiFi failed", "Starting portal...")
-            print("Could not connect to WiFi - starting config portal...")
-            import config_portal
-            success, new_config = config_portal.run_portal(timeout_minutes=10)
-            if success and new_config:
-                machine.reset()  # Reset to apply new configuration
+            update_display("Boot Status", "WiFi failed", "Press B to start portal...")
+            print("Could not connect to WiFi - checking button to start config portal...")
+            if check_button():
+                print("Could not connect to WiFi - starting config portal...")
+                import config_portal
+                success, new_config = config_portal.run_portal(timeout_minutes=10)
+                if success and new_config:
+                    machine.reset()  # Reset to apply new configuration
     except Exception as e:
         print(f'WiFi connection error: {str(e)}')
         update_display("Boot Status", "WiFi Error:", str(e)[:16])
