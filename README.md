@@ -37,5 +37,6 @@ I have also the sample code for dealing with the IND1-1.1 module called IND1_DEM
 * Apache 2.0
 
 # References
-* Work started from: [lemariva's uPyLoRaWAN](https://github.com/lemariva/uPyLoRaWAN/tree/LoRaWAN).
+* Work started from: [lemariva's uPyLoRaWAN](https://github.com/lemariva/uPyLoRaWAN/tree/LoRaWAN). Got the first transmitted valid LoRaWAN message with it.
 * Which was based on: [Wei1234c GitHub](https://github.com/Wei1234c/SX127x_driver_for_MicroPython_on_ESP8266).
+* The LoRaWAN message decoding only started to work with [mallagant's uLoRaWAN library](https://github.com/mallagant/uLoRaWAN). Not used directly here, reworked into encryption_aes.py file.
