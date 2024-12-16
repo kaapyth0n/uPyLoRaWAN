@@ -21,14 +21,14 @@ There is IO1-2.2 module installed in the M6 slot
 There is a 1-Wire sensor connected to the first input of this module.
 
 Also there is a RFM95W LoRa module (M3+M4 slots) connected to the following pins of the board:
-VIN - +3.3V
-GND - GND
-DI0 - MOD4_2 - GP14
-SCK - MOD3_2 - GP10
-MISO - MOD3_3 - GP8
-MOSI - MOD3_4 - GP11
-CS - MOD3_1 - GP9
-RST - MOD4_1 - GP13
+- VIN - +3.3V
+- GND - GND
+- DI0 - MOD4_2 - GP14
+- SCK - MOD3_2 - GP10
+- MISO - MOD3_3 - GP8
+- MOSI - MOD3_4 - GP11
+- CS - MOD3_1 - GP9
+- RST - MOD4_1 - GP13
 
 On start, the controller loads and runs boot.py file and FrSet.py file is also loaded. FrSet.py is designed to help dealing with the FR modules. Then the controller runs main.py file.
 I have also the sample code for dealing with the IND1-1.1 module called IND1_DEMO, it uses a more high-level library called IND1.
