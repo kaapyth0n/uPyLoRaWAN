@@ -250,6 +250,7 @@ The handler provides:
                 self.lora.send_data(data=data, data_length=data_length, 
                                 frame_counter=frame_counter)
                 self.packets_sent += 1
+                self.frame_counter += 1
                 
                 # Return to RX mode
                 self._set_rx_mode()
@@ -315,7 +316,6 @@ The handler provides:
             
             # Send message
             if self.send_data(msg, len(msg), self.frame_counter):
-                self.frame_counter += 1
                 self.last_status_time = time.time()
                 return True
                 
