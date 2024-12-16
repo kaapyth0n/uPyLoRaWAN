@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-16T23:48:11Z",
+  "timestamp": "2024-12-17T00:09:32Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -62,10 +62,10 @@
       "size": 26075
     },
     "update_checker.py": {
-      "version": "1.6",
+      "version": "1.7",
       "path": "/update_checker.py",
-      "hash": "68e5145fa7734ad6ff9c962e77f2cb3cc33647ee3eb7f290264ca2b86476f3e6",
-      "size": 19326
+      "hash": "719b6ec2f4f4bd794a46bde76926f57f7354be0502aa5559fb3498438b01b76c",
+      "size": 19413
     },
     "interfaces.py": {
       "version": "1.1",
