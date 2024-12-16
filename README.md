@@ -43,10 +43,10 @@ Internal AP:
 
 If there's no Wi-Fi visible or you don't see your router's SSID, refresh the page - that triggers the SSID search process.
 
-# Setup
+# Setup on the new hardware
 1. Connect the device using the USB adapter
-2. Upload: config.py, wifi_config.json, boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
-3. Restart, set up the WiFi, it will download all the other files then
+2. Upload: config.py, wifi_config.json (if present), boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
+3. Restart, set up the Wi-Fi using AP if needed, then power-cycle, it will download all the other files then
 
 # Licenses
 * Apache 2.0

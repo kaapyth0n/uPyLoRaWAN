@@ -195,6 +195,9 @@ def ensure_directory_exists(directory):
     
     Args:
         directory (str): Directory path to create
+        
+    Returns:
+        bool: True if directory exists or was created successfully
     """
     if not directory:  # Handle empty path
         return True
@@ -205,6 +208,7 @@ def ensure_directory_exists(directory):
         # First check if directory already exists
         os.stat(directory)
         print(f"Directory already exists: {directory}")
+        return True
     except OSError:
         # Directory doesn't exist, create it piece by piece
         components = directory.split('/')
@@ -226,11 +230,11 @@ def ensure_directory_exists(directory):
                         os.stat(path)
                         print(f"Created and verified: {path}")
                     except OSError as e:
-                        if e.args[0] != 17:  # Ignore "already exists" error
+                        if e.args[0] == 17:  # Already exists error
+                            print(f"Directory already exists: {path}")
+                        else:
                             print(f"Error creating directory {path}: {e}")
                             return False
-                        else:
-                            print(f"Directory already exists (from error): {path}")
         return True
     except Exception as e:
         print(f"Directory creation failed: {e}")
