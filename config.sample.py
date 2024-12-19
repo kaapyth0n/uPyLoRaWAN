@@ -73,8 +73,6 @@ device_config = {
     'led':25, 
 }
 
-"""
-
 # ES32 TTGO v1.0 
 device_config = {
     'spi_unit': 1,
@@ -87,13 +85,23 @@ device_config = {
     'led':2, 
 }
 
-app_config = {
-    'loop': 200,
-    'sleep': 100,
+"""
+
+# RASPBERRY PI Pico with RFM95
+device_config = {
+    'spi_unit': 0,
+    'miso': 8,    # MOD3_3
+    'mosi': 11,   # MOD3_4
+    'ss': 9,      # MOD3_1 (CS)
+    'sck': 10,    # MOD3_2
+    'dio_0': 14,  # MOD4_2
+    'reset': 13,  # MOD4_1
+    'led': 25,    # Built-in LED
 }
 
+# These settings match frequency plan EU863-870
 lora_parameters = {
-    'tx_power_level': 2, 
+    'tx_power_level': 14, 
     'signal_bandwidth': 'SF7BW125',
     'spreading_factor': 7,    
     'coding_rate': 5, 
@@ -104,11 +112,6 @@ lora_parameters = {
     'invert_IQ': False,
 }
 
-wifi_config = {
-    'ssid':'',
-    'password':''
-}
-
 ttn_config = {
     'devaddr': bytearray([0x00, 0x00, 0x00, 0x00]),
     'nwkey': bytearray([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -116,4 +119,23 @@ ttn_config = {
     'app': bytearray([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
     'country': 'EU',
+}
+
+mqtt_config = {
+    'broker': 'broker.hivemq.com',  # MQTT broker address
+    'port': 1883,                  # MQTT broker port
+    'use_tls': False,              # Whether to use TLS
+    'username': '',      # MQTT username
+    'password': '',          # MQTT password
+    'keepalive': 60,              # Keepalive interval in seconds
+    'ssl_params': {               # SSL/TLS parameters if use_tls is True
+        'cert_reqs': None,
+        'certs': None
+    },
+    # Topic prefix for all messages
+    'topic_prefix': 'SBI:FFFF',
+    # QoS level for publishing/subscribing (0, 1, or 2)
+    'qos': 1,
+    # Whether to retain messages
+    'retain': False
 }
