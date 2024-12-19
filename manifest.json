@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-19T09:05:05Z",
+  "timestamp": "2024-12-19T23:20:02Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -26,10 +26,10 @@
       "size": 7394
     },
     "main.py": {
-      "version": "2.9",
+      "version": "3.0",
       "path": "/main.py",
-      "hash": "58b6630bcde91998f1cbdde5868adff96186aaed8497f921cf89103a6ed89f82",
-      "size": 20813
+      "hash": "ef19f4f07bd737057ff693c9e31903818b1fa346990eba0e8640ddcb9dd4f710",
+      "size": 20617
     },
     "config_portal.py": {
       "version": "1.5",
@@ -92,10 +92,10 @@
       "size": 10504
     },
     "error_logger.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/error_logger.py",
-      "hash": "da43188cb3f624ed60c4320b2a717c77a2af05b83b8ac7b342a6ed92ba68b020",
-      "size": 5041
+      "hash": "62cd13348ea05ff0c561d570718f3239b1c6f60350683c3328d396fb4c4ce51e",
+      "size": 5478
     },
     "watchdog.py": {
       "version": "1.3",
@@ -146,10 +146,10 @@
       "size": 6080
     },
     "mqtt_handler.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/mqtt_handler.py",
-      "hash": "d86e0753cf502eb25b399e0c973ef9865db0ee141ce881328c42adb78f5ade92",
-      "size": 9116
+      "hash": "aebc3a2ba876733a0f7aef61be8ddf7fdd42c00032bae6cee914f614e6d2ee11",
+      "size": 12893
     }
   }
 }
