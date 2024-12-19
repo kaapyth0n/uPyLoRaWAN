@@ -17,6 +17,7 @@ class MQTTHandler:
     Topic structure:
     - Parameters: {base_topic}/{param_name}
     - Config: {base_topic}/config/{param_name}
+    - Errors: {base_topic}/errors
     
     Configuration messages should be JSON with format:
     {"value": parameter_value}
@@ -108,7 +109,9 @@ class MQTTHandler:
         """
         if not self.initialized:
             return False
-            
+        if self.client is None:
+            return False
+        
         try:
             # Build parameter topic
             topic = f"{self.base_topic}/{param_name}"
@@ -139,6 +142,8 @@ class MQTTHandler:
         """
         if not self.initialized:
             return
+        if self.client is None:
+            return False
             
         try:
             self.client.check_msg()
@@ -267,9 +272,96 @@ class MQTTHandler:
         pass
         
     def _publish_errors(self):
-        """Publish error log"""
-        # TODO: Implement error log publishing
-        pass
+        """Publish error log entries via MQTT
+        
+        Topic format: {base_topic}/errors
+        Payload format: JSON array of error entries with:
+            - timestamp: Unix timestamp
+            - type: Error type string
+            - message: Error message
+            - severity: Error severity (1-4)
+        """
+        if not self.initialized:
+            return False
+        if self.client is None:
+            return False
+            
+        try:
+            # Get recent errors (last 50 max to manage memory)
+            errors = self.controller.logger.get_recent_errors(50)
+            
+            if not errors:
+                return True  # No errors to publish
+                
+            # Convert errors to simplified format
+            error_data = []
+            for error in errors:
+                error_data.append({
+                    't': error['timestamp'],
+                    'y': error['type'],
+                    'm': error['message'][:100],  # Limit message length
+                    's': error['severity']
+                })
+                
+            # Create JSON payload
+            import json
+            payload = json.dumps({'errors': error_data})
+            
+            # Publish to errors topic
+            topic = f"{self.base_topic}/errors"
+            self.client.publish(
+                topic.encode(),
+                payload.encode(),
+                qos=mqtt_config['qos']
+            )
+            
+            self.messages_published += 1
+            return True
+            
+        except Exception as e:
+            print(f"Error publishing error log: {e}")
+            return False
+
+    def publish_error(self, error_type, message, severity):
+        """Publish a single error immediately
+        
+        Args:
+            error_type (str): Error type
+            message (str): Error message
+            severity (int): Error severity 1-4
+        """
+        if not self.initialized:
+            return False
+        if self.client is None:
+            return False
+            
+        try:
+            # Create single error payload
+            error_data = {
+                't': time.time(),
+                'y': error_type,
+                'm': message[:100],
+                's': severity
+            }
+            
+            # Convert to JSON
+            import json
+            payload = json.dumps({'error': error_data})
+            
+            # Publish to errors topic
+            topic = f"{self.base_topic}/errors"
+            self.client.publish(
+                topic.encode(),
+                payload.encode(),
+                qos=mqtt_config['qos']
+            )
+            
+            self.messages_published += 1
+            return True
+            
+        except Exception as e:
+            print(f"Error publishing single error: {e}")
+            return False
 
     def check_connection(self):
         """Check MQTT connection and reconnect if needed

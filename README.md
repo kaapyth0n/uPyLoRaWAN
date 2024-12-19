@@ -54,6 +54,8 @@ The values are sent by default to `SBI:FFFF/device/[MAC_ADDRESS]/Boiler:1/[param
 param_name examples: mode, setpoint, temperature
 The payload is the parameter value
 
+The device sends errors to the topic: {base_topic}/errors
+
 The device accepts config messages to the topic like `SBI:FFFF/client/[MAC_ADDRESS]/Boiler:1/config/[param_name]`, for example:
 `SBI:FFFF/client/28CDC10DC5A8/Boiler:1/config/setpoint`
 The payload is a JSON object with a "value" property. Keep in mind that the 'float' types should contain period in value, otherwise it won't work, for example `{"value":20.0}`
@@ -64,6 +66,11 @@ The payload is a command, which could be one of:
 - reset
 - diagnostic
 - clear_errors
+
+The device accepts query messages to the ../Boiler:1/query topic, with possible payloads:
+- status
+- diagnostic
+- errors
 
 # Setup on the new hardware
 1. Connect the device using the USB adapter

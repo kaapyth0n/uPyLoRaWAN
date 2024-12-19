@@ -11,12 +11,13 @@ class ErrorLogger:
     ERROR = 3
     CRITICAL = 4
     
-    def __init__(self, max_entries=50):
+    def __init__(self, controller, max_entries=50):
         """Initialize error logger
         
         Args:
             max_entries (int): Maximum number of entries to keep in memory
         """
+        self.controller = controller
         self.max_entries = max_entries
         self.errors = []
         self.log_file = 'error_log.json'
@@ -59,6 +60,16 @@ class ErrorLogger:
         # Print critical errors immediately
         if severity >= self.WARNING:
             print(f"ERROR: {error_type} - {message}")
+            
+        # Publish via MQTT if available
+        try:
+            if hasattr(self.controller, 'mqtt_handler') and \
+            self.controller.mqtt_handler.initialized:
+                self.controller.mqtt_handler.publish_error(
+                    error_type, message, severity
+                )
+        except:
+            pass # Don't let MQTT issues affect error logging
             
     def get_recent_errors(self, count=10, min_severity=1):
         """Get most recent errors

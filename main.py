@@ -25,7 +25,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.state_machine = StateMachine(self)
         
         # Initialize components
-        self.logger = ErrorLogger()
+        self.logger = ErrorLogger(self)
         self.config_manager = ConfigurationManager()
         self.temp_controller = TemperatureController(self.config_manager)
         
