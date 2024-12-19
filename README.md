@@ -48,6 +48,23 @@ Internal AP:
 
 If there's no Wi-Fi visible or you don't see your router's SSID, refresh the page - that triggers the SSID search process.
 
+# MQTT
+The device sends some values to MQTT server, which is configured in config.py
+The values are sent by default to `SBI:FFFF/device/[MAC_ADDRESS]/Boiler:1/[param_name]`
+param_name examples: mode, setpoint, temperature
+The payload is the parameter value
+
+The device accepts config messages to the topic like `SBI:FFFF/client/[MAC_ADDRESS]/Boiler:1/config/[param_name]`, for example:
+`SBI:FFFF/client/28CDC10DC5A8/Boiler:1/config/setpoint`
+The payload is a JSON object with a "value" property. Keep in mind that the 'float' types should contain period in value, otherwise it won't work, for example `{"value":20.0}`
+
+The device accepts command messages to the topic like `SBI:FFFF/client/[MAC_ADDRESS]/Boiler:1/command`
+The payload is a command, which could be one of:
+- reinitialize
+- reset
+- diagnostic
+- clear_errors
+
 # Setup on the new hardware
 1. Connect the device using the USB adapter
 2. Upload: config.py, wifi_config.json (if present), boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
