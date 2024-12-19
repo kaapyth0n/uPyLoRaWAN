@@ -10,8 +10,16 @@ class MQTTHandler:
     
     Handles MQTT communication including:
     - Publishing device status and sensor data
-    - Subscribing to commands and configuration changes
+    - Publishing parameter changes 
+    - Subscribing to parameter configuration changes
     - Managing MQTT connection and reconnection
+    
+    Topic structure:
+    - Parameters: {base_topic}/{param_name}
+    - Config: {base_topic}/config/{param_name}
+    
+    Configuration messages should be JSON with format:
+    {"value": parameter_value}
     """
     
     def __init__(self, controller):
@@ -71,6 +79,10 @@ class MQTTHandler:
             self.client.subscribe(self.command_topic.encode())
             self.client.subscribe(self.config_topic.encode())
             self.client.subscribe(self.query_topic.encode())
+
+            # Subscribe to parameter changes
+            if hasattr(self.controller.config_manager, 'add_change_callback'):
+                self.controller.config_manager.add_change_callback(self._on_param_change)
             
             print("MQTT initialized successfully")
             print(f"Device topics:\n Publish: {self.base_topic}\n Command: {self.command_topic}")
@@ -83,13 +95,13 @@ class MQTTHandler:
             self.initialized = False
             return False
             
-    def publish_data(self, param_name, value, timestamp=None):
-        """Publish data to MQTT broker
+    def publish_parameter(self, param_name, value, retain=False):
+        """Publish parameter value to MQTT
         
         Args:
-            param_name (str): Parameter name
+            param_name (str): Parameter name 
             value: Parameter value
-            timestamp: Optional timestamp
+            retain (bool): Whether to retain message
         
         Returns:
             bool: True if successful
@@ -98,30 +110,18 @@ class MQTTHandler:
             return False
             
         try:
-            '''
-            # Build message
-            if timestamp is None:
-                timestamp = time.time()
-                
-            message = {
-                'value': value,
-                'timestamp': timestamp
-            }
-            
-            # Convert to JSON string
-            import json
-            payload = json.dumps(message)
-            '''
-            payload = str(value)
-            # Build topic
+            # Build parameter topic
             topic = f"{self.base_topic}/{param_name}"
             
-            # Publish
+            # Convert value to string
+            payload = str(value)
+            
+            # Publish with configured QoS
             self.client.publish(
                 topic.encode(),
                 payload.encode(),
                 qos=mqtt_config['qos'],
-                retain=mqtt_config['retain']
+                retain=retain
             )
             
             self.messages_published += 1
@@ -129,8 +129,7 @@ class MQTTHandler:
             return True
             
         except Exception as e:
-            print(f"MQTT publish failed: {e}")
-            self.initialized = False
+            print(f"Parameter publish failed: {e}")
             return False
             
     def check_msg(self):
@@ -145,6 +144,20 @@ class MQTTHandler:
             self.client.check_msg()
         except:
             self.initialized = False
+
+    def _on_param_change(self, param_name, value):
+        """Handle parameter change notification from config manager
+        
+        Args:
+            param_name (str): Parameter name
+            value: New parameter value
+        """
+        try:
+            # Publish with retain for persistent parameters
+            retain = param_name in ['mode', 'setpoint']  # Retain important parameters
+            self.publish_parameter(param_name, value, retain=retain)
+        except Exception as e:
+            print(f"Parameter change publish failed: {e}")
             
     def _message_callback(self, topic, msg):
         """Handle received MQTT messages
@@ -205,14 +218,18 @@ class MQTTHandler:
             data (dict): Configuration data
         """
         try:
+            # Parse value from JSON payload
             value = data.get('value')
             print(f"Received config update for {param}: {value}")
             if value is not None:
+                # Update parameter via config manager
                 success, message = self.controller.config_manager.set_param(param, value)
-                print(f"Config update result: {success}, {message}")
-                
+                if success:
+                    print(f"Parameter {param} updated to {value}")
+                else:
+                    print(f"Parameter update failed: {message}")
         except Exception as e:
-            print(f"Error handling config: {e}")
+            print(f"Config handling error: {e}")
             
     def _handle_query(self, data):
         """Handle query message
@@ -224,7 +241,7 @@ class MQTTHandler:
             query = data.get('query')
             
             if query == 'status':
-                self._publish_status()
+                self.publish_status()
             elif query == 'diagnostic':
                 self._publish_diagnostic()
             elif query == 'errors':
@@ -233,17 +250,13 @@ class MQTTHandler:
         except Exception as e:
             print(f"Error handling query: {e}")
             
-    def _publish_status(self):
+    def publish_status(self):
         """Publish current status"""
         try:
-            status = {
-                'temperature': self.controller.current_temp,
-                'setpoint': self.controller.config_manager.get_param('setpoint'),
-                'mode': self.controller.config_manager.get_param('mode'),
-                'heating': self.controller.heating_active
-            }
-            
-            self.publish_data('status', status)
+            self.publish_parameter('temperature', self.controller.current_temp)
+            self.publish_parameter('mode', self.controller.config_manager.get_param('mode'))
+            self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
+            self.publish_parameter('heating', self.controller.heating_active)
             
         except Exception as e:
             print(f"Error publishing status: {e}")

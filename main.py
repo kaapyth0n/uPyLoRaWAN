@@ -326,9 +326,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     self.mqtt_handler.check_msg()
                     current_time = time.time()
                     if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
-                        self.mqtt_handler.publish_data('temperature', self.current_temp)
-                        self.mqtt_handler.publish_data('mode', self._get_mode())
-                        self.mqtt_handler.publish_data('setpoint', self._get_setpoint())
+                        self.mqtt_handler.publish_status()
         except Exception as e:
             self.logger.log_error('mqtt', f'MQTT communication error: {e}', 2)
 
