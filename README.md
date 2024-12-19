@@ -8,6 +8,11 @@ The SBI acts as a Class C device, as it's connected to mains.
 
 Main branch is called LoRaWAN, click on [here](https://github.com/kaapyth0n/uPyLoRaWAN/tree/LoRaWAN).
 
+Protocol examples:
+--> 01010100af Configure (01) using sequence number 01 the boiler setpoint (01) with the value 17.5 (0x00AF),
+<-- 05000100af Notify (05) using sequence number 00 that the boiler setpoint (01) has changed to the value 17.5 (0x00AF)
+<-- 04010100 Acknowledge (04) using sequence number 01 that the boiler setpoint (01) was changed successfully (00)
+
 # Hardware
 The device is a FB2-3_14 board [Fractal Set](https://drive.google.com/file/d/1T3OamZlSymlYZOmwFk_QJ0Zuoa1NRuzf/view?usp=drive_link) with Raspberry Pi Pico W module as a controller and MicroPython installed there.
 
