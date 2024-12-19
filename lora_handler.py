@@ -354,13 +354,13 @@ The handler provides:
             
             if param_type == int:
                 # Encode integers as 2 bytes, big endian
-                return value.to_bytes(2, 'big', signed=True)
+                return value.to_bytes(2, 'big')  # Removed signed argument
                 
             elif param_type == float:
-                # Encode floats as fixed point with 2 decimal places
+                # Encode floats as fixed point with 1 decimal place
                 # This gives range of ±2³¹/10 with 0.1 resolution
                 fixed_point = int(value * 10)
-                return fixed_point.to_bytes(2, 'big', signed=True)
+                return fixed_point.to_bytes(2, 'big')  # Removed signed argument
                 
             elif param_type == str:
                 # For string parameters, encode allowed values as index
@@ -391,12 +391,11 @@ The handler provides:
             param_type = param_info['type']
             
             if param_type == int:
-                # Decode 2-byte signed integer
-                return int.from_bytes(encoded_bytes, 'big', signed=True)
+                return int.from_bytes(encoded_bytes, 'big')  # Remove signed argument
                 
             elif param_type == float:
                 # Decode fixed point value
-                fixed_point = int.from_bytes(encoded_bytes, 'big', signed=True)
+                fixed_point = int.from_bytes(encoded_bytes, 'big')
                 return fixed_point / 10.0
                 
             elif param_type == str:
