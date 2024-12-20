@@ -61,13 +61,13 @@ The device accepts config messages to the topic like `SBI:FFFF/client/[MAC_ADDRE
 The payload is a JSON object with a "value" property. Keep in mind that the 'float' types should contain period in value, otherwise it won't work, for example `{"value":20.0}`
 
 The device accepts command messages to the topic like `SBI:FFFF/client/[MAC_ADDRESS]/Boiler:1/command`
-The payload is a command, which could be one of:
+The payload is a JSON with "command" field, which value could be one of:
 - reinitialize
 - reset
 - diagnostic
 - clear_errors
 
-The device accepts query messages to the ../Boiler:1/query topic, with possible payloads:
+The device accepts query messages to the ../Boiler:1/query topic, with payloads of JSON with "query" field with the following possible values:
 - status
 - diagnostic
 - errors
