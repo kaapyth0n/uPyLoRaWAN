@@ -370,6 +370,48 @@ def run_portal(timeout_minutes=10):
         except Exception as e:
             print(f'Error parsing request: {str(e)}')
             return {'method': 'GET', 'path': '/', 'error': str(e)}
+        
+    def receive_full_request(conn):
+        raw_request = b''
+        
+        # Step 1: read first chunk of data
+        chunk = conn.recv(1024)
+        if not chunk:
+            return ''  # нет данных
+        raw_request += chunk
+
+        # Step 2: read until we find end of headers
+        # (double CRLF)
+        while b'\r\n\r\n' not in raw_request:
+            chunk = conn.recv(1024)
+            if not chunk:
+                break
+            raw_request += chunk
+
+        # Split request into header and body parts
+        header_part, sep, body_part = raw_request.partition(b'\r\n\r\n')
+        
+        # Step 3: check if we have Content-Length header
+        content_length = 0
+        for line in header_part.split(b'\r\n'):
+            if line.lower().startswith(b'content-length:'):
+                try:
+                    content_length = int(line.split(b':', 1)[1].strip())
+                except:
+                    content_length = 0
+                break
+        
+        # Step 4: read the rest of the body
+        already_read = len(body_part)
+        to_read = content_length - already_read
+        while to_read > 0:
+            chunk = conn.recv(1024)
+            if not chunk:
+                break
+            raw_request += chunk
+            to_read -= len(chunk)
+        
+        return raw_request.decode()
 
     try:
         # Start AP
@@ -389,7 +431,7 @@ def run_portal(timeout_minutes=10):
                 conn, addr = s.accept()
                 print(f'Client connected: {addr}')
                 
-                request = conn.recv(1024).decode()
+                request = receive_full_request(conn)
                 params = parse_request(request)
                 
                 if params.get('error'):
