@@ -49,8 +49,8 @@ All parameters are enumerated in `config_manager.py`
 - 0x04: Type error
 
 ### Examples:
-* --> `01 01 01 00af`: Configure (01) using sequence 01 parameter 01 with value 17.5 (00af)
-* <-- `04 01 01 00`: Acknowledge (04) sequence 01 parameter 01 success (00)
+* --> `01 99 01 00af`: Configure (01) using sequence 99 parameter 01 with value 17.5 (00af)
+* <-- `04 99 01 00`: Acknowledge (04) sequence 01 parameter 01 success (00)
 * <-- `05 00 01 00af`: Notify (05) parameter 01 changed to 17.5 (00af)
 
 ### Commands:
