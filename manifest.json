@@ -1,5 +1,5 @@
 {
-  "timestamp": "2024-12-19T23:20:02Z",
+  "timestamp": "2024-12-21T22:59:05Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -32,10 +32,10 @@
       "size": 20617
     },
     "config_portal.py": {
-      "version": "1.5",
+      "version": "1.6",
       "path": "/config_portal.py",
-      "hash": "dc03fd0ca22f8fc879cd41ac80081a8fce998b5969f491121e6f4ffd7c573dab",
-      "size": 15680
+      "hash": "08ddd1943b316177309e9c54853cf81422fb1a4dfc575e57085a13a60cfc900e",
+      "size": 17040
     },
     "encryption_aes.py": {
       "version": "1.1",
