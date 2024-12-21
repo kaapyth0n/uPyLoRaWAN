@@ -8,12 +8,62 @@ The SBI acts as a Class C device, as it's connected to mains.
 
 Main branch is called LoRaWAN, click on [here](https://github.com/kaapyth0n/uPyLoRaWAN/tree/LoRaWAN).
 
-Protocol examples:
-* --> 01010100af Configure (01) using sequence number 01 the boiler setpoint (01) with the value 17.5 (0x00AF),
-* <-- 05000100af Notify (05) using sequence number 00 that the boiler setpoint (01) has changed to the value 17.5 (0x00AF)
-* <-- 04010100 Acknowledge (04) using sequence number 01 that the boiler setpoint (01) was changed successfully (00)
+## Message Format
+`[Message Type (1B)] [Payload (...)]`
+
+### Message Types:
+- 0x01: Configuration - Set parameter values
+- 0x02: Command - Execute system command
+- 0x03: Query - Request information
+- 0x04: Acknowledgment - Confirm message receipt
+- 0x05: Notification - Parameter change notification
+
+## Configuration Payload Format
+
+`[Sequence (1B)] [Parameter Code (1B)] [Parameter Value (2B)]`
+
+"Sequence" - any number, used later in "Acknowledgment" messages.
+
+"Parameter Value" - bigendian (MSB first), "float" parameter types are actually an integer value, transmitted in "value*10" form, like 17.5 °C => 175 = 0x00af
+
+### Parameter Codes (examples):
+- 0x01: Operating mode (relay/sensor)
+- 0x02: Temperature setpoint
+- 0x03: Min temperature
+- 0x04: Max temperature
+- 0x05: Hysteresis
 
 All parameters are enumerated in `config_manager.py`
+
+## Acknowledgment Payload Format
+
+`[Sequence (1B)] [Parameter Code (1B)] [Status Code (1B)]`
+
+"Sequence" - the number from the Configuration message that this ACK is replying to.
+
+### Status Codes:
+- 0x00: Success
+- 0x01: Invalid parameter
+- 0x02: Invalid value
+- 0x03: Write failed
+- 0x04: Type error
+
+### Examples:
+* --> `01 01 01 00af`: Configure (01) using sequence 01 parameter 01 with value 17.5 (00af)
+* <-- `04 01 01 00`: Acknowledge (04) sequence 01 parameter 01 success (00)
+* <-- `05 00 01 00af`: Notify (05) parameter 01 changed to 17.5 (00af)
+
+### Commands:
+- Reinitialize: `02 00`
+- Reset: `02 01`
+- Run diagnostic: `02 02`
+- Clear errors: `02 03`
+
+### Queries:
+- Status: `03 00`
+- Diagnostic: `03 01`
+- Errors: `03 02`
+
 
 # Hardware
 The device is a FB2-3_14 board [Fractal Set](https://drive.google.com/file/d/1T3OamZlSymlYZOmwFk_QJ0Zuoa1NRuzf/view?usp=drive_link) with Raspberry Pi Pico W module as a controller and MicroPython installed there.
