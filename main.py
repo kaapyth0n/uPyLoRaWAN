@@ -1,3 +1,4 @@
+import json
 import time
 from config import *
 from FrSet import FrSet
@@ -59,6 +60,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.last_button_state = 0
         self.last_button_time = 0
         self.button_debounce_delay = 0.5  # 500ms debounce
+        self.last_wifi_check = 0
         
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
@@ -271,6 +273,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     
                     # Handle MQTT if enabled
                     self._handle_mqtt_communication()
+
+                    # Check WiFi connection
+                    self._check_wifi_connection()
                     
                     # Update display and pet watchdog if successful
                     if self._update_display_status():
@@ -317,6 +322,36 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         except Exception as e:
             self.logger.log_error('lora', f'LoRa communication error: {e}', 2)
             return False
+        
+    def _check_wifi_connection(self):
+        # Check WiFi connection status every minute
+        current_time = time.time()
+        if current_time - self.last_wifi_check >= 60:  # Check every 60 seconds
+            self.last_wifi_check = current_time
+            try:
+                # Check if we have WiFi config
+                wifi_config = None
+                try:
+                    with open('wifi_config.json', 'r') as f:
+                        wifi_config = json.load(f)
+                except:
+                    pass
+                    
+                if wifi_config:
+                    sta_if = network.WLAN(network.STA_IF)
+                    if not sta_if.isconnected():
+                        self.logger.log_error(
+                            'wifi',
+                            'WiFi connection lost - attempting reconnection',
+                            severity=1
+                        )
+                        utils.force_reconnect(
+                            sta_if,
+                            wifi_config['ssid'],
+                            wifi_config['password']
+                        )
+            except Exception as e:
+                self.logger.log_error('wifi', f'WiFi check failed: {e}', severity=1)
 
     def _handle_mqtt_communication(self):
         """Handle MQTT communication"""

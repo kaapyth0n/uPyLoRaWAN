@@ -200,3 +200,21 @@ def clamp(value, min_value, max_value):
         Value clamped to range
     """
     return max(min_value, min(max_value, value))
+
+def force_reconnect(sta_if, ssid, password):
+    """Force WiFi reconnection
+    
+    Args:
+        sta_if: Network interface
+        ssid: Network name
+        password: Network password
+    """
+    try:
+        if sta_if.isconnected():
+            sta_if.disconnect()
+        sta_if.active(False)
+        time.sleep(1)
+        sta_if.active(True)
+        sta_if.connect(ssid, password)
+    except Exception as e:
+        print(f"WiFi reconnection error: {e}")
