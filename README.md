@@ -8,6 +8,11 @@ The SBI acts as a Class C device, as it's connected to mains.
 
 Main branch is called LoRaWAN, click on [here](https://github.com/kaapyth0n/uPyLoRaWAN/tree/LoRaWAN).
 
+## Message Format for status messages
+Status messages are sent once per "lora_keepalive" period
+
+`[0x01] [Current Temperature * 10 (2B)] [Target Temperature * 10 (2B)] [Burner Status (1B)]`
+
 ## Message Format
 `[Message Type (1B)] [Payload (...)]`
 
