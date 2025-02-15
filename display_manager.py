@@ -221,7 +221,7 @@ class DisplayManager:
             # Operating mode and heating status
             mode_text = f"Mode: {status['mode'].upper()}"
             heating_text = f"State: {'HEAT' if status['heating_active'] else 'IDLE'}"
-            if status.get('pid_enabled') and 'output_voltage' in status:
+            if status['mode'] == 'pid' and 'output_voltage' in status:
                 heating_text += f" {status['output_voltage']:.1f}V"
             self.display.show_text(mode_text, x=0, y=8, font=2)
             self.display.show_text(heating_text, x=0, y=16, font=2)
