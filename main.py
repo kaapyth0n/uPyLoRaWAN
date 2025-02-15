@@ -396,10 +396,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Set initial setpoint
             self.fr.write(28, self._get_setpoint(), slot=6)
             
-            # Configure DAC max voltage
-            max_volts = self.config_manager.get_param('pid_max_volts')
-            self.fr.write(36, max_volts, slot=6)
-            
             # Mark as configured
             self._pid_configured = True
             
