@@ -293,9 +293,34 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 time.sleep(5)
 
     def _update_control_logic(self):
-        """Update control logic and return success status"""
+        """Update control logic for relay, sensor, and PID modes"""
         try:
-            if self.current_temp is not None and self._get_setpoint() is not None:
+            if self.current_temp is None or self._get_setpoint() is None:
+                return False
+
+            mode = self._get_mode()
+            
+            if mode == 'pid':
+                # Configure PID if not already configured
+                if not self._configure_pid():
+                    return False
+                    
+                # PID is configured and running in the IO module
+                # Update setpoint if needed
+                current_setpoint = self.fr.read(28, slot=6)
+                target_setpoint = self._get_setpoint()
+                
+                if current_setpoint != target_setpoint:
+                    self.fr.write(28, target_setpoint, slot=6)
+                    
+                # Read current output voltage to determine heating state
+                voltage = self.fr.read(24, slot=6)  # V_L3 parameter
+                if voltage is None:
+                    voltage = 0.0
+                self.heating_active = voltage > 1.0  # Consider heating active if > 1V
+                
+            elif mode == 'relay':
+                # Regular on/off control
                 dt = time.time() - self.temp_controller.last_control_time
                 should_heat, error = self.temp_controller.calculate_control_action(
                     self.current_temp,
@@ -307,10 +332,37 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     self._activate_heating()
                 else:
                     self._deactivate_heating()
-                return True
-            return False
+                    
+            return True
+            
         except Exception as e:
             self.logger.log_error('control', f'Control logic error: {e}', 2)
+            return False
+
+    def _configure_pid(self):
+        """Configure PID controller in IO module"""
+        try:
+            # Configure PID input/output mapping
+            # Input parameter 6 (T_L1), output parameter 36 (DAC_L3)
+            pid_config = 0x0624  # Bytes: 06 (input) and 0x24 (output)
+            self.fr.write(26, pid_config, slot=6)
+            
+            # Set PID parameters
+            self.fr.write(30, self.config_manager.get_param('pid_kp'), slot=6)
+            self.fr.write(32, self.config_manager.get_param('pid_ki'), slot=6)
+            self.fr.write(34, self.config_manager.get_param('pid_kd'), slot=6)
+            
+            # Set initial setpoint
+            self.fr.write(28, self._get_setpoint(), slot=6)
+            
+            # Configure DAC max voltage
+            max_volts = self.config_manager.get_param('pid_max_volts')
+            self.fr.write(36, max_volts, slot=6)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.log_error('control', f'PID configuration error: {e}', 2)
             return False
 
     def _handle_lora_communication(self):
@@ -372,9 +424,20 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Get WiFi status
             wifi = network.WLAN(network.STA_IF)
             
+            # Get current mode
+            mode = self._get_mode()
+            
+            # Get output voltage for PID and sensor modes
+            output_voltage = None
+            if mode == 'pid':
+                try:
+                    output_voltage = self.fr.read(24, slot=6)  # V_L3 parameter
+                except:
+                    pass
+            
             # Prepare status information
             status = {
-                'mode': self._get_mode(),
+                'mode': mode,
                 'heating_active': self.heating_active,
                 'target_temp': self._get_setpoint(),
                 'current_temp': self.current_temp,
@@ -383,7 +446,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 'mqtt_tx': self.mqtt_handler.messages_published,
                 'mqtt_rx': self.mqtt_handler.messages_received,
                 'lora_tx': self.lora_handler.packets_sent,
-                'lora_rx': self.lora_handler.packets_received
+                'lora_rx': self.lora_handler.packets_received,
+                'output_voltage': output_voltage
             }
             
             # Use display manager to show status

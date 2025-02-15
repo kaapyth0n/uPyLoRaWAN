@@ -24,7 +24,7 @@ class ConfigurationManager:
             'mode': {
                 'id': 0,  # Add ID for each parameter
                 'type': str,
-                'allowed_values': ['relay', 'sensor'],
+                'allowed_values': ['relay', 'sensor', 'pid'],
                 'default': 'relay'
             },
             'setpoint': {
@@ -82,6 +82,34 @@ class ConfigurationManager:
                 'min': 1,   # Minimum 1 second
                 'max': 3600, # Maximum 1 hour
                 'default': 300  # Default 5 minutes
+            },
+            'pid_max_volts': {
+                'id': 9,
+                'type': float,
+                'min': 0.0,
+                'max': 22.5,
+                'default': 10.0
+            },
+            'pid_kp': {
+                'id': 10,
+                'type': float,
+                'min': 0.0,
+                'max': 100.0,
+                'default': 1.0
+            },
+            'pid_ki': {
+                'id': 11,
+                'type': float,
+                'min': 0.0,
+                'max': 100.0,
+                'default': 0.1
+            },
+            'pid_kd': {
+                'id': 12,
+                'type': float,
+                'min': 0.0,
+                'max': 100.0,
+                'default': 0.01
             }
         }
         
