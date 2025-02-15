@@ -64,6 +64,12 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
+        
+        # Add PID configuration tracking
+        self._pid_configured = False
+        
+        # Register for configuration change notifications
+        self.config_manager.add_change_callback(self._on_config_change)
 
     def _get_setpoint(self):
         """Get setpoint from configuration"""
@@ -292,6 +298,40 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 self.state_machine.handle_error(e)
                 time.sleep(5)
 
+    def _on_config_change(self, param_name, value):
+        """Handle configuration parameter changes
+        
+        Args:
+            param_name (str): Name of changed parameter
+            value: New parameter value
+        """
+        try:
+            # Check if this is a PID-related parameter
+            pid_params = {'pid_kp', 'pid_ki', 'pid_kd', 'pid_max_volts', 'mode'}
+            
+            if param_name in pid_params:
+                if param_name == 'mode':
+                    # If switching away from PID mode, mark as unconfigured
+                    if value != 'pid':
+                        self._pid_configured = False
+                else:
+                    # PID parameter changed, mark as needing reconfiguration
+                    # only if we're in PID mode
+                    if self._get_mode() == 'pid':
+                        self._pid_configured = False
+                        self.logger.log_error(
+                            'control',
+                            f'PID parameter {param_name} changed - will reconfigure',
+                            severity=1
+                        )
+                        
+        except Exception as e:
+            self.logger.log_error(
+                'control',
+                f'Config change handler error: {e}',
+                severity=2
+            )
+
     def _update_control_logic(self):
         """Update control logic for relay, sensor, and PID modes"""
         try:
@@ -301,9 +341,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             mode = self._get_mode()
             
             if mode == 'pid':
-                # Configure PID if not already configured
-                if not self._configure_pid():
-                    return False
+                # Configure PID if needed
+                if not self._pid_configured:
+                    if not self._configure_pid():
+                        return False
                     
                 # PID is configured and running in the IO module
                 # Update setpoint if needed
@@ -358,6 +399,15 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Configure DAC max voltage
             max_volts = self.config_manager.get_param('pid_max_volts')
             self.fr.write(36, max_volts, slot=6)
+            
+            # Mark as configured
+            self._pid_configured = True
+            
+            self.logger.log_error(
+                'control',
+                'PID controller configured successfully',
+                severity=1
+            )
             
             return True
             
