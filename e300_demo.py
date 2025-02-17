@@ -17,12 +17,25 @@ class CRA300Display:
         # Initialize display
         self.display = Module_IND1(2)  # Using slot 2
     
+    def show_temperature(self, temp, x, y, large_font=True):
+        # Show the numerical part
+        if large_font:
+            self.display.show_text(f'{temp:.1f}', x=x, y=y, font=8)
+            # Add small 'o' as degree symbol using smaller font
+            text_width = len(f'{temp:.1f}') * 16  # Approximate width for font 8
+            self.display.show_text('o', x=x+text_width-2, y=y, font=2)
+        else:
+            self.display.show_text(f'{temp:.1f}', x=x, y=y, font=5)
+            # Add small 'o' as degree symbol using smaller font
+            text_width = len(f'{temp:.1f}') * 10  # Approximate width for font 5
+            self.display.show_text('o', x=x+text_width-2, y=y, font=1)
+    
     def update_display(self, current_temp, target_temp, mixer_position, is_day=True):
         # Clear display
         self.display.erase(0, mode=self.display.MODE_SET, display=0)
         
         # Current temperature
-        self.display.show_text(f'{current_temp:.1f}°', x=2, y=2, font=8)  # Using largest font
+        self.show_temperature(current_temp, x=2, y=2, large_font=True)
         self.display.show_text('C', x=110, y=8, font=5)
         
         # Target temperature with day/night icon
@@ -30,7 +43,7 @@ class CRA300Display:
             self.display.draw_image(sun_icon, x=2, y=24, mode=self.display.MODE_SET)
         else:
             self.display.draw_image(moon_icon, x=2, y=24, mode=self.display.MODE_SET)
-        self.display.show_text(f'{target_temp:.1f}°', x=20, y=24, font=5)
+        self.show_temperature(target_temp, x=20, y=24, large_font=False)
         self.display.show_text('C', x=110, y=28, font=4)
         
         # Mixer position
