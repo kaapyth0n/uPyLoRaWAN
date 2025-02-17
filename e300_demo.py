@@ -22,13 +22,11 @@ class CRA300Display:
         if large_font:
             self.display.show_text(f'{temp:.1f}', x=x, y=y, font=8)
             # Add small 'o' as degree symbol using smaller font
-            text_width = len(f'{temp:.1f}') * 16  # Approximate width for font 8
-            self.display.show_text('o', x=x+text_width-2, y=y, font=2)
+            text_width = len(f'{temp:.1f} ') * 16  # Approximate width for font 8
+            self.display.show_text('o', x=x+text_width, y=y-2, font=2)
+            self.display.show_text('C', x=x+text_width+6, y=y, font=5)
         else:
             self.display.show_text(f'{temp:.1f}', x=x, y=y, font=5)
-            # Add small 'o' as degree symbol using smaller font
-            text_width = len(f'{temp:.1f}') * 10  # Approximate width for font 5
-            self.display.show_text('o', x=x+text_width-2, y=y, font=1)
     
     def update_display(self, current_temp, target_temp, mixer_position, is_day=True):
         # Clear display
@@ -36,7 +34,6 @@ class CRA300Display:
         
         # Current temperature
         self.show_temperature(current_temp, x=2, y=2, large_font=True)
-        self.display.show_text('C', x=110, y=8, font=5)
         
         # Target temperature with day/night icon
         if is_day:
@@ -44,10 +41,9 @@ class CRA300Display:
         else:
             self.display.draw_image(moon_icon, x=2, y=24, mode=self.display.MODE_SET)
         self.show_temperature(target_temp, x=20, y=24, large_font=False)
-        self.display.show_text('C', x=110, y=28, font=4)
         
         # Mixer position
-        self.display.show_text(f'{mixer_position}%', x=40, y=45, font=7)
+        self.display.show_text(f'{mixer_position}%', x=40, y=45, font=6)
         
         # Display all changes
         self.display.show(0)
