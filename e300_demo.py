@@ -75,11 +75,93 @@ crescent_pattern = [
 
 moon_icon = pattern_to_image_data(crescent_pattern)
 
+# Wi-Fi icon patterns for different signal strengths (16x16)
+wifi_patterns = {
+    "none": [  # No signal
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000110000000",
+        "0000000110000000",
+        "0000000000000000",
+        "0000000000000000"
+    ],
+    "weak": [  # One bar
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000110000000",
+        "0000001111000000",
+        "0000011001100000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000110000000",
+        "0000000110000000",
+        "0000000000000000",
+        "0000000000000000"
+    ],
+    "medium": [  # Two bars
+        "0000000000000000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000110000000",
+        "0000011111100000",
+        "0000110000110000",
+        "0001100000011000",
+        "0011000110001100",
+        "0010001111000100",
+        "0000011001100000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000110000000",
+        "0000000110000000",
+        "0000000000000000",
+        "0000000000000000"
+    ],
+    "strong": [  # Two bars
+        "0000111111110000",
+        "0011100000011100",
+        "0110000000000110",
+        "1100000110000011",
+        "1000011111100001",
+        "1000110000110001",
+        "0001100000011000",
+        "0011000110001100",
+        "0010001111000100",
+        "0000011001100000",
+        "0000000000000000",
+        "0000000000000000",
+        "0000000110000000",
+        "0000000110000000",
+        "0000000000000000",
+        "0000000000000000"
+    ],
+}
+
+# Convert patterns to image data
+wifi_icons = {strength: pattern_to_image_data(pattern) 
+              for strength, pattern in wifi_patterns.items()}
+
 class CRA300Display:
     def __init__(self):
         # Initialize display
         self.display = Module_IND1(2)  # Using slot 2
-    
+        self.wifi_animation_frame = 0
+        self.wifi_strength = "strong"  # Default to strong signal
+        
     def show_temperature(self, temp, x, y, large_font=True):
         # Show the numerical part
         if large_font:
@@ -91,7 +173,24 @@ class CRA300Display:
         else:
             self.display.show_text(f'{temp:.1f}', x=x, y=y, font=5)
     
-    def update_display(self, current_temp, target_temp, mixer_position, is_day=True):
+    def update_wifi_icon(self, strength=None):
+        """Updates the Wi-Fi icon animation based on signal strength"""
+        if strength is not None:
+            self.wifi_strength = strength
+            
+        # Position in upper right corner
+        x_pos = 112  # Adjust this value to move left/right
+        y_pos = 0    # Adjust this value to move up/down
+        
+        # Draw the appropriate icon based on strength
+        self.display.draw_image(wifi_icons[self.wifi_strength], 
+                              x=x_pos, y=y_pos, 
+                              mode=self.display.MODE_SET)
+        
+        # Update animation frame counter
+        self.wifi_animation_frame = (self.wifi_animation_frame + 1) % 4
+    
+    def update_display(self, current_temp, target_temp, mixer_position, is_day=True, wifi_strength=None):
         # Clear display
         self.display.erase(0, mode=self.display.MODE_SET, display=0)
         
@@ -108,6 +207,9 @@ class CRA300Display:
         # Mixer position
         self.display.show_text(f'{mixer_position}%', x=40, y=45, font=6)
         
+        # Update Wi-Fi icon
+        self.update_wifi_icon(wifi_strength)
+        
         # Display all changes
         self.display.show(0)
 
@@ -120,22 +222,34 @@ def run_demo():
     target_temp = 21.0
     mixer_position = 65
     
+    # Wi-Fi strength sequence for demo
+    wifi_states = ["strong", "medium", "weak", "none"]
+    wifi_index = 0
+    
     while True:
+        # Cycle through different Wi-Fi strengths every few iterations
+        wifi_strength = wifi_states[wifi_index]
+        
         # Show day mode
-        cra_display.update_display(current_temp, target_temp, mixer_position, is_day=True)
-        time.sleep(5)
+        cra_display.update_display(current_temp, target_temp, mixer_position, 
+                                 is_day=True, wifi_strength=wifi_strength)
+        time.sleep(2)
         
         # Show night mode
-        cra_display.update_display(current_temp, target_temp, mixer_position, is_day=False)
-        time.sleep(5)
+        cra_display.update_display(current_temp, target_temp, mixer_position, 
+                                 is_day=False, wifi_strength=wifi_strength)
+        time.sleep(2)
         
-        # Simulate some value changes for the demo
+        # Update demo values
         current_temp += 0.1
         if current_temp > 23.5:
             current_temp = 22.5
         mixer_position += 5
         if mixer_position > 100:
             mixer_position = 0
+            
+        # Update Wi-Fi state every few iterations
+        wifi_index = (wifi_index + 1) % len(wifi_states)
 
 if __name__ == "__main__":
     run_demo()
