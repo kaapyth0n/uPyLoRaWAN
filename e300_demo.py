@@ -12,43 +12,58 @@ moon_icon = bytes([16, 16,
     0x00, 0x00, 0x38, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x38, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x38, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x38, 0x00, 0x00, 0x00])
 
-def create_demo_display(is_day=True):
-    # Initialize display
-    display = Module_IND1(2)  # Using slot 2
+class CRA300Display:
+    def __init__(self):
+        # Initialize display
+        self.display = Module_IND1(2)  # Using slot 2
     
-    # Clear display
-    display.erase(0, mode=display.MODE_SET, display=0)
-    
-    # Current temperature (example: 22.5°C)
-    display.show_text('22.5°', x=2, y=2, font=8)  # Using largest font
-    display.show_text('C', x=110, y=8, font=5)
-    
-    # Target temperature with day/night icon (example: 21.0°C)
-    if is_day:
-        display.draw_image(sun_icon, x=2, y=24, mode=display.MODE_SET)
-    else:
-        display.draw_image(moon_icon, x=2, y=24, mode=display.MODE_SET)
-    display.show_text('21.0°', x=20, y=24, font=5)
-    display.show_text('C', x=110, y=28, font=4)
-    
-    # Mixer position (example: 65%)
-    display.show_text('65%', x=40, y=45, font=7)
-    
-    # Display all changes
-    display.show(0)
-    
-    return display
+    def update_display(self, current_temp, target_temp, mixer_position, is_day=True):
+        # Clear display
+        self.display.erase(0, mode=self.display.MODE_SET, display=0)
+        
+        # Current temperature
+        self.display.show_text(f'{current_temp:.1f}°', x=2, y=2, font=8)  # Using largest font
+        self.display.show_text('C', x=110, y=8, font=5)
+        
+        # Target temperature with day/night icon
+        if is_day:
+            self.display.draw_image(sun_icon, x=2, y=24, mode=self.display.MODE_SET)
+        else:
+            self.display.draw_image(moon_icon, x=2, y=24, mode=self.display.MODE_SET)
+        self.display.show_text(f'{target_temp:.1f}°', x=20, y=24, font=5)
+        self.display.show_text('C', x=110, y=28, font=4)
+        
+        # Mixer position
+        self.display.show_text(f'{mixer_position}%', x=40, y=45, font=7)
+        
+        # Display all changes
+        self.display.show(0)
 
-# Demo loop
 def run_demo():
+    # Initialize display once
+    cra_display = CRA300Display()
+    
+    # Demo values
+    current_temp = 22.5
+    target_temp = 21.0
+    mixer_position = 65
+    
     while True:
         # Show day mode
-        display = create_demo_display(is_day=True)
+        cra_display.update_display(current_temp, target_temp, mixer_position, is_day=True)
         time.sleep(5)
         
         # Show night mode
-        display = create_demo_display(is_day=False)
+        cra_display.update_display(current_temp, target_temp, mixer_position, is_day=False)
         time.sleep(5)
+        
+        # Simulate some value changes for the demo
+        current_temp += 0.1
+        if current_temp > 23.5:
+            current_temp = 22.5
+        mixer_position += 5
+        if mixer_position > 100:
+            mixer_position = 0
 
 if __name__ == "__main__":
     run_demo()
