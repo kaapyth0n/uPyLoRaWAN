@@ -202,10 +202,10 @@ class CRA300Display:
             self.display.draw_image(sun_icon, x=2, y=24, mode=self.display.MODE_SET)
         else:
             self.display.draw_image(moon_icon, x=2, y=24, mode=self.display.MODE_SET)
-        self.show_temperature(target_temp, x=20, y=24, large_font=False)
+        self.show_temperature(target_temp, x=20, y=26, large_font=False)
         
         # Mixer position
-        self.display.show_text(f'{mixer_position}%', x=40, y=45, font=6)
+        self.display.show_text(f'M: {mixer_position}%', x=0, y=45, font=6)
         
         # Update Wi-Fi icon
         self.update_wifi_icon(wifi_strength)
