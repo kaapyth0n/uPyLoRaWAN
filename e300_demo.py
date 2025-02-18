@@ -122,7 +122,7 @@ wifi_patterns = {
         "0000110000110000",
         "0001100000011000",
         "0011000110001100",
-        "0010001111000100",
+        "0000001111000000",
         "0000011001100000",
         "0000000000000000",
         "0000000000000000",
@@ -131,7 +131,7 @@ wifi_patterns = {
         "0000000000000000",
         "0000000000000000"
     ],
-    "strong": [  # Two bars
+    "strong": [  # Three bars
         "0000111111110000",
         "0011100000011100",
         "0110000000000110",
@@ -140,7 +140,7 @@ wifi_patterns = {
         "1000110000110001",
         "0001100000011000",
         "0011000110001100",
-        "0010001111000100",
+        "0000001111000000",
         "0000011001100000",
         "0000000000000000",
         "0000000000000000",
@@ -167,11 +167,11 @@ class CRA300Display:
         if large_font:
             self.display.show_text(f'{temp:.1f}', x=x, y=y, font=8)
             # Add small 'o' as degree symbol using smaller font
-            text_width = len(f'{temp:.1f} ') * 16  # Approximate width for font 8
+            text_width = len(f'{temp:.1f}') * 16  # Approximate width for font 8
             self.display.show_text('o', x=x+text_width, y=y-2, font=2)
             self.display.show_text('C', x=x+text_width+6, y=y, font=5)
         else:
-            self.display.show_text(f'{temp:.1f}', x=x, y=y, font=5)
+            self.display.show_text(f'({temp:.1f})', x=x, y=y, font=5)
     
     def update_wifi_icon(self, strength=None):
         """Updates the Wi-Fi icon animation based on signal strength"""
@@ -199,10 +199,10 @@ class CRA300Display:
         
         # Target temperature with day/night icon
         if is_day:
-            self.display.draw_image(sun_icon, x=2, y=24, mode=self.display.MODE_SET)
+            self.display.draw_image(sun_icon, x=112, y=24, mode=self.display.MODE_SET)
         else:
-            self.display.draw_image(moon_icon, x=2, y=24, mode=self.display.MODE_SET)
-        self.show_temperature(target_temp, x=20, y=26, large_font=False)
+            self.display.draw_image(moon_icon, x=112, y=24, mode=self.display.MODE_SET)
+        self.show_temperature(target_temp, x=0, y=26, large_font=False)
         
         # Mixer position
         self.display.show_text(f'M: {mixer_position}%', x=0, y=45, font=6)
@@ -218,9 +218,11 @@ def run_demo():
     cra_display = CRA300Display()
     
     # Demo values
-    current_temp = 22.5
-    target_temp = 21.0
-    mixer_position = 65
+    current_temp = 43.5
+    target_temp = 45.0
+    mixer_position = 25
+    direction = 1
+    day = True
     
     # Wi-Fi strength sequence for demo
     wifi_states = ["strong", "medium", "weak", "none"]
@@ -229,27 +231,31 @@ def run_demo():
     while True:
         # Cycle through different Wi-Fi strengths every few iterations
         wifi_strength = wifi_states[wifi_index]
+        print(f"Demo: Temp={current_temp:.1f} Target={target_temp:.1f} Mixer={mixer_position}% Wi-Fi={wifi_strength}")
         
         # Show day mode
         cra_display.update_display(current_temp, target_temp, mixer_position, 
-                                 is_day=True, wifi_strength=wifi_strength)
-        time.sleep(2)
-        
-        # Show night mode
-        cra_display.update_display(current_temp, target_temp, mixer_position, 
-                                 is_day=False, wifi_strength=wifi_strength)
-        time.sleep(2)
+                                 is_day=day, wifi_strength=wifi_strength)
+        time.sleep(1)
         
         # Update demo values
-        current_temp += 0.1
-        if current_temp > 23.5:
-            current_temp = 22.5
-        mixer_position += 5
+        current_temp += direction * 0.1
+        mixer_position += direction * 5
         if mixer_position > 100:
+            mixer_position = 100
+        if mixer_position < 0:
             mixer_position = 0
+        if current_temp > target_temp:
+            direction = -1
+            target_temp = 43.0
+            day = False
+        if current_temp < target_temp:
+            direction = 1
+            target_temp = 45.0
+            day = True
             
         # Update Wi-Fi state every few iterations
-        wifi_index = (wifi_index + 1) % len(wifi_states)
+        wifi_index = (wifi_index - 1) % len(wifi_states)
 
 if __name__ == "__main__":
     run_demo()
