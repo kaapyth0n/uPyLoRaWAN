@@ -6,6 +6,27 @@ I'm actually not using TTN infrastructure for my application, I'm using my own g
 
 The SBI acts as a Class C device, as it's connected to mains.
 
+## Device Address Options
+For the Device Address, you now have two options:
+
+1. **Static Address**: Manually configure a specific Device Address in `config.py`
+2. **Dynamic Address**: Allow the system to generate a Device Address automatically based on the Wi-Fi MAC address
+
+To use a dynamic Device Address, set the `devaddr` in `config.py` to all zeros:
+```python
+ttn_config = {
+    'devaddr': bytearray([0x00, 0x00, 0x00, 0x00]),
+    # other keys remain the same
+    'nwkey': bytearray([...]),
+    'app': bytearray([...]),
+    'country': 'EU',
+}
+```
+
+When all zeros are detected, the system will generate a Device Address using bytes 2-5 of the Wi-Fi MAC address. This ensures a unique but consistent address across reboots without requiring manual configuration.
+
+**Note**: Existing devices with non-zero Device Addresses will continue to use their configured addresses.
+
 Main branch is called LoRaWAN, click on [here](https://github.com/kaapyth0n/uPyLoRaWAN/tree/LoRaWAN).
 
 ## Message Format for status messages
