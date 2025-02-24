@@ -2,17 +2,39 @@
 Software for a device called SBI (Smart Boiler Interface) which collects data from sensors, manipulates the output to control the boiler and keeps connection to the LoRaWAN gateway by sending the current values and receiving commands with LoRaWAN.
 
 # LoRaWAN
-I'm actually not using TTN infrastructure for my application, I'm using my own gateway which would be connected then to my own server. But anyway, the gateway only supports valid LoRaWAN messages, so you need to register a device in the gateway first. There are two options generally: OTAA or ABP. Currently we are using ABP mode. Device EUI is generated on the gateway, and for ABP I need to provide Device Address, Network Session Key and Application Session Key, they are set in the config.py (see `config.example.py`).
+I'm actually not using TTN infrastructure for my application, I'm using my own gateway which would be connected then to my own server. But anyway, the gateway only supports valid LoRaWAN messages, so you need to register a device in the gateway first. There are two options generally: OTAA or ABP. Currently we are using ABP mode. Device EUI is generated on the gateway, and for ABP I need to provide Device Address, Network Session Key and Application Session Key.
 
 The SBI acts as a Class C device, as it's connected to mains.
 
 ## Device Address Options
-For the Device Address, you now have two options:
+For the Device Address, you now have three options:
 
-1. **Static Address**: Manually configure a specific Device Address in `config.py`
-2. **Dynamic Address**: Allow the system to generate a Device Address automatically based on the Wi-Fi MAC address
+1. **Configuration Manager (Recommended)**: The Device Address is stored in persistent configuration and can be changed remotely via MQTT or LoRaWAN commands.
 
-To use a dynamic Device Address, set the `devaddr` in `config.py` to all zeros:
+2. **Static Address**: Manually configure a specific Device Address in `config.py`.
+
+3. **Dynamic Address**: Allow the system to generate a Device Address automatically based on the Wi-Fi MAC address.
+
+The system follows this priority order:
+1. Configuration Manager value (if not default "00000000")
+2. Static value in `config.py` (if not all zeros)
+3. Dynamically generated value from MAC address
+
+### Changing Device Address via MQTT
+You can change the device address by sending a message to:
+```
+SBI:FFFF/client/[MAC_ADDRESS]/Boiler:1/config/devaddr
+```
+
+The payload should be a JSON object with the hex string value:
+```json
+{"value": "01020304"}
+```
+
+The device will automatically reinitialize LoRaWAN with the new address.
+
+### Default Configuration
+To use dynamic addressing, leave both the configuration value at default and set the `devaddr` in `config.py` to all zeros:
 ```python
 ttn_config = {
     'devaddr': bytearray([0x00, 0x00, 0x00, 0x00]),
@@ -132,7 +154,7 @@ The device sends some values to MQTT server, which is configured in config.py
 
 The values are sent by default to `SBI:FFFF/device/[MAC_ADDRESS]/Boiler:1/[param_name]`
 
-param_name examples: mode, setpoint, temperature
+param_name examples: mode, setpoint, temperature, devaddr
 
 The payload is the parameter value
 
@@ -144,6 +166,9 @@ The device accepts config messages to the topic like `SBI:FFFF/client/[MAC_ADDRE
 `SBI:FFFF/client/28CDC10DC5A8/Boiler:1/config/setpoint`
 
 The payload is a JSON object with a "value" property. Keep in mind that the 'float' types should contain period in value, otherwise it won't work, for example `{"value":20.0}`
+
+For the Device Address, use:
+`SBI:FFFF/client/28CDC10DC5A8/Boiler:1/config/devaddr` with payload `{"value":"01020304"}`
 
 ## Commands
 The device accepts command messages to the topic like `SBI:FFFF/client/[MAC_ADDRESS]/Boiler:1/command`

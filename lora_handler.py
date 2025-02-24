@@ -56,6 +56,53 @@ The handler provides:
         if hasattr(self.controller.config_manager, 'add_change_callback'):
             self.controller.config_manager.add_change_callback(self._on_param_change)
         
+    def _get_device_address(self):
+        """Get device address from configuration or generate dynamically
+        
+        Returns:
+            bytearray: Device address to use
+        """
+        # First check configuration manager
+        config_addr = self.controller.config_manager.get_param('devaddr')
+        
+        # If config manager has a non-default address, use it
+        if config_addr and config_addr != '00000000':
+            try:
+                print(f"Using device address from configuration manager: {config_addr}")
+                return self.controller.config_manager.hex_to_bytearray(config_addr)
+            except:
+                print("Error converting config address, falling back")
+        
+        # Check static config
+        static_devaddr = ttn_config['devaddr']
+        use_dynamic = all(b == 0 for b in static_devaddr)
+        
+        # If static device address is all zeros, generate from MAC
+        if use_dynamic:
+            try:
+                # Get Wi-Fi MAC address
+                wlan = network.WLAN(network.STA_IF)
+                mac = wlan.config('mac')
+                
+                # Use bytes 2-5 of MAC for Device Address
+                devaddr = bytearray([mac[2], mac[3], mac[4], mac[5]])
+                
+                # Save the dynamic address to configuration manager
+                addr_hex = ''.join(f'{b:02x}' for b in devaddr)
+                print(f"Generated dynamic Device Address: {addr_hex}")
+                
+                # Skip the configuration callback to avoid reinitializing in a loop
+                self.controller.config_manager.current_config['devaddr'] = addr_hex
+                self.controller.config_manager.save_config()
+                
+                return devaddr
+            except Exception as e:
+                print(f"Failed to generate dynamic Device Address: {e}")
+                # Fall back to static address
+                return static_devaddr
+        else:
+            return static_devaddr
+    
     def initialize(self):
         """Initialize LoRa module with proper RX setup"""
         try:
@@ -65,43 +112,20 @@ The handler provides:
             
             print("Initializing LoRa module...")
             
-            # Check if static Device Address is set (all zeros indicates dynamic addressing)
-            static_devaddr = ttn_config['devaddr']
-            use_dynamic = all(b == 0 for b in static_devaddr)
+            # Get device address using our new method
+            devaddr = self._get_device_address()
             
-            # If static devaddr is all zeros, generate Device Address from MAC
-            if use_dynamic:
-                try:
-                    # Get Wi-Fi MAC address
-                    wlan = network.WLAN(network.STA_IF)
-                    mac = wlan.config('mac')
-                    
-                    # Use bytes 2-5 of MAC for Device Address (balancing uniqueness and stability)
-                    # Bytes 0-2 are OUI (manufacturer), bytes 3-5 are unique to device
-                    devaddr = bytearray([mac[2], mac[3], mac[4], mac[5]])
-                    
-                    print(f"Using dynamic Device Address: {':'.join(f'{b:02x}' for b in devaddr)}")
-                    self.controller.logger.log_error(
-                        'lora',
-                        f'Using dynamic Device Address: {":".join(f"{b:02x}" for b in devaddr)}',
-                        severity=1
-                    )
-                    self.device_address = devaddr
-                except Exception as e:
-                    print(f"Failed to generate dynamic Device Address: {e}")
-                    self.controller.logger.log_error(
-                        'lora',
-                        f'Failed to generate dynamic Device Address: {e}',
-                        severity=2
-                    )
-                    # Fall back to static address
-                    devaddr = static_devaddr
-                    self.device_address = devaddr
-                    print("Falling back to static Device Address")
-            else:
-                devaddr = static_devaddr
-                self.device_address = devaddr
-                print(f"Using static Device Address: {':'.join(f'{b:02x}' for b in devaddr)}")
+            # Store the device address being used
+            self.device_address = devaddr
+            addr_hex = ''.join(f'{b:02x}' for b in devaddr)
+            print(f"Using Device Address: {addr_hex}")
+            
+            # Log the device address being used
+            self.controller.logger.log_error(
+                'lora',
+                f'Using Device Address: {addr_hex}',
+                severity=1
+            )
             
             # Initialize LoRaWAN with config
             ttn = TTN(
@@ -166,6 +190,20 @@ The handler provides:
             self.lora = None
             return False
         
+    def check_pending_actions(self):
+        """Check for pending actions like reinitialization
+        
+        Should be called regularly in the main loop
+        
+        Returns:
+            bool: True if any action was taken
+        """
+        if self.pending_reinit:
+            print("Reinitializing LoRa module due to device address change")
+            self.pending_reinit = False
+            return self.initialize()
+        return False
+    
     def reinitialize_from_scratch(self):
         """Completely reinitialize LoRa from scratch"""
         print("\nPerforming complete LoRa reinitialization...")
@@ -710,6 +748,18 @@ The handler provides:
             param_name (str): Parameter name
             value: New parameter value
         """
+        # If device address changed, schedule reinitialization
+        if param_name == 'devaddr':
+            # Only reinitialize if it's a change to a different value
+            old_addr = ''.join(f'{b:02x}' for b in self.device_address) if self.device_address else '00000000'
+            if value != old_addr:
+                print(f"Device address changed from {old_addr} to {value}")
+                self.pending_reinit = True
+                self.controller.logger.log_error(
+                    'lora',
+                    f'Device address changed - pending reinitialization',
+                    severity=2
+                )
         try:
             # Get parameter info
             param_info = self.controller.config_manager.get_param_info(param_name=param_name)

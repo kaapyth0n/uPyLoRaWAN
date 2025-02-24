@@ -110,6 +110,13 @@ class ConfigurationManager:
                 'min': 0.0,
                 'max': 100.0,
                 'default': 0.01
+            },
+            'devaddr': {
+                'id': 13,  # Next ID in the sequence
+                'type': str,
+                'default': '00000000',  # Default is all zeros in hex format
+                'description': 'LoRaWAN Device Address (hex format)',
+                'validator': self._validate_hex_string
             }
         }
         
@@ -349,3 +356,61 @@ class ConfigurationManager:
             return True, "Parameter updated successfully"
         else:
             return False, "Failed to save configuration"
+
+    def _validate_hex_string(self, value, param_def):
+        """Validate a hexadecimal string
+        
+        Args:
+            value (str): Hex string to validate
+            param_def (dict): Parameter definition
+            
+        Returns:
+            tuple: (is_valid (bool), message (str))
+        """
+        # Remove any non-alphanumeric characters (like colons or spaces)
+        clean_value = ''.join(c for c in value if c.isalnum())
+        
+        # Check if it's a valid hex string
+        try:
+            # Check if it can be converted to bytes
+            int(clean_value, 16)
+            
+            # Check length - device address should be 4 bytes = 8 hex chars
+            if len(clean_value) != 8:
+                return False, f"Invalid length for hex string: {len(clean_value)}, expected 8"
+                
+            return True, "Valid hex string"
+        except ValueError:
+            return False, "Invalid hex format"
+
+    def hex_to_bytearray(self, hex_str):
+        """Convert hex string to bytearray
+        
+        Args:
+            hex_str (str): Hex string
+            
+        Returns:
+            bytearray: Converted bytes
+        """
+        # Remove any non-alphanumeric characters
+        clean_str = ''.join(c for c in hex_str if c.isalnum())
+        
+        # Convert to bytearray
+        result = bytearray()
+        for i in range(0, len(clean_str), 2):
+            if i + 1 < len(clean_str):
+                byte = int(clean_str[i:i+2], 16)
+                result.append(byte)
+        
+        return result
+        
+    def bytearray_to_hex(self, byte_arr):
+        """Convert bytearray to hex string
+        
+        Args:
+            byte_arr (bytearray): Bytes to convert
+            
+        Returns:
+            str: Hex string
+        """
+        return ''.join(f'{b:02x}' for b in byte_arr)

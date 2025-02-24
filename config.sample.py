@@ -112,6 +112,29 @@ lora_parameters = {
     'invert_IQ': False,
 }
 
+"""
+# NOTE ON DEVICE ADDRESS CONFIGURATION:
+
+The system now supports three ways to set the LoRaWAN Device Address:
+
+1. From Configuration Manager (recommended):
+   - The address will be stored in persistent configuration
+   - Can be changed via MQTT or LoRaWAN commands
+   - Survives firmware updates and reboots
+   - Use parameter 'devaddr' with an 8-character hex string (e.g. "01020304")
+
+2. Static in ttn_config (legacy support):
+   - Used only if Configuration Manager has default value ("00000000")
+   - Set specific value: bytearray([0x01, 0x02, 0x03, 0x04])
+
+3. Dynamic from MAC address (automatic):
+   - Used if both Configuration Manager and ttn_config have default values
+   - Generated from Wi-Fi MAC address for uniqueness and consistency
+   - No manual configuration required
+
+For new deployments, leave both as defaults for automatic addressing.
+"""
+
 ttn_config = {
     # Device Address - OPTIONS:
     # 1. Use a static address by setting specific values:
