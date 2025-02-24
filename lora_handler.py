@@ -1,4 +1,5 @@
 import time
+import network
 from machine import Pin, SoftSPI
 from sx127x import TTN, SX127x
 from config import device_config, lora_parameters, ttn_config
@@ -64,9 +65,47 @@ The handler provides:
             
             print("Initializing LoRa module...")
             
+            # Check if static Device Address is set (all zeros indicates dynamic addressing)
+            static_devaddr = ttn_config['devaddr']
+            use_dynamic = all(b == 0 for b in static_devaddr)
+            
+            # If static devaddr is all zeros, generate Device Address from MAC
+            if use_dynamic:
+                try:
+                    # Get Wi-Fi MAC address
+                    wlan = network.WLAN(network.STA_IF)
+                    mac = wlan.config('mac')
+                    
+                    # Use bytes 2-5 of MAC for Device Address (balancing uniqueness and stability)
+                    # Bytes 0-2 are OUI (manufacturer), bytes 3-5 are unique to device
+                    devaddr = bytearray([mac[2], mac[3], mac[4], mac[5]])
+                    
+                    print(f"Using dynamic Device Address: {':'.join(f'{b:02x}' for b in devaddr)}")
+                    self.controller.logger.log_error(
+                        'lora',
+                        f'Using dynamic Device Address: {":".join(f"{b:02x}" for b in devaddr)}',
+                        severity=1
+                    )
+                    self.device_address = devaddr
+                except Exception as e:
+                    print(f"Failed to generate dynamic Device Address: {e}")
+                    self.controller.logger.log_error(
+                        'lora',
+                        f'Failed to generate dynamic Device Address: {e}',
+                        severity=2
+                    )
+                    # Fall back to static address
+                    devaddr = static_devaddr
+                    self.device_address = devaddr
+                    print("Falling back to static Device Address")
+            else:
+                devaddr = static_devaddr
+                self.device_address = devaddr
+                print(f"Using static Device Address: {':'.join(f'{b:02x}' for b in devaddr)}")
+            
             # Initialize LoRaWAN with config
             ttn = TTN(
-                ttn_config['devaddr'],
+                devaddr,  # Use either dynamic or static address
                 ttn_config['nwkey'],
                 ttn_config['app'],
                 country=ttn_config['country']
