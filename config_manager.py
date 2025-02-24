@@ -7,6 +7,7 @@ class ConfigurationManager:
     - including validation and persistence
     - with parameter enumeration support
     - with change notifications
+    - with enhanced hex string handling
     """
     
     def __init__(self):
@@ -117,7 +118,8 @@ class ConfigurationManager:
                 'default': '00000000',  # Default is all zeros in hex format
                 'description': 'LoRaWAN Device Address (hex format)',
                 'validator': self._validate_hex_string,
-                'format': 'hex'
+                'format': 'hex',
+                'hex_length': 4  # Specifies length in bytes (4 bytes = 8 hex chars)
             }
         }
         
@@ -212,6 +214,10 @@ class ConfigurationManager:
         # Type check
         if not isinstance(value, param_def['type']):
             return False, f"Invalid type for {param_name}: expected {param_def['type'].__name__}, got {type(value).__name__}"
+            
+        # Custom validator
+        if 'validator' in param_def:
+            return param_def['validator'](value, param_def)
             
         # Value checks
         if 'allowed_values' in param_def:
@@ -376,9 +382,12 @@ class ConfigurationManager:
             # Check if it can be converted to bytes
             int(clean_value, 16)
             
-            # Check length - device address should be 4 bytes = 8 hex chars
-            if len(clean_value) != 8:
-                return False, f"Invalid length for hex string: {len(clean_value)}, expected 8"
+            # Check length if specified
+            if 'hex_length' in param_def:
+                # Each byte is 2 hex characters
+                expected_length = param_def['hex_length'] * 2
+                if len(clean_value) != expected_length:
+                    return False, f"Invalid length for hex string: {len(clean_value)}, expected {expected_length}"
                 
             return True, "Valid hex string"
         except ValueError:
