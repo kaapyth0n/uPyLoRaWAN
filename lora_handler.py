@@ -431,29 +431,52 @@ The handler provides:
             
             if param_type == int:
                 # Encode integers as 2 bytes, big endian
-                return value.to_bytes(2, 'big')  # Removed signed argument
+                return value.to_bytes(2, 'big')
                 
             elif param_type == float:
                 # Encode floats as fixed point with 1 decimal place
-                # This gives range of ±2³¹/10 with 0.1 resolution
                 fixed_point = int(value * 10)
-                return fixed_point.to_bytes(2, 'big')  # Removed signed argument
+                return fixed_point.to_bytes(2, 'big')
                 
             elif param_type == str:
-                # For string parameters, encode allowed values as index
-                if 'allowed_values' in param_info:
+                # Check if this is a hex format parameter
+                if param_info.get('format') == 'hex':
+                    # Convert hex string to bytearray
+                    # Clean the string first (remove any non-hex chars)
+                    clean_str = ''.join(c for c in value if c in '0123456789abcdefABCDEF')
+                    
+                    # Convert to bytearray (must have even length)
+                    if len(clean_str) % 2 != 0:
+                        clean_str = '0' + clean_str
+                        
+                    result = bytearray()
+                    for i in range(0, len(clean_str), 2):
+                        byte = int(clean_str[i:i+2], 16)
+                        result.append(byte)
+                    return result
+                    
+                # For string parameters with enumeration
+                elif 'allowed_values' in param_info:
                     try:
                         index = param_info['allowed_values'].index(value)
                         return index.to_bytes(1, 'big')
                     except ValueError:
                         raise ValueError(f"Invalid string value: {value}")
-                        
+                else:
+                    # For regular string parameters, encode as UTF-8
+                    return value.encode('utf-8')
+                    
             raise ValueError(f"Unsupported parameter type: {param_type}")
             
         except Exception as e:
             print(f"Value encoding error: {e}")
+            self.controller.logger.log_error(
+                'lora',
+                f'Parameter encoding error: {e}',
+                severity=2
+            )
             return None
-            
+
     def _decode_parameter_value(self, param_info, encoded_bytes):
         """Decode parameter value from bytes based on parameter type
         
@@ -468,7 +491,7 @@ The handler provides:
             param_type = param_info['type']
             
             if param_type == int:
-                return int.from_bytes(encoded_bytes, 'big')  # Remove signed argument
+                return int.from_bytes(encoded_bytes, 'big')
                 
             elif param_type == float:
                 # Decode fixed point value
@@ -476,17 +499,33 @@ The handler provides:
                 return fixed_point / 10.0
                 
             elif param_type == str:
-                # For string parameters, decode index to allowed value
-                if 'allowed_values' in param_info:
+                # Check if this is a hex format parameter
+                if param_info.get('format') == 'hex':
+                    # Convert bytes directly to hex string
+                    return ''.join(f'{b:02x}' for b in encoded_bytes)
+                    
+                # For enumerated string parameters
+                elif 'allowed_values' in param_info:
                     index = int.from_bytes(encoded_bytes, 'big')
                     if 0 <= index < len(param_info['allowed_values']):
                         return param_info['allowed_values'][index]
-                        
+                    else:
+                        raise ValueError(f"Invalid index {index} for allowed values")
+                else:
+                    # For regular string parameters, try to decode as UTF-8
+                    return encoded_bytes.decode('utf-8')
+                    
             raise ValueError(f"Unsupported parameter type: {param_type}")
             
         except Exception as e:
             print(f"Value decoding error: {e}")
+            self.controller.logger.log_error(
+                'lora',
+                f'Parameter decoding error: {e}',
+                severity=2
+            )
             return None
+
             
     def _handle_received(self, lora, payload: bytearray):
         """Handle received LoRaWAN message
@@ -544,28 +583,57 @@ The handler provides:
                 print(f"Invalid parameter ID: {param_id}")
                 self._send_ack(sequence, param_id, self.STATUS_INVALID_PARAM)
                 return False
-                
-            # Decode parameter value
-            value = self._decode_parameter_value(param_info, payload[2:])
-            if value is None:
-                print("Value decoding failed")
-                self._send_ack(sequence, param_id, self.STATUS_DECODE_ERROR)
-                return False
-                
-            # Set parameter value
-            success, message = self.controller.config_manager.set_param_by_id(param_id, value)
-
-            # Send acknowledgment
-            status = self.STATUS_SUCCESS if success else self.STATUS_WRITE_FAILED
-            self._send_ack(sequence, param_id, status)            
-
-            if success:
-                print(f"Parameter {param_id} set to {value}")
-            else:
-                print(f"Parameter set failed: {message}")
-
-            return success
             
+            # Special handling for device address (param_id 13)
+            if param_id == 13:  # Device Address
+                if len(payload) < 6:  # Need 4 bytes for address
+                    print("Device address config message too short")
+                    self._send_ack(sequence, param_id, self.STATUS_INVALID_VALUE)
+                    return False
+                    
+                # Extract the 4 bytes for device address
+                addr_bytes = payload[2:6]
+                
+                # Convert to hex string
+                addr_hex = ''.join(f'{b:02x}' for b in addr_bytes)
+                print(f"Received device address change request: {addr_hex}")
+                
+                # Update configuration
+                success, message = self.controller.config_manager.set_param_by_id(param_id, addr_hex)
+                
+                # Send acknowledgment
+                status = self.STATUS_SUCCESS if success else self.STATUS_WRITE_FAILED
+                self._send_ack(sequence, param_id, status)
+                
+                if success:
+                    print(f"Device address set to {addr_hex}")
+                else:
+                    print(f"Device address update failed: {message}")
+                    
+                return success
+            else:
+                # Handle other parameters normally
+                # Decode parameter value
+                value = self._decode_parameter_value(param_info, payload[2:])
+                if value is None:
+                    print("Value decoding failed")
+                    self._send_ack(sequence, param_id, self.STATUS_DECODE_ERROR)
+                    return False
+                    
+                # Set parameter value
+                success, message = self.controller.config_manager.set_param_by_id(param_id, value)
+
+                # Send acknowledgment
+                status = self.STATUS_SUCCESS if success else self.STATUS_WRITE_FAILED
+                self._send_ack(sequence, param_id, status)            
+
+                if success:
+                    print(f"Parameter {param_id} set to {value}")
+                else:
+                    print(f"Parameter set failed: {message}")
+
+                return success
+                
         except Exception as e:
             self.controller.logger.log_error(
                 'lora',

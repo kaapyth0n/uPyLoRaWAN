@@ -116,7 +116,8 @@ class ConfigurationManager:
                 'type': str,
                 'default': '00000000',  # Default is all zeros in hex format
                 'description': 'LoRaWAN Device Address (hex format)',
-                'validator': self._validate_hex_string
+                'validator': self._validate_hex_string,
+                'format': 'hex'
             }
         }
         
