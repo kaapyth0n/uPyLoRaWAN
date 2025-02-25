@@ -360,20 +360,35 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     voltage = 0.0
                 self.heating_active = voltage > 1.0  # Consider heating active if > 1V
                 
-            elif mode == 'relay':
-                # Regular on/off control
-                dt = time.time() - self.temp_controller.last_control_time
-                should_heat, error = self.temp_controller.calculate_control_action(
-                    self.current_temp,
-                    self._get_setpoint(),
-                    dt
-                )
+            elif mode == 'relay' or mode == 'sensor':
+                # If we were previously in PID mode, disable it
+                if self._pid_configured:
+                    try:
+                        # Disable PID by writing 0 to PID_CR (as per the producer's comment)
+                        self.fr.write(26, 0, slot=6)
+                        self._pid_configured = False
+                        self.logger.log_error(
+                            'control',
+                            f'PID controller disabled when switching to {mode} mode',
+                            severity=1
+                        )
+                    except Exception as e:
+                        self.logger.log_error('control', f'Error disabling PID: {e}', 2)
                 
-                if should_heat:
-                    self._activate_heating()
-                else:
-                    self._deactivate_heating()
+                # Regular on/off control for relay mode
+                if mode == 'relay':
+                    dt = time.time() - self.temp_controller.last_control_time
+                    should_heat, error = self.temp_controller.calculate_control_action(
+                        self.current_temp,
+                        self._get_setpoint(),
+                        dt
+                    )
                     
+                    if should_heat:
+                        self._activate_heating()
+                    else:
+                        self._deactivate_heating()
+                        
             return True
             
         except Exception as e:
@@ -381,17 +396,28 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             return False
 
     def _configure_pid(self):
-        """Configure PID controller in IO module"""
+        """Configure PID controller in IO module with support for IO1-2.22 v0.89"""
         try:
             # Configure PID input/output mapping
-            # Input parameter 6 (T_L1), output parameter 36 (DAC_L3)
-            pid_config = 0x0624  # Bytes: 06 (input) and 0x24 (output)
+            # PID_CR format: Byte 1 (high byte) is input parameter, Byte 0 (low byte) is output parameter
+            # Parameters are internal to the IO module and may differ from SPI parameter numbers
+            
+            # For IO1-2.22 v0.89:
+            # Using T_L1 (parameter 6) as input and DAC_L3 (parameter 40) as output
+            input_param = 0x06  # T_L1 parameter
+            output_param = 0x28  # DAC_L3 parameter (0x28 = 40 decimal)
+            
+            pid_config = (input_param << 8) | output_param
             self.fr.write(26, pid_config, slot=6)
             
             # Set PID parameters
             self.fr.write(30, self.config_manager.get_param('pid_kp'), slot=6)
             self.fr.write(32, self.config_manager.get_param('pid_ki'), slot=6)
             self.fr.write(34, self.config_manager.get_param('pid_kd'), slot=6)
+            
+            # Set PID limits (new in IO1-2.22 v0.89)
+            self.fr.write(36, self.config_manager.get_param('pid_min_volts'), slot=6)
+            self.fr.write(38, self.config_manager.get_param('pid_max_volts'), slot=6)
             
             # Set initial setpoint
             self.fr.write(28, self._get_setpoint(), slot=6)

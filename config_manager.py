@@ -89,7 +89,7 @@ class ConfigurationManager:
                 'type': float,
                 'min': 0.0,
                 'max': 22.5,
-                'default': 10.0
+                'default': 22.5
             },
             'pid_kp': {
                 'id': 10,
@@ -120,6 +120,14 @@ class ConfigurationManager:
                 'validator': self._validate_hex_string,
                 'format': 'hex',
                 'hex_length': 4  # Specifies length in bytes (4 bytes = 8 hex chars)
+            },
+            'pid_min_volts': {
+                'id': 14,  # Next ID after 'devaddr' (which was 13)
+                'type': float,
+                'min': 0.0,
+                'max': 22.5,
+                'default': 0.0,
+                'description': 'PID minimum output voltage limit'
             }
         }
         
