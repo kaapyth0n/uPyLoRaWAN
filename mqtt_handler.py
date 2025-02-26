@@ -177,6 +177,10 @@ class MQTTHandler:
             print(f"Device topics:\n Publish: {self.base_topic}\n Command: {self.command_topic}")
             
             self.initialized = True
+
+            # Publish all configuration values after successful initialization
+            self.publish_all_config()
+            
             return True
             
         except Exception as e:
@@ -261,9 +265,8 @@ class MQTTHandler:
             value: New parameter value
         """
         try:
-            # Publish with retain for persistent parameters
-            retain = param_name in ['mode', 'setpoint']  # Retain important parameters
-            self.publish_parameter(param_name, value, retain=retain)
+            # Publish to config subtopic with retain
+            self.publish_parameter(f"config/{param_name}", value, retain=True)
         except Exception as e:
             print(f"Parameter change publish failed: {e}")
             
@@ -512,3 +515,56 @@ class MQTTHandler:
         else:
             # If already initialized, just return True as the connection is handled elsewhere
             return True
+        
+    def publish_all_config(self):
+        """Publish all configuration parameters to MQTT
+        
+        Called after initialization and optionally after parameter changes
+        """
+        if not self.initialized:
+            return False
+        if self.client is None:
+            return False
+            
+        try:
+            # Get all parameter definitions from configuration manager
+            param_defs = self.controller.config_manager.parameter_definitions
+            
+            print("Publishing all configuration values via MQTT...")
+            
+            # Create a config object to publish all values as one message
+            config_json = {}
+            
+            # Publish each parameter individually with proper typing
+            for param_name, definition in param_defs.items():
+                try:
+                    value = self.controller.config_manager.get_param(param_name)
+                    
+                    # Add to combined config object
+                    config_json[param_name] = value
+                    
+                    # Publish to individual parameter topic
+                    self.publish_parameter(f"config/{param_name}", value)
+                    
+                except Exception as e:
+                    print(f"Error publishing config parameter {param_name}: {e}")
+            
+            # Publish combined config as a single JSON object
+            import json
+            try:
+                self.client.publish(
+                    f"{self.base_topic}/config".encode(),
+                    json.dumps(config_json).encode(),
+                    qos=mqtt_config['qos'],
+                    retain=True  # Retain the full configuration
+                )
+                self.messages_published += 1
+                
+            except Exception as e:
+                print(f"Error publishing combined config: {e}")
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error publishing configuration: {e}")
+            return False
