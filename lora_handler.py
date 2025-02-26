@@ -70,9 +70,16 @@ class LoRaHandler:
         if config_addr and config_addr != '00000000':
             try:
                 print(f"Using device address from configuration manager: {config_addr}")
-                return self.controller.config_manager.hex_to_bytearray(config_addr)
-            except:
-                print("Error converting config address, falling back")
+                addr = self.controller.config_manager.hex_to_bytearray(config_addr)
+                # Verify we got a proper device address
+                if len(addr) == 4 and isinstance(addr, bytearray):
+                    return addr
+                else:
+                    print(f"Invalid device address format after conversion: {addr}")
+            except Exception as e:
+                print(f"Error converting config address: {str(e)}")
+        
+        print("Falling back to static or dynamic address")
         
         # Check static config
         static_devaddr = ttn_config['devaddr']

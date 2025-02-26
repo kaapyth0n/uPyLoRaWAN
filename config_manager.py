@@ -376,14 +376,24 @@ class ConfigurationManager:
         """Validate a hexadecimal string
         
         Args:
-            value (str): Hex string to validate
+            value: Hex string to validate
             param_def (dict): Parameter definition
             
         Returns:
             tuple: (is_valid (bool), message (str))
         """
-        # Remove any non-alphanumeric characters (like colons or spaces)
-        clean_value = ''.join(c for c in value if c.isalnum())
+        # Ensure value is a string
+        try:
+            value_str = str(value)
+        except:
+            return False, "Cannot convert value to string"
+        
+        # Remove any non-hexadecimal characters using a direct approach
+        # (this avoids using isalnum() which may not be available in MicroPython)
+        clean_value = ""
+        for c in value_str:
+            if c in '0123456789abcdefABCDEF':
+                clean_value += c
         
         # Check if it's a valid hex string
         try:
@@ -410,16 +420,38 @@ class ConfigurationManager:
         Returns:
             bytearray: Converted bytes
         """
-        # Remove any non-alphanumeric characters
-        clean_str = ''.join(c for c in hex_str if c.isalnum())
+        # Ensure input is a string
+        try:
+            hex_str = str(hex_str)
+        except:
+            return bytearray([0, 0, 0, 0])  # Return default on error
+        
+        # Remove any non-hex characters
+        clean_str = ""
+        for c in hex_str:
+            if c in '0123456789abcdefABCDEF':
+                clean_str += c
+        
+        # Make sure we have an even number of characters
+        if len(clean_str) % 2 != 0:
+            clean_str = "0" + clean_str
         
         # Convert to bytearray
         result = bytearray()
         for i in range(0, len(clean_str), 2):
-            if i + 1 < len(clean_str):
-                byte = int(clean_str[i:i+2], 16)
-                result.append(byte)
+            byte = int(clean_str[i:i+2], 16)
+            result.append(byte)
         
+        # If we don't have exactly 4 bytes for the device address, pad or truncate
+        if len(result) != 4:
+            if len(result) < 4:
+                # Pad with zeros at the beginning if too short
+                result = bytearray([0] * (4 - len(result))) + result
+            else:
+                # Truncate to 4 bytes if too long (using the least significant bytes)
+                result = result[-4:]
+        
+        print(f"Converted {hex_str} to bytearray: {[b for b in result]}")
         return result
         
     def bytearray_to_hex(self, byte_arr):
