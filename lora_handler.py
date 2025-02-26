@@ -52,6 +52,7 @@ class LoRaHandler:
         self.initialized = False
         self.msg_sequence = 0  # Track message sequence
         self.pending_reinit = False  # Flag for pending reinitialization
+        self.force_status_update = False  # Flag to force status update after reinit
 
         # Set up parameter change callback
         if hasattr(self.controller.config_manager, 'add_change_callback'):
@@ -189,6 +190,7 @@ class LoRaHandler:
                 raise RuntimeError("Failed to set RX mode")
             
             self.initialized = True
+            self.force_status_update = True  # Set flag to force status update
             print("LoRa initialization successful")
             return True
             
@@ -210,6 +212,17 @@ class LoRaHandler:
             print("Reinitializing LoRa module due to device address change")
             self.pending_reinit = False
             return self.initialize()
+        
+        # Check if we need to send a forced status update
+        if self.force_status_update and self.initialized:
+            self.force_status_update = False  # Reset flag
+            try:
+                print("Sending immediate status update")
+                return self.send_status()
+            except Exception as e:
+                print(f"Forced status update failed: {e}")
+                return False
+        
         return False
     
     def reinitialize_from_scratch(self):
