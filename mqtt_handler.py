@@ -5,6 +5,42 @@ import network
 import ubinascii
 from config import mqtt_config
 
+# Add these MQTT error code constants at the beginning of mqtt_handler.py
+# MQTT error codes to improve debug logging
+MQTT_ERR_OK = 0
+MQTT_ERR_NOMEM = -1
+MQTT_ERR_PROTOCOL = -2
+MQTT_ERR_INVAL = -3
+MQTT_ERR_NO_CONN = -4
+MQTT_ERR_CONN_REFUSED = -5
+MQTT_ERR_NOT_FOUND = -6  # Typically DNS resolution failure
+MQTT_ERR_CONN_LOST = -7
+MQTT_ERR_TLS = -8
+MQTT_ERR_PAYLOAD_SIZE = -9
+MQTT_ERR_NOT_SUPPORTED = -10
+MQTT_ERR_AUTH = -11
+MQTT_ERR_ACL_DENIED = -12
+MQTT_ERR_UNKNOWN = -13
+MQTT_ERR_ERRNO = -14
+
+# Error descriptions mapping
+MQTT_ERR_DESCRIPTIONS = {
+    MQTT_ERR_NOMEM: "Out of memory",
+    MQTT_ERR_PROTOCOL: "Protocol error",
+    MQTT_ERR_INVAL: "Invalid parameters",
+    MQTT_ERR_NO_CONN: "No connection",
+    MQTT_ERR_CONN_REFUSED: "Connection refused",
+    MQTT_ERR_NOT_FOUND: "DNS resolution failure",
+    MQTT_ERR_CONN_LOST: "Connection lost",
+    MQTT_ERR_TLS: "TLS error",
+    MQTT_ERR_PAYLOAD_SIZE: "Payload size error",
+    MQTT_ERR_NOT_SUPPORTED: "Not supported",
+    MQTT_ERR_AUTH: "Authentication error",
+    MQTT_ERR_ACL_DENIED: "ACL denied",
+    MQTT_ERR_UNKNOWN: "Unknown error",
+    MQTT_ERR_ERRNO: "ERRNO error"
+}
+
 class MQTTHandler:
     """MQTT Handler for Smart Boiler Interface
     
@@ -24,7 +60,7 @@ class MQTTHandler:
     """
     
     def __init__(self, controller):
-        """Initialize MQTT handler
+        """Initialize MQTT handler with improved MAC address validation
         
         Args:
             controller: Reference to main controller
@@ -32,7 +68,7 @@ class MQTTHandler:
         self.controller = controller
         self.client = None
         self.initialized = False
-        self.mac_address = self._get_mac_address()
+        self.mac_address = None  # Start with no MAC address
         self.last_publish = 0
         self.publish_interval = 60  # Default publish every 60 seconds
         self.messages_published = 0
@@ -40,25 +76,77 @@ class MQTTHandler:
         self.last_reconnect = 0
         self.reconnect_interval = 5  # Wait 5 seconds between reconnection attempts
         
-        # Build topic strings
-        self.base_topic = f"{mqtt_config['topic_prefix']}/device/{self.mac_address}/Boiler:1"
-        self.command_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/command"
-        self.config_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/config/+"
-        self.query_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/query"
+        # Topic strings will be built during initialization
+        self.base_topic = None
+        self.command_topic = None
+        self.config_topic = None
+        self.query_topic = None
         
     def _get_mac_address(self):
-        """Get device MAC address"""
-        wlan = network.WLAN(network.STA_IF)
-        mac = ubinascii.hexlify(wlan.config('mac')).decode()
-        return mac.upper()
+        """Get device MAC address with validation
+        
+        Returns:
+            str: MAC address string or None if invalid
+        """
+        try:
+            # Get WiFi interface
+            wlan = network.WLAN(network.STA_IF)
+            
+            # Check if WiFi is active
+            if not wlan.active() or not wlan.isconnected():
+                print("Cannot get MAC: WiFi not active and connected")
+                return None
+                
+            # Get MAC address
+            mac_bytes = wlan.config('mac')
+            
+            # Validate MAC is not empty
+            if not mac_bytes or len(mac_bytes) != 6:
+                print(f"Invalid MAC address length: {len(mac_bytes) if mac_bytes else 0}, expected 6")
+                return None
+                
+            # Check if MAC is not all zeros
+            if all(b == 0 for b in mac_bytes):
+                print("Invalid MAC address: all zeros")
+                return None
+                
+            # Convert to string and return
+            mac_str = ubinascii.hexlify(mac_bytes).decode().upper()
+            print(f"Valid MAC address obtained: {mac_str}")
+            return mac_str
+            
+        except Exception as e:
+            print(f"Error getting MAC address: {e}")
+            return None
         
     def initialize(self):
-        """Initialize MQTT connection"""
+        """Initialize MQTT connection with MAC address validation"""
         try:
             print("\nInitializing MQTT connection...")
             
+            # Check WiFi connection first
+            wlan = network.WLAN(network.STA_IF)
+            if not wlan.isconnected():
+                print("MQTT init failed: No WiFi connection")
+                return False
+                
+            # Get MAC address with validation
+            self.mac_address = self._get_mac_address()
+            if not self.mac_address:
+                print("MQTT init failed: Could not get valid MAC address")
+                return False
+                
+            # Build topic strings only after we have a valid MAC
+            self.base_topic = f"{mqtt_config['topic_prefix']}/device/{self.mac_address}/Boiler:1"
+            self.command_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/command"
+            self.config_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/config/+"
+            self.query_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/query"
+            
             # Generate unique client ID using MAC address
             client_id = f"SBI_{self.mac_address}"
+            
+            print(f"Connecting to MQTT broker: {mqtt_config['broker']}:{mqtt_config['port']}")
+            print(f"Using MAC address: {self.mac_address}")
             
             # Create MQTT client instance
             self.client = MQTTClient(
@@ -92,7 +180,22 @@ class MQTTHandler:
             return True
             
         except Exception as e:
-            print(f"MQTT initialization failed: {e}")
+            error_code = None
+            error_desc = str(e)
+            
+            # Try to extract error code if it's a numeric error
+            try:
+                if str(e).startswith('-'):
+                    error_code = int(str(e))
+                    error_desc = MQTT_ERR_DESCRIPTIONS.get(error_code, "Unknown error")
+            except:
+                pass
+                
+            if error_code:
+                print(f"MQTT initialization failed: {error_code} ({error_desc})")
+            else:
+                print(f"MQTT initialization failed: {e}")
+                
             self.initialized = False
             return False
             
@@ -369,10 +472,26 @@ class MQTTHandler:
         Returns:
             bool: True if connected
         """
+        # First check if WiFi is connected
+        wlan = network.WLAN(network.STA_IF)
+        if not wlan.isconnected():
+            # No need to attempt MQTT connection if WiFi is down
+            return False
+            
+        current_time = time.time()
+        
+        # Check if it's time to attempt reconnection
         if not self.initialized:
-            current_time = time.time()
             if current_time - self.last_reconnect >= self.reconnect_interval:
-                print("Attempting MQTT reconnection...")
+                print(f"Attempting MQTT reconnection to {mqtt_config['broker']} (reconnect interval: {self.reconnect_interval}s)")
                 self.last_reconnect = current_time
-                return self.initialize()
-        return self.initialized
+                success = self.initialize()
+                if success:
+                    print("MQTT reconnection successful!")
+                else:
+                    print(f"MQTT reconnection failed, will retry in {self.reconnect_interval}s")
+                return success
+            return False
+        else:
+            # If already initialized, just return True as the connection is handled elsewhere
+            return True

@@ -484,12 +484,15 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def _handle_mqtt_communication(self):
         """Handle MQTT communication"""
         try:
-            if self.mqtt_handler.initialized:
-                if self.mqtt_handler.check_connection():
-                    self.mqtt_handler.check_msg()
-                    current_time = time.time()
-                    if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
-                        self.mqtt_handler.publish_status()
+            # Check MQTT connection status (will attempt reconnect if not connected)
+            mqtt_connected = self.mqtt_handler.check_connection()
+            
+            # Only try to check messages and publish if connected
+            if mqtt_connected:
+                self.mqtt_handler.check_msg()
+                current_time = time.time()
+                if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
+                    self.mqtt_handler.publish_status()
         except Exception as e:
             self.logger.log_error('mqtt', f'MQTT communication error: {e}', 2)
 
