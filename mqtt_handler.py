@@ -359,12 +359,29 @@ class MQTTHandler:
             print(f"Error handling query: {e}")
             
     def publish_status(self):
-        """Publish current status"""
+        """Publish current status including memory statistics"""
         try:
+            # Publish basic status values
             self.publish_parameter('temperature', self.controller.current_temp)
             self.publish_parameter('mode', self.controller.config_manager.get_param('mode'))
             self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
             self.publish_parameter('heating', self.controller.heating_active)
+            
+            # Get and publish memory statistics
+            try:
+                import gc
+                # Force garbage collection before measuring
+                gc.collect()
+                free = gc.mem_free()
+                alloc = gc.mem_alloc()
+                total = free + alloc
+                
+                # Publish memory information
+                self.publish_parameter('memory_free', free)
+                self.publish_parameter('memory_percent_used', round((alloc * 100) / total, 1))
+                
+            except Exception as e:
+                print(f"Error publishing memory stats: {e}")
             
         except Exception as e:
             print(f"Error publishing status: {e}")
