@@ -568,3 +568,55 @@ class MQTTHandler:
         except Exception as e:
             print(f"Error publishing configuration: {e}")
             return False
+        
+    def publish_file_versions(self):
+        """Publish current file versions from manifest
+        
+        Each file version is published to its own topic:
+        .../versions/[filename] with the version number as the value
+        
+        Called once during boot process after initialization
+        """
+        if not self.initialized:
+            return False
+        if self.client is None:
+            return False
+            
+        try:
+            # Import the get_current_versions function from update_checker
+            from update_checker import get_current_versions
+            
+            # Get versions dictionary
+            versions = get_current_versions()
+            if not versions:
+                print("No version information available")
+                return False
+                
+            print(f"Publishing versions for {len(versions)} files...")
+            
+            # Publish each file version to its own topic
+            files_published = 0
+            for filename, version in versions.items():
+                try:
+                    # Use clean filename for topic (replace / with .)
+                    topic_filename = filename.replace('/', '.')
+                    
+                    # Publish to individual topic
+                    self.client.publish(
+                        f"{self.base_topic}/versions/{topic_filename}".encode(),
+                        str(version).encode(),
+                        qos=mqtt_config['qos'],
+                        retain=True  # Retain version information
+                    )
+                    files_published += 1
+                    self.messages_published += 1
+                    
+                except Exception as e:
+                    print(f"Error publishing version for {filename}: {e}")
+                    
+            print(f"Published {files_published} file versions successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error publishing file versions: {e}")
+            return False

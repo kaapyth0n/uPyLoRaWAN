@@ -176,7 +176,14 @@ class StateMachine:
                     "MQTT initialization failed",
                     severity=2
                 )
-            print("MQTT initialized")
+            else:
+                try:
+                    print("Publishing file versions via MQTT...")
+                    self.controller.mqtt_handler.publish_file_versions()
+                except Exception as e:
+                    print(f"Error publishing file versions: {e}")
+                    # Non-critical, so we don't fail initialization for this
+                print("MQTT initialized")
             print("6. Transitioning to RUNNING state...")
             self.transition_to(SystemState.RUNNING)
                 
