@@ -203,6 +203,7 @@ class DisplayManager:
                 - lora_tx: LoRa packets transmitted
                 - lora_rx: LoRa packets received
                 - output_voltage: Current DAC output voltage (if PID enabled)
+                - devaddr: Device address as hex string (optional)
                 
         Returns:
             bool: True if display update was successful
@@ -235,7 +236,14 @@ class DisplayManager:
             # Network status
             wifi_text = f"WiFi: {'ON' if status['wifi_connected'] else 'OFF'}"
             mqtt_text = f"MQTT: {'ON' if status['mqtt_connected'] else 'OFF'} {status['mqtt_tx']}/{status['mqtt_rx']}"
-            lora_text = f"LoRa: {status['lora_tx']}/{status['lora_rx']}"
+            
+            # LoRa status with device address
+            lora_base = f"LoRa: {status['lora_tx']}/{status['lora_rx']}"
+            if 'devaddr' in status and status['devaddr']:
+                lora_text = f"{lora_base} {status['devaddr']}"
+            else:
+                lora_text = lora_base
+
             self.display.show_text(wifi_text, x=0, y=40, font=2)
             self.display.show_text(mqtt_text, x=0, y=48, font=2)
             self.display.show_text(lora_text, x=0, y=56, font=2)

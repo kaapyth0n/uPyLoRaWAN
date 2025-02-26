@@ -511,6 +511,12 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 except:
                     pass
             
+            # Get device address for display
+            devaddr = None
+            if hasattr(self.lora_handler, 'device_address') and self.lora_handler.device_address:
+                # Convert bytearray to hex string
+                devaddr = ''.join(f'{b:02x}' for b in self.lora_handler.device_address)
+            
             # Prepare status information
             status = {
                 'mode': mode,
@@ -523,7 +529,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 'mqtt_rx': self.mqtt_handler.messages_received,
                 'lora_tx': self.lora_handler.packets_sent,
                 'lora_rx': self.lora_handler.packets_received,
-                'output_voltage': output_voltage
+                'output_voltage': output_voltage,
+                'devaddr': devaddr
             }
             
             # Use display manager to show status
