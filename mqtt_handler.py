@@ -532,37 +532,17 @@ class MQTTHandler:
             
             print("Publishing all configuration values via MQTT...")
             
-            # Create a config object to publish all values as one message
-            config_json = {}
-            
             # Publish each parameter individually with proper typing
             for param_name, definition in param_defs.items():
                 try:
                     value = self.controller.config_manager.get_param(param_name)
                     
-                    # Add to combined config object
-                    config_json[param_name] = value
-                    
                     # Publish to individual parameter topic
-                    self.publish_parameter(f"config/{param_name}", value)
+                    self.publish_parameter(f"config/{param_name}", value, retain=True)
                     
                 except Exception as e:
                     print(f"Error publishing config parameter {param_name}: {e}")
             
-            # Publish combined config as a single JSON object
-            import json
-            try:
-                self.client.publish(
-                    f"{self.base_topic}/config".encode(),
-                    json.dumps(config_json).encode(),
-                    qos=mqtt_config['qos'],
-                    retain=True  # Retain the full configuration
-                )
-                self.messages_published += 1
-                
-            except Exception as e:
-                print(f"Error publishing combined config: {e}")
-                
             return True
             
         except Exception as e:
