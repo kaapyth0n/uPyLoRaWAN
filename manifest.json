@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-02-27T10:02:27Z",
+  "timestamp": "2025-02-27T20:54:11Z",
   "files": {
     "ttn/ttn_eu.py": {
       "version": "1.1",
@@ -26,10 +26,10 @@
       "size": 7394
     },
     "main.py": {
-      "version": "3.3",
+      "version": "3.4",
       "path": "/main.py",
-      "hash": "a2b6723a50c5b3b7810829d4d37adff4b768f60b1e0a6bf69fd155469ea3d2bf",
-      "size": 28424
+      "hash": "1ac0bd8978b1964bc49cd70fe2d3db4b339606ca628e252e825c543993a8d812",
+      "size": 28580
     },
     "config_portal.py": {
       "version": "1.6",
@@ -146,10 +146,10 @@
       "size": 6080
     },
     "mqtt_handler.py": {
-      "version": "1.6",
+      "version": "1.7",
       "path": "/mqtt_handler.py",
-      "hash": "4a30eafdd62d72f37aa57c7e6dcbfdde82582a66a7d31d5b021620a3a3bf677d",
-      "size": 21510
+      "hash": "368f45ace915d34e70b7cdecf5348110233bca78a0bfa53d97f41c5bf518c74c",
+      "size": 22013
     }
   }
 }
