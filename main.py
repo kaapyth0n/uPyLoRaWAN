@@ -441,8 +441,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         """Handle LoRa communication and return success status"""
         try:
             # Check for pending LoRa actions (like reinitialization after address change)
-            if self.lora_handler.check_pending_actions():
-                return True
+            # This is compatible with both old and new versions of lora_handler
+            if hasattr(self.lora_handler, 'check_pending_actions'):
+                if self.lora_handler.check_pending_actions():
+                    return True
                 
             if self.lora_handler.send_periodic_status():
                 return True
