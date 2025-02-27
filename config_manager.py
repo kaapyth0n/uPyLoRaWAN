@@ -6,7 +6,7 @@ class ConfigurationManager:
     Manages system configuration
     - including validation and persistence
     - with parameter enumeration support
-    - with change notifications
+    - with change notifications via queue to prevent reentrancy issues
     - with enhanced hex string handling
     """
     
@@ -19,6 +19,9 @@ class ConfigurationManager:
 
         # Add callback list for parameter changes
         self.change_callbacks = []
+        
+        # Add notification queue to prevent reentrancy issues
+        self.notification_queue = []
         
         # Parameter definitions with validation rules
         self.parameter_definitions = {
@@ -362,15 +365,63 @@ class ConfigurationManager:
         
         # Save configuration
         if self.save_config():
-            # Notify callbacks of change
-            for callback in self.change_callbacks:
-                try:
-                    callback(param_name, value)
-                except Exception as e:
-                    print(f"Change callback error: {e}")
+            # Add to notification queue instead of calling callbacks directly
+            # Include callback index 0 to start processing from the first callback
+            # Structure: (param_name, value, callback_index)
+            self.notification_queue.append((param_name, value, 0))
+            
             return True, "Parameter updated successfully"
         else:
             return False, "Failed to save configuration"
+
+    def process_next_notification(self):
+        """Process the next pending parameter change notification
+        
+        Processes one callback for one notification, then moves to the next.
+        Each notification is fully processed across multiple calls to this method.
+        
+        Returns:
+            bool: True if a notification was processed, False if none were pending
+        """
+        if not self.notification_queue:
+            return False
+            
+        # Get the next notification but keep it in the queue for now
+        param_name, value, callback_index = self.notification_queue[0]
+        
+        # Check if we've processed all callbacks for this notification
+        if callback_index >= len(self.change_callbacks):
+            # All callbacks processed, remove this notification
+            self.notification_queue.pop(0)
+            
+            # Try processing the next notification if there is one
+            if self.notification_queue:
+                return self.process_next_notification()
+            return False
+            
+        # Get the callback to process
+        callback = self.change_callbacks[callback_index]
+        
+        # Update the callback index for next time
+        self.notification_queue[0] = (param_name, value, callback_index + 1)
+        
+        # Process the callback
+        try:
+            callback(param_name, value)
+            print(f"Processed notification for {param_name} with callback {callback_index}")
+        except Exception as e:
+            print(f"Change callback error for {param_name}: {e}")
+            
+        # Return True since we processed a notification
+        return True
+        
+    def has_pending_notifications(self):
+        """Check if there are pending parameter change notifications
+        
+        Returns:
+            bool: True if there are pending notifications
+        """
+        return len(self.notification_queue) > 0
 
     def _validate_hex_string(self, value, param_def):
         """Validate a hexadecimal string

@@ -273,6 +273,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     if self._update_control_logic():
                         self.watchdog_manager.pet('control')
                     
+                    # Process pending parameter change notifications
+                    # This must be done before MQTT/LoRa message handling to avoid reentrancy issues
+                    self._process_notifications()
+                    
                     # Handle LoRa communication
                     if self._handle_lora_communication():
                         self.watchdog_manager.pet('lora')
@@ -297,6 +301,23 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 print(f"Error in main loop: {str(e)}")
                 self.state_machine.handle_error(e)
                 time.sleep(5)
+
+    def _process_notifications(self):
+        """Process pending parameter change notifications
+        
+        This dequeues one notification at a time from the config manager,
+        ensuring notifications are processed outside callback contexts
+        to prevent reentrancy issues with MQTT and LoRa.
+        """
+        try:
+            # Process up to 1 notifications per cycle to avoid blocking
+            self.config_manager.process_next_notification()
+        except Exception as e:
+            self.logger.log_error(
+                'notification',
+                f'Error processing parameter change notification: {e}',
+                severity=2
+            )
 
     def _on_config_change(self, param_name, value):
         """Handle configuration parameter changes
