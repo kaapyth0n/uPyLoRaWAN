@@ -364,11 +364,21 @@ class MQTTHandler:
     def publish_status(self):
         """Publish current status including memory statistics"""
         try:
-            # Publish basic status values
+            # Publish essential values (removed 'mode' since it's already in /config)
             self.publish_parameter('temperature', self.controller.current_temp)
-            self.publish_parameter('mode', self.controller.config_manager.get_param('mode'))
             self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
             self.publish_parameter('heating', self.controller.heating_active)
+            
+            # Add voltage output for PID mode
+            current_mode = self.controller.config_manager.get_param('mode')
+            if current_mode == 'pid':
+                try:
+                    # Read voltage from IO module
+                    voltage = self.controller.fr.read(24, slot=6)  # V_L3 parameter
+                    if voltage is not None:
+                        self.publish_parameter('voltage_output', voltage)
+                except Exception as e:
+                    print(f"Error publishing voltage output: {e}")
             
             # Get and publish memory statistics
             try:
