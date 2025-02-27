@@ -1,9 +1,18 @@
 import time
-import json
 import gc
 
 class ErrorLogger:
-    """Error logging system with persistence and severity levels"""
+    """Error logging system that keeps logs in memory only
+    
+    This version eliminates filesystem writes to reduce wear and save space.
+    Error logs are kept in memory and transmitted via MQTT when available.
+    
+    Severity levels:
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
+    CRITICAL = 4
+    """
     
     # Severity levels
     INFO = 1
@@ -15,18 +24,20 @@ class ErrorLogger:
         """Initialize error logger
         
         Args:
+            controller: Reference to main controller for MQTT access
             max_entries (int): Maximum number of entries to keep in memory
         """
         self.controller = controller
         self.max_entries = max_entries
         self.errors = []
+        # These attributes are kept for API compatibility but not used
         self.log_file = 'error_log.json'
         self.needs_saving = False
         self.last_save = 0
         self.save_interval = 300  # 5 minutes
         
-        # Load existing errors
-        self.load_errors()
+        # We no longer load from file, starting with a clean history
+        print("Initialized memory-only error logger")
         
     def log_error(self, error_type, message, severity=2):
         """Log an error with timestamp and severity
@@ -50,12 +61,6 @@ class ErrorLogger:
         # Trim if needed
         while len(self.errors) > self.max_entries:
             self.errors.pop(0)  # Remove oldest entry
-            
-        # Mark for saving
-        self.needs_saving = True
-        
-        # Save periodically
-        self._check_save()
         
         # Print critical errors immediately
         if severity >= self.WARNING:
@@ -85,59 +90,24 @@ class ErrorLogger:
         return filtered[-count:]
         
     def _check_save(self):
-        """Check if errors should be saved"""
-        if not self.needs_saving:
-            return
-            
-        current_time = time.time()
-        if current_time - self.last_save > self.save_interval:
-            self.save_errors()
+        """Stub method for API compatibility
+        No longer saves to file
+        """
+        pass
             
     def save_errors(self):
-        """Save errors to file"""
-        if not self.needs_saving:
-            return
-            
-        try:
-            # Keep only essential data
-            save_data = []
-            for error in self.errors[-20:]:  # Save only last 20 errors
-                save_data.append({
-                    't': error['timestamp'],
-                    'y': error['type'],
-                    'm': error['message'],
-                    's': error['severity']
-                })
-                
-            with open(self.log_file, 'w') as f:
-                json.dump(save_data, f)
-                
-            self.needs_saving = False
-            self.last_save = time.time()
-            
-            gc.collect()  # Help with memory management
-            
-        except Exception as e:
-            print(f"Error saving log: {e}")
+        """Stub method for API compatibility
+        No longer saves to file
+        """
+        # Force garbage collection to free memory
+        gc.collect()
             
     def load_errors(self):
-        """Load errors from file"""
-        try:
-            with open(self.log_file, 'r') as f:
-                save_data = json.load(f)
-                
-            # Convert back to full format
-            self.errors = []
-            for entry in save_data:
-                self.errors.append({
-                    'timestamp': entry['t'],
-                    'type': entry['y'],
-                    'message': entry['m'],
-                    'severity': entry['s']
-                })
-                
-        except:
-            self.errors = []
+        """Stub method for API compatibility
+        No longer loads from file
+        """
+        # Already initialized with empty list
+        pass
             
     def clear_errors(self, min_severity=None):
         """Clear error log
@@ -150,8 +120,8 @@ class ErrorLogger:
         else:
             self.errors = [e for e in self.errors if e['severity'] < min_severity]
             
-        self.needs_saving = True
-        self._check_save()
+        # Force garbage collection after clearing errors
+        gc.collect()
         
     def get_error_stats(self):
         """Get error statistics
