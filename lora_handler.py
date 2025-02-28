@@ -48,6 +48,10 @@ class LoRaHandler:
         self.pending_reinit = False  # Flag for pending reinitialization
         self.force_status_update = False  # Flag to force status update after reinit
         self.device_address = None  # Will be set during initialization
+        self.last_init_time = 0     # Track when we last initialized LoRa
+        self.reinit_interval = 10   # Try to reinitialize every 10 seconds if not connected
+        self.reinit_failures = 0    # Track consecutive failures
+        self.reinit_retry_factor = 2 # Exponential backoff factor for retries
 
         # Set up parameter change callback
         if hasattr(self.controller.config_manager, 'add_change_callback'):
@@ -116,6 +120,9 @@ class LoRaHandler:
             # Clear any existing state
             self.lora = None
             self.initialized = False
+            
+            # Update last init time
+            self.last_init_time = time.time()
             
             print("Initializing LoRa module...")
             print("Memory before imports:", gc.mem_free())
@@ -220,22 +227,48 @@ class LoRaHandler:
         Returns:
             bool: True if any action was taken
         """
+        current_time = time.time()
+        action_taken = False
+        
+        # Check for pending reinitialization due to address change
         if self.pending_reinit:
             print("Reinitializing LoRa module due to device address change")
             self.pending_reinit = False
-            return self.initialize()
+            success = self.initialize()
+            if success:
+                self.reinit_failures = 0  # Reset failure counter on success
+            return success
+        
+        # Check if it's time for periodic reinitialization if not initialized
+        if not self.initialized:
+            # Calculate wait time with exponential backoff based on failures
+            wait_time = self.reinit_interval * (self.reinit_retry_factor ** self.reinit_failures)
+            
+            if current_time - self.last_init_time > wait_time:
+                print(f"Attempting periodic LoRa reinitialization (failures: {self.reinit_failures})")
+                success = self.initialize()
+                
+                if success:
+                    print("Periodic reinitialization successful")
+                    self.reinit_failures = 0  # Reset failure counter
+                else:
+                    print(f"Periodic reinitialization failed")
+                    self.reinit_failures += 1  # Increment failure counter for backoff
+                    
+                self.last_init_time = current_time
+                action_taken = True
         
         # Check if we need to send a forced status update
-        if self.force_status_update and self.initialized:
+        elif self.force_status_update and self.initialized:
             self.force_status_update = False  # Reset flag
             try:
                 print("Sending immediate status update")
-                return self.send_status()
+                success = self.send_status()
+                action_taken = success
             except Exception as e:
                 print(f"Forced status update failed: {e}")
-                return False
-        
-        return False
+                
+        return action_taken
     
     def reinitialize_from_scratch(self):
         """Completely reinitialize LoRa from scratch"""
@@ -280,7 +313,7 @@ class LoRaHandler:
         
     def _set_rx_mode(self):
         """Configure radio for reception (RX2 window)"""
-        if not self.lora:
+        if not self.lora or not self.initialized:
             return False
             
         try:
@@ -314,7 +347,7 @@ class LoRaHandler:
 
     def _set_tx_mode(self):
         """Configure radio for transmission"""
-        if not self.lora:
+        if not self.lora or not self.initialized:
             return False
             
         try:
@@ -345,14 +378,14 @@ class LoRaHandler:
         
     def send_data(self, data, data_length, frame_counter, timeout=5):
         """Send data with proper TX configuration"""
-        if not self.lora:
+        if not self.lora or not self.initialized:
             if not self.reinitialize_from_scratch():
                 return False
                 
         retry_count = 0
         max_retries = 3
 
-        if not self.lora:
+        if not self.lora or not self.initialized:
             return False
         
         while retry_count < max_retries:
