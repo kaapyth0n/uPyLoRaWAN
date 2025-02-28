@@ -1,25 +1,19 @@
 import time
 import network
-from machine import Pin, SoftSPI
-from sx127x import TTN, SX127x
-from config import device_config, lora_parameters, ttn_config
+from machine import Pin
+import gc
+
+# Don't import these at the top level - load them only when needed
+# from sx127x import TTN, SX127x
+# from config import device_config, lora_parameters, ttn_config
 
 class LoRaHandler:
     """
-    LoRaWAN Handler for Class C operation
+    LoRaWAN Handler for Class C operation with lazy loading
 
-    This handler manages LoRaWAN communication in Class C mode, which means:
-    - Continuous reception on RX2 window (869.525 MHz, SF12BW125)
-    - Transmission on uplink frequency (868.1 MHz, SF7BW125)
-    - Proper IQ inversion handling (inverted for RX, normal for TX)
-    - Automatic return to RX after transmission
-
-    The handler provides:
-    - Reliable message transmission with retries
-    - Continuous downlink reception
-    - Automatic mode switching
-    - Error recovery with reinitalization
-    - Parameter change notifications
+    This handler manages LoRaWAN communication in Class C mode, but
+    only loads the heavy sx127x module when actually initializing.
+    This significantly reduces the memory footprint when starting up.
     """
     
     # Message types
@@ -53,6 +47,7 @@ class LoRaHandler:
         self.msg_sequence = 0  # Track message sequence
         self.pending_reinit = False  # Flag for pending reinitialization
         self.force_status_update = False  # Flag to force status update after reinit
+        self.device_address = None  # Will be set during initialization
 
         # Set up parameter change callback
         if hasattr(self.controller.config_manager, 'add_change_callback'):
@@ -64,6 +59,9 @@ class LoRaHandler:
         Returns:
             bytearray: Device address to use
         """
+        # Import config only when needed
+        from config import ttn_config
+        
         # First check configuration manager
         config_addr = self.controller.config_manager.get_param('devaddr')
         
@@ -120,8 +118,19 @@ class LoRaHandler:
             self.initialized = False
             
             print("Initializing LoRa module...")
+            print("Memory before imports:", gc.mem_free())
             
-            # Get device address using our new method
+            # Force garbage collection before loading heavy modules
+            gc.collect()
+            
+            # Import heavy modules only when needed
+            from sx127x import TTN, SX127x
+            from config import device_config, lora_parameters, ttn_config
+            from machine import SoftSPI
+            
+            print("Memory after imports:", gc.mem_free())
+            
+            # Get device address using our method
             devaddr = self._get_device_address()
             
             # Store the device address being used
@@ -192,12 +201,15 @@ class LoRaHandler:
             self.initialized = True
             self.force_status_update = True  # Set flag to force status update
             print("LoRa initialization successful")
+            print("Final memory:", gc.mem_free())
             return True
             
         except Exception as e:
             print(f"LoRa initialization failed: {e}")
             self.initialized = False
             self.lora = None
+            # Force garbage collection to reclaim memory
+            gc.collect()
             return False
         
     def check_pending_actions(self):
@@ -249,6 +261,9 @@ class LoRaHandler:
                 except:
                     pass
             
+            # Free memory
+            gc.collect()
+            
             # Small delay before reinitialization
             time.sleep_ms(500)
             
@@ -259,6 +274,8 @@ class LoRaHandler:
             print(f"Complete reinitialization failed: {e}")
             self.initialized = False
             self.lora = None
+            # Force garbage collection to reclaim memory
+            gc.collect()
             return False
         
     def _set_rx_mode(self):
