@@ -4,8 +4,8 @@ from umqtt.robust import MQTTClient
 import network
 import ubinascii
 from config import mqtt_config
+import gc
 
-# Add these MQTT error code constants at the beginning of mqtt_handler.py
 # MQTT error codes to improve debug logging
 MQTT_ERR_OK = 0
 MQTT_ERR_NOMEM = -1
@@ -49,6 +49,7 @@ class MQTTHandler:
     - Publishing parameter changes 
     - Subscribing to parameter configuration changes
     - Managing MQTT connection and reconnection
+    - Message queue for sending messages without blocking main loop
     
     Topic structure:
     - Parameters: {base_topic}/{param_name}
@@ -75,6 +76,10 @@ class MQTTHandler:
         self.messages_received = 0
         self.last_reconnect = 0
         self.reconnect_interval = 5  # Wait 5 seconds between reconnection attempts
+        
+        # Add message queue for outgoing messages
+        self.message_queue = []
+        self.max_queue_size = 100  # Maximum number of messages to queue
         
         # Topic strings will be built during initialization
         self.base_topic = None
@@ -202,9 +207,72 @@ class MQTTHandler:
                 
             self.initialized = False
             return False
+
+    def queue_message(self, topic, payload, qos=None, retain=False):
+        """Queue a message for later publishing
+        
+        Args:
+            topic (str or bytes): Topic to publish to
+            payload (str or bytes): Message payload
+            qos (int, optional): QoS level (uses config default if None)
+            retain (bool): Whether to retain the message
+            
+        Returns:
+            bool: True if message was queued successfully
+        """
+        if not self.initialized:
+            return False
+            
+        # Use configured QoS if not specified
+        if qos is None:
+            qos = mqtt_config['qos']
+            
+        # Convert payload to bytes if it's a string
+        if isinstance(payload, str):
+            payload = payload.encode()
+            
+        # Convert topic to bytes if it's a string
+        if isinstance(topic, str):
+            topic = topic.encode()
+            
+        # Add message to queue, limiting queue size
+        if len(self.message_queue) < self.max_queue_size:
+            self.message_queue.append((topic, payload, qos, retain))
+            return True
+        else:
+            # Queue full, log error
+            print(f"MQTT message queue full, dropping message for topic: {topic}")
+            return False
+            
+    def process_message_queue(self):
+        """Process one message from the queue
+        
+        Returns:
+            bool: True if a message was sent
+        """
+        if not self.initialized or not self.client or not self.message_queue:
+            return False
+            
+        try:
+            # Get the oldest message from the queue (FIFO)
+            topic, payload, qos, retain = self.message_queue.pop(0)
+            
+            # Publish the message
+            self.client.publish(topic, payload, qos=qos, retain=retain)
+            
+            self.messages_published += 1
+            self.last_publish = time.time()
+            return True
+                
+        except Exception as e:
+            print(f"Error processing queued message: {e}")
+            
+            # Mark connection as failed on error
+            self.initialized = False
+            return False
             
     def publish_parameter(self, param_name, value, retain=False):
-        """Publish parameter value to MQTT
+        """Queue parameter value for MQTT publishing
         
         Args:
             param_name (str): Parameter name 
@@ -212,13 +280,11 @@ class MQTTHandler:
             retain (bool): Whether to retain message
         
         Returns:
-            bool: True if successful
+            bool: True if successfully queued
         """
         if not self.initialized:
             return False
-        if self.client is None:
-            return False
-        
+            
         try:
             # Build parameter topic
             topic = f"{self.base_topic}/{param_name}"
@@ -226,20 +292,16 @@ class MQTTHandler:
             # Convert value to string
             payload = str(value)
             
-            # Publish with configured QoS
-            self.client.publish(
-                topic.encode(),
-                payload.encode(),
+            # Queue for publishing with configured QoS
+            return self.queue_message(
+                topic,
+                payload,
                 qos=mqtt_config['qos'],
                 retain=retain
             )
-            
-            self.messages_published += 1
-            self.last_publish = time.time()
-            return True
-            
+                
         except Exception as e:
-            print(f"Parameter publish failed: {e}")
+            print(f"Parameter publish queueing failed: {e}")
             return False
             
     def check_msg(self):
@@ -265,7 +327,7 @@ class MQTTHandler:
             value: New parameter value
         """
         try:
-            # Publish to config subtopic with retain
+            # Queue publication to config subtopic with retain
             self.publish_parameter(f"config/{param_name}", value, retain=True)
         except Exception as e:
             print(f"Parameter change publish failed: {e}")
@@ -364,7 +426,7 @@ class MQTTHandler:
     def publish_status(self):
         """Publish current status including memory statistics"""
         try:
-            # Publish essential values (removed 'mode' since it's already in /config)
+            # Queue essential values for publishing
             self.publish_parameter('temperature', self.controller.current_temp)
             self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
             self.publish_parameter('heating', self.controller.heating_active)
@@ -378,26 +440,25 @@ class MQTTHandler:
                     if voltage is not None:
                         self.publish_parameter('voltage_output', voltage)
                 except Exception as e:
-                    print(f"Error publishing voltage output: {e}")
+                    print(f"Error queuing voltage output: {e}")
             
             # Get and publish memory statistics
             try:
-                import gc
                 # Force garbage collection before measuring
                 gc.collect()
                 free = gc.mem_free()
                 alloc = gc.mem_alloc()
                 total = free + alloc
                 
-                # Publish memory information
+                # Queue memory information for publishing
                 self.publish_parameter('memory_free', free)
                 self.publish_parameter('memory_percent_used', round((alloc * 100) / total, 1))
                 
             except Exception as e:
-                print(f"Error publishing memory stats: {e}")
+                print(f"Error queuing memory stats: {e}")
             
         except Exception as e:
-            print(f"Error publishing status: {e}")
+            print(f"Error queuing status data: {e}")
             
     def _publish_diagnostic(self):
         """Publish diagnostic data"""
@@ -415,8 +476,6 @@ class MQTTHandler:
             - severity: Error severity (1-4)
         """
         if not self.initialized:
-            return False
-        if self.client is None:
             return False
             
         try:
@@ -440,23 +499,20 @@ class MQTTHandler:
             import json
             payload = json.dumps({'errors': error_data})
             
-            # Publish to errors topic
+            # Queue error data for publishing
             topic = f"{self.base_topic}/errors"
-            self.client.publish(
-                topic.encode(),
-                payload.encode(),
+            return self.queue_message(
+                topic,
+                payload,
                 qos=mqtt_config['qos']
             )
             
-            self.messages_published += 1
-            return True
-            
         except Exception as e:
-            print(f"Error publishing error log: {e}")
+            print(f"Error queuing error log: {e}")
             return False
 
     def publish_error(self, error_type, message, severity):
-        """Publish a single error immediately
+        """Queue a single error for publishing
         
         Args:
             error_type (str): Error type
@@ -464,8 +520,6 @@ class MQTTHandler:
             severity (int): Error severity 1-4
         """
         if not self.initialized:
-            return False
-        if self.client is None:
             return False
             
         try:
@@ -481,19 +535,16 @@ class MQTTHandler:
             import json
             payload = json.dumps({'error': error_data})
             
-            # Publish to errors topic
+            # Queue for publishing to errors topic
             topic = f"{self.base_topic}/errors"
-            self.client.publish(
-                topic.encode(),
-                payload.encode(),
+            return self.queue_message(
+                topic,
+                payload,
                 qos=mqtt_config['qos']
             )
-            
-            self.messages_published += 1
-            return True
-            
+                
         except Exception as e:
-            print(f"Error publishing single error: {e}")
+            print(f"Error queuing single error: {e}")
             return False
 
     def check_connection(self):
@@ -533,8 +584,6 @@ class MQTTHandler:
         """
         if not self.initialized:
             return False
-        if self.client is None:
-            return False
             
         try:
             # Get all parameter definitions from configuration manager
@@ -542,21 +591,21 @@ class MQTTHandler:
             
             print("Publishing all configuration values via MQTT...")
             
-            # Publish each parameter individually with proper typing
+            # Queue each parameter for publication
             for param_name, definition in param_defs.items():
                 try:
                     value = self.controller.config_manager.get_param(param_name)
                     
-                    # Publish to individual parameter topic
+                    # Queue publication to individual parameter topic
                     self.publish_parameter(f"config/{param_name}", value, retain=True)
                     
                 except Exception as e:
-                    print(f"Error publishing config parameter {param_name}: {e}")
+                    print(f"Error queuing config parameter {param_name}: {e}")
             
             return True
             
         except Exception as e:
-            print(f"Error publishing configuration: {e}")
+            print(f"Error queueing configuration: {e}")
             return False
         
     def publish_file_versions(self):
@@ -568,8 +617,6 @@ class MQTTHandler:
         Called once during boot process after initialization
         """
         if not self.initialized:
-            return False
-        if self.client is None:
             return False
             
         try:
@@ -584,29 +631,29 @@ class MQTTHandler:
                 
             print(f"Publishing versions for {len(versions)} files...")
             
-            # Publish each file version to its own topic
+            # Queue each file version to its own topic
             files_published = 0
             for filename, version in versions.items():
                 try:
                     # Use clean filename for topic (replace / with .)
                     topic_filename = filename.replace('/', '.')
                     
-                    # Publish to individual topic
-                    self.client.publish(
-                        f"{self.base_topic}/versions/{topic_filename}".encode(),
-                        str(version).encode(),
+                    # Queue publication
+                    topic = f"{self.base_topic}/versions/{topic_filename}"
+                    self.queue_message(
+                        topic,
+                        str(version),
                         qos=mqtt_config['qos'],
                         retain=True  # Retain version information
                     )
                     files_published += 1
-                    self.messages_published += 1
                     
                 except Exception as e:
-                    print(f"Error publishing version for {filename}: {e}")
+                    print(f"Error queuing version for {filename}: {e}")
                     
-            print(f"Published {files_published} file versions successfully")
+            print(f"Queued {files_published} file versions for publishing")
             return True
             
         except Exception as e:
-            print(f"Error publishing file versions: {e}")
+            print(f"Error queuing file versions: {e}")
             return False

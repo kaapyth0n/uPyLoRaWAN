@@ -505,14 +505,20 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 self.logger.log_error('wifi', f'WiFi check failed: {e}', severity=1)
 
     def _handle_mqtt_communication(self):
-        """Handle MQTT communication"""
+        """Handle MQTT communication with non-blocking message queue processing"""
         try:
             # Check MQTT connection status (will attempt reconnect if not connected)
             mqtt_connected = self.mqtt_handler.check_connection()
             
             # Only try to check messages and publish if connected
             if mqtt_connected:
+                # Check for incoming messages
                 self.mqtt_handler.check_msg()
+                
+                # Process one message from the outgoing queue
+                self.mqtt_handler.process_message_queue()
+                
+                # Check if it's time to publish periodic status updates
                 current_time = time.time()
                 if current_time - self.mqtt_handler.last_publish >= self.mqtt_handler.publish_interval:
                     self.mqtt_handler.publish_status()
