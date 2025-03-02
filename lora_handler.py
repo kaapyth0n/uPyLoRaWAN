@@ -313,7 +313,7 @@ class LoRaHandler:
         
     def _set_rx_mode(self):
         """Configure radio for reception (RX2 window)"""
-        if not self.lora or not self.initialized:
+        if not self.lora:
             return False
             
         try:
@@ -347,7 +347,7 @@ class LoRaHandler:
 
     def _set_tx_mode(self):
         """Configure radio for transmission"""
-        if not self.lora or not self.initialized:
+        if not self.lora:
             return False
             
         try:
