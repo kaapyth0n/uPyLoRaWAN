@@ -37,6 +37,18 @@ class ModuleDetector:
         
         for slot, config in self.required_modules.items():
             try:
+                # Skip SSR module check if LoRa relay is configured
+                from config import device_config
+                if slot == SystemParameters.SSR_MODULE_SLOT and 'use_lora_relay' in device_config and device_config['use_lora_relay']:
+                    print(f"Skipping SSR module check as LoRa relay is configured")
+                    results[slot] = {
+                        'present': False,
+                        'type': "N/A - Using LoRa relay",
+                        'error': None,
+                        'required': False  # Mark as not required
+                    }
+                    continue
+                    
                 # Read module type
                 module_type = self.fr.read(0, slot=slot)
                 

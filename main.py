@@ -144,35 +144,56 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 print("Display initialization failed")
                 self.logger.log_error('hardware', 'Display initialization failed', 2)
                 
+            # Check for LoRa relay configuration
+            from config import device_config
+            self._use_lora_relay = False
+            
+            if 'use_lora_relay' in device_config and device_config['use_lora_relay'] and 'relay_1' in device_config:
+                try:
+                    from machine import Pin
+                    print("Setting up LoRa module relay output...")
+                    self._relay_pin = Pin(device_config['relay_1'], Pin.OUT)
+                    self._relay_pin.value(0)  # Initialize to off state
+                    self._use_lora_relay = True
+                    print("LoRa relay output initialized successfully")
+                except Exception as e:
+                    print(f"Failed to initialize LoRa relay: {e}")
+                    self.logger.log_error('hardware', f'LoRa relay init failed: {e}', 2)
+                    self._use_lora_relay = False
+                
             print("2. Detecting modules...")
             # Initialize module detector
             detector = ModuleDetector(self.fr)
             success, results = detector.detect_modules()
             
-            if not success:
+            # Modified to make SSR module optional if using LoRa relay
+            if not success and not self._use_lora_relay:
                 print("\nModule detection failed:")
                 detector.print_module_status(results)
                 raise Exception("Required modules missing")
-                
-            print("All required modules detected")
-                
+            else:
+                print("Required modules detected")
+                    
             print("3. Testing IO module...")
             # Initialize IO module
             if not self._test_io_module():
                 print("IO module test failed")
                 raise Exception("IO module test failed")
             print("IO module test passed")
-                
+                    
             print("4. Testing SSR module...")    
-            # Initialize SSR module    
-            if not self._test_ssr_module():
-                print("SSR module test failed")
-                raise Exception("SSR module test failed")
-            print("SSR module test passed")
-            
+            # Test SSR module only if not using LoRa relay    
+            if not self._use_lora_relay:
+                if not self._test_ssr_module():
+                    print("SSR module test failed")
+                    raise Exception("SSR module test failed")
+                print("SSR module test passed")
+            else:
+                print("Using LoRa relay instead of SSR module")
+                
             print("Hardware initialization completed successfully")
             return True
-            
+                
         except Exception as e:
             print(f"Hardware initialization failed: {str(e)}")
             self.logger.log_error('hardware', f'Hardware initialization failed: {e}', 3)
@@ -656,6 +677,23 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 current_time = time.time()
                 # Check if enough time has passed since last state change
                 if current_time - self.last_state_change >= self.config_manager.get_param('min_off_time'):
+                    
+                    # Check if we should use LoRa module's relay pin
+                    if hasattr(self, '_use_lora_relay') and self._use_lora_relay:
+                        try:
+                            from machine import Pin
+                            # Set relay pin high
+                            self._relay_pin.value(1)
+                            # Print successful transition
+                            print(f'Heating activated (LoRa relay) after {current_time - self.last_state_change:.1f}s off')
+                            self.last_state_change = current_time
+                            self.heating_active = True
+                            return
+                        except Exception as e:
+                            # Log error but continue to try the standard method
+                            self.logger.log_error('control', f'LoRa relay activation failed: {e}', severity=1)
+                    
+                    # Standard SSR module method
                     # Attempt to write new state
                     self.fr.write(6, 0x01, slot=5)
                     
@@ -682,6 +720,22 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 current_time = time.time()
                 # Check if enough time has passed since last state change
                 if current_time - self.last_state_change >= self.config_manager.get_param('min_on_time'):
+                    
+                    # Check if we should use LoRa module's relay pin
+                    if hasattr(self, '_use_lora_relay') and self._use_lora_relay:
+                        try:
+                            # Set relay pin low
+                            self._relay_pin.value(0)
+                            # Print successful transition
+                            print(f'Heating deactivated (LoRa relay) after {current_time - self.last_state_change:.1f}s on')
+                            self.last_state_change = current_time
+                            self.heating_active = False
+                            return
+                        except Exception as e:
+                            # Log error but continue to try the standard method
+                            self.logger.log_error('control', f'LoRa relay deactivation failed: {e}', severity=1)
+                    
+                    # Standard SSR module method
                     # Attempt to write new state
                     self.fr.write(6, 0x00, slot=5)
                     
