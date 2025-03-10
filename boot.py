@@ -1,3 +1,18 @@
+# Start delayed watchdog (must be the first thing we do)
+try:
+    import delayed_watchdog
+    # Configure for 30 minute activation delay 
+    delayed_watchdog.configure(
+        activation_delay_ms=1800000,  # 30 minutes
+        watchdog_timeout_ms=8388      # ~8 seconds (just under the maximum allowed)
+    )
+    # Schedule the watchdog
+    delayed_watchdog.schedule()
+    print("Delayed watchdog scheduled (will activate in 30 minutes if not cancelled)")
+except Exception as e:
+    print(f"WARNING: Failed to schedule delayed watchdog: {e}")
+
+# Continue with normal boot process
 import network
 import utime
 import ntptime
