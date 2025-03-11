@@ -1,6 +1,12 @@
 {
-  "timestamp": "2025-03-02T14:38:53Z",
+  "timestamp": "2025-03-11T00:24:43Z",
   "files": {
+    "delayed_watchdog.py": {
+      "version": "1.0",
+      "path": "/ttn/ttn_eu.py",
+      "hash": "f3c9f2e9458d0a2d5a6768974e08328e8bacb0272cef386ff19d5b25c2bbf7ca",
+      "size": 4256
+    },
     "ttn/ttn_eu.py": {
       "version": "1.1",
       "path": "/ttn/ttn_eu.py",
@@ -20,16 +26,16 @@
       "size": 6430
     },
     "boot.py": {
-      "version": "2.1",
+      "version": "2.2",
       "path": "/boot.py",
-      "hash": "ef45f8f10d67cbcbd7f845e48efdba7eb3103425a0656fd57b50103bdbc97559",
-      "size": 7394
+      "hash": "6f59b4fac71e1dc0044769e98325484d3f95630320d18edc9c55832226a500de",
+      "size": 7976
     },
     "main.py": {
-      "version": "3.6",
+      "version": "3.7",
       "path": "/main.py",
-      "hash": "1276a5765b2eac34426609054622501a22b67c5fec65dca01765b292596fe54b",
-      "size": 29812
+      "hash": "7c4e634db095a015e8eb1e36f1ae46f1cea0b57a0ba524060d77b0ccd0a15b82",
+      "size": 32972
     },
     "config_portal.py": {
       "version": "1.6",
@@ -98,10 +104,10 @@
       "size": 4581
     },
     "watchdog.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/watchdog.py",
-      "hash": "bf219ec49172df0a9dcd2f5777052819e7ad886d697ec803b78b15fc0ffce9e2",
-      "size": 6131
+      "hash": "cfeeb95e098e42f133c489fb2d7076935fb24c756e2dd94c91d684ce4ef195be",
+      "size": 6620
     },
     "system_recovery.py": {
       "version": "1.1",
@@ -140,10 +146,10 @@
       "size": 7365
     },
     "module_detector.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/module_detector.py",
-      "hash": "2ee37d2bf4b111fff0b79f79706b4522ce692caa89cdb8ad4a789a45dd8db221",
-      "size": 6080
+      "hash": "3bdfa93be7586ab5323572dde8be5e0bf47e24f306b1e9905ea318718edff81c",
+      "size": 6731
     },
     "mqtt_handler.py": {
       "version": "1.8",
