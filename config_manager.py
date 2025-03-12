@@ -28,7 +28,7 @@ class ConfigurationManager:
             'mode': {
                 'id': 0,  # Add ID for each parameter
                 'type': str,
-                'allowed_values': ['relay', 'sensor', 'pid'],
+                'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid'],
                 'default': 'relay'
             },
             'setpoint': {
@@ -137,6 +137,38 @@ class ConfigurationManager:
                 'type': str,
                 'default': 'LoRaWAN',
                 'description': 'GitHub branch to check for updates'
+            },
+            'pid_kp_std': {
+                'id': 16,
+                'type': float,
+                'min': 0.01,
+                'max': 100.0,
+                'default': 1.0,
+                'description': 'PID Proportional Gain (standard form)'
+            },
+            'pid_ti_std': {
+                'id': 17,
+                'type': float,
+                'min': 0.1,  # Prevent division by zero
+                'max': 1000.0,
+                'default': 100.0,
+                'description': 'PID Integral Time Constant (standard form)'
+            },
+            'pid_td_std': {
+                'id': 18,
+                'type': float,
+                'min': 0.0,
+                'max': 100.0,
+                'default': 10.0,
+                'description': 'PID Derivative Time Constant (standard form)'
+            },
+            'pid_dt': {
+                'id': 19,
+                'type': float,
+                'min': 0.1,
+                'max': 600.0,
+                'default': 1.0,
+                'description': 'PID Control Interval (seconds)'
             }
         }
         

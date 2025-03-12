@@ -375,7 +375,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             )
 
     def _update_control_logic(self):
-        """Update control logic for relay, sensor, and PID modes"""
+        """Update control logic for relay, sensor, PID and soft PID modes"""
         try:
             if self.current_temp is None or self._get_setpoint() is None:
                 return False
@@ -401,6 +401,61 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 if voltage is None:
                     voltage = 0.0
                 self.heating_active = voltage > 1.0  # Consider heating active if > 1V
+                
+            elif mode == 'soft_pid':
+                # If we were previously in hardware PID mode, disable it
+                if self._pid_configured:
+                    try:
+                        # Disable PID by writing 0 to PID_CR
+                        self.fr.write(26, 0, slot=6)
+                        self._pid_configured = False
+                        self.logger.log_error(
+                            'control',
+                            'Hardware PID controller disabled when switching to soft_pid mode',
+                            severity=1
+                        )
+                    except Exception as e:
+                        self.logger.log_error('control', f'Error disabling hardware PID: {e}', 2)
+                
+                # Calculate control interval
+                current_time = time.time()
+                dt = current_time - self.temp_controller.last_control_time
+                pid_dt = self.config_manager.get_param('pid_dt')
+                
+                # Only update at specified interval
+                if dt >= pid_dt:
+                    # Calculate PID output
+                    output_voltage = self.temp_controller.calculate_soft_pid_output(
+                        self.current_temp,
+                        self._get_setpoint(),
+                        dt
+                    )
+                    
+                    # Update last control time
+                    self.temp_controller.last_control_time = current_time
+                    
+                    # Set output voltage
+                    try:
+                        # Write output to DAC
+                        self.fr.write(40, output_voltage, slot=6)  # DAC_L3 parameter
+                        
+                        # Update heating status for display
+                        self.heating_active = output_voltage > 1.0
+                        
+                        # Log PID values periodically
+                        if hasattr(self, '_last_pid_log') and current_time - self._last_pid_log > 30:
+                            self.logger.log_error(
+                                'pid',
+                                f'PID: SP={self._get_setpoint():.1f}, PV={self.current_temp:.1f}, ' +
+                                f'Out={output_voltage:.2f}V, I={self.temp_controller.integral_error:.2f}',
+                                severity=1
+                            )
+                            self._last_pid_log = current_time
+                        else:
+                            if not hasattr(self, '_last_pid_log'):
+                                self._last_pid_log = current_time
+                    except Exception as e:
+                        self.logger.log_error('control', f'Error setting PID output: {e}', 2)
                 
             elif mode == 'relay' or mode == 'sensor':
                 # If we were previously in PID mode, disable it
