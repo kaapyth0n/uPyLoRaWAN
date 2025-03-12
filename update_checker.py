@@ -16,8 +16,8 @@ except:
     print("Display not found or initialization failed")
     display = None
 
-# Configuration
-UPDATE_SERVER = "https://raw.githubusercontent.com/kaapyth0n/uPyLoRaWAN/refs/heads/LoRaWAN"
+# Base update server URL (without branch)
+UPDATE_BASE_URL = "https://raw.githubusercontent.com/kaapyth0n/uPyLoRaWAN/refs/heads"
 
 class UpdateResult:
     """Simple class to hold update results"""
@@ -30,6 +30,49 @@ class UpdateResult:
         if self.success:
             return f"Update successful: {len(self.updated_files)} files updated"
         return f"Update failed: {self.error}"
+
+def get_update_branch():
+    """
+    Get the GitHub branch to use for updates from config_manager.
+    Falls back to default 'LoRaWAN' if config_manager is not available
+    or the parameter doesn't exist.
+    
+    Returns:
+        str: Branch name to use for updates
+    """
+    try:
+        # Try to import the config manager
+        from config_manager import ConfigurationManager
+        config_manager = ConfigurationManager()
+        
+        # Try to get the update_branch parameter
+        branch = config_manager.get_param('update_branch')
+        
+        # If branch is None or empty, use default
+        if not branch:
+            print("No update branch configured, using default 'LoRaWAN'")
+            return "LoRaWAN"
+            
+        print(f"Using configured update branch: {branch}")
+        return branch
+    except ImportError:
+        print("ConfigurationManager not available, using default branch 'LoRaWAN'")
+        return "LoRaWAN"
+    except Exception as e:
+        print(f"Error getting update branch: {e}, using default 'LoRaWAN'")
+        return "LoRaWAN"
+
+def get_update_server_url():
+    """
+    Constructs the update server URL using the configured branch
+    
+    Returns:
+        str: Full update server URL
+    """
+    branch = get_update_branch()
+    url = f"{UPDATE_BASE_URL}/{branch}"
+    print(f"Update server URL: {url}")
+    return url
 
 def update_display(*lines, beep=False):
     """
@@ -311,8 +354,12 @@ def replace_file(filename):
     except:
         return False
     
-def check_updates(base_url):
+def check_updates(base_url=None):
     """Check for updates with retry mechanism"""
+    # Use provided base_url or get it from configuration
+    if base_url is None:
+        base_url = get_update_server_url()
+        
     print("\nStarting update check...")
     update_display(
         "Update Checker",
@@ -393,6 +440,7 @@ def check_updates(base_url):
     return updates_needed
 
 def process_updates(base_url, updates_needed):
+    """Process updates with provided base URL"""
     print("\nStarting update process...")
     total = len(updates_needed)
     successful_updates = 0
@@ -486,17 +534,26 @@ def process_updates(base_url, updates_needed):
     return successful_updates
 
 def update_local_version(filename, version):
+    """Update local version record"""
     versions = get_local_versions()
     versions[filename] = version
     with open('versions.json', 'w') as f:
         json.dump(versions, f)
 
-def check_and_update(base_url=UPDATE_SERVER):
+def check_and_update(base_url=None):
     """
     Main update function that can be called from other code.
     Returns UpdateResult object with status and details.
+    
+    Args:
+        base_url (str, optional): Override the update server URL
+            If None, will use the configured branch from config_manager
     """
     print("\nStarting update check and update process...")
+    
+    # Use provided base_url or get it from configuration
+    if base_url is None:
+        base_url = get_update_server_url()
     
     if not network.WLAN(network.STA_IF).isconnected():
         print("No network connection available")
@@ -510,7 +567,7 @@ def check_and_update(base_url=UPDATE_SERVER):
         update_display(
             "Update Checker",
             "Checking manifest",
-            f"URL: {base_url}",
+            f"Branch: {base_url.split('/')[-1]}",
             "Please wait..."
         )
         
@@ -570,42 +627,3 @@ def get_current_versions():
     Can be used by other code to check what's installed.
     """
     return get_local_versions()
-
-def is_update_available():
-    """
-    Quick check if updates are available without downloading them.
-    Can be called from other code to check if update is needed.
-    """
-    try:
-        manifest = fetch_manifest(UPDATE_SERVER)
-        if not manifest:
-            return False
-            
-        local_versions = get_local_versions()
-        for filename, info in manifest['files'].items():
-            if filename not in local_versions or \
-               local_versions[filename] < info['version']:
-                return True
-        return False
-    except:
-        return False
-
-def get_update_details():
-    """
-    Get details about available updates without installing them.
-    Returns a list of (filename, current_version, available_version) tuples.
-    """
-    try:
-        manifest = fetch_manifest(UPDATE_SERVER)
-        if not manifest:
-            return []
-            
-        local_versions = get_local_versions()
-        updates = []
-        for filename, info in manifest['files'].items():
-            current = local_versions.get(filename, "Not installed")
-            if current != info['version']:
-                updates.append((filename, current, info['version']))
-        return updates
-    except:
-        return []

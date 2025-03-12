@@ -131,6 +131,12 @@ class ConfigurationManager:
                 'max': 22.5,
                 'default': 0.0,
                 'description': 'PID minimum output voltage limit'
+            },
+            'update_branch': {
+                'id': 15,
+                'type': str,
+                'default': 'LoRaWAN',
+                'description': 'GitHub branch to check for updates'
             }
         }
         
