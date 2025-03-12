@@ -3,7 +3,7 @@
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
-      "path": "/ttn/ttn_eu.py",
+      "path": "/delayed_watchdog.py",
       "hash": "f3c9f2e9458d0a2d5a6768974e08328e8bacb0272cef386ff19d5b25c2bbf7ca",
       "size": 4256
     },
