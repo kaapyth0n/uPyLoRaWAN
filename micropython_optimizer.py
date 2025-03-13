@@ -4,7 +4,7 @@ MicroPython Code Optimizer
 
 This script optimizes MicroPython code files for deployment on constrained devices by:
 1. Removing comments (single line, multi-line, and docstrings)
-2. Removing print statements
+2. Removing print statements (safely replacing with 'pass' where needed)
 3. Removing empty lines and trailing whitespace
 4. Optionally removing unused imports (experimental)
 
@@ -14,6 +14,7 @@ Usage:
 
 Options:
     --manifest=FILE.json  Use manifest.json to identify files to optimize
+    --safe-mode           Replace print statements with 'pass' instead of removing them
     --no-backup          Don't create backup files
     --keep-docstrings    Keep docstrings (class and function documentation)
     --keep-prints        Keep print statements
@@ -33,17 +34,19 @@ Examples:
     
     # Process only files listed in manifest.json
     python micropython_optimizer.py --manifest=manifest.json --verbose optimized/
+    
+    # Process files safely replacing prints with pass instead of removing them
+    python micropython_optimizer.py --safe-mode src/ optimized/
 """
 
 import os
 import re
 import sys
+import json
 import shutil
 import argparse
 from typing import Dict, List, Tuple, Any, Set
 import ast
-
-import json
 
 # Color codes for terminal output
 class Colors:
@@ -190,65 +193,466 @@ class MicropythonOptimizer:
         return content
 
     def _remove_docstrings(self, content: str) -> str:
-        """Remove docstrings from the content
+        """Remove docstrings from the content while preserving functional strings
         
-        This is more complex than a simple regex since we need to handle
-        nested triple quotes and avoid removing actual string literals.
+        Uses AST parsing to identify and remove only true docstrings, while
+        preserving string literals that are part of the code's functionality.
         """
-        # Use a regex pattern that looks for triple quotes outside of strings
-        # This is a simplified approach and may not handle all edge cases
-        patterns = [
-            r'""".*?"""',  # Triple double quotes
-            r"'''.*?'''"    # Triple single quotes
-        ]
-        
-        # Apply each pattern with the DOTALL flag to match across lines
-        for pattern in patterns:
-            content = re.sub(pattern, '', content, flags=re.DOTALL)
+        try:
+            # Parse the code to get the AST
+            tree = ast.parse(content)
             
-        return content
+            # Identify docstring positions
+            docstring_positions = []
+            
+            # Module docstring
+            if (len(tree.body) > 0 and 
+                isinstance(tree.body[0], ast.Expr) and 
+                isinstance(tree.body[0].value, ast.Str)):
+                docstring_positions.append((tree.body[0].lineno, tree.body[0].end_lineno))
+            
+            # Walk the tree to find class and function docstrings
+            for node in ast.walk(tree):
+                # Class docstrings
+                if isinstance(node, ast.ClassDef):
+                    if (len(node.body) > 0 and 
+                        isinstance(node.body[0], ast.Expr) and 
+                        isinstance(node.body[0].value, ast.Str)):
+                        docstring_positions.append((node.body[0].lineno, node.body[0].end_lineno))
+                
+                # Function docstrings
+                elif isinstance(node, ast.FunctionDef):
+                    if (len(node.body) > 0 and 
+                        isinstance(node.body[0], ast.Expr) and 
+                        isinstance(node.body[0].value, ast.Str)):
+                        docstring_positions.append((node.body[0].lineno, node.body[0].end_lineno))
+            
+            # If no docstrings found, return content unchanged
+            if not docstring_positions:
+                return content
+                
+            # Convert content to lines for processing
+            lines = content.split('\n')
+            result = []
+            
+            # Process lines, removing only those that are part of docstrings
+            i = 0
+            while i < len(lines):
+                line_num = i + 1  # AST uses 1-indexed line numbers
+                
+                # Check if this line is part of a docstring
+                is_docstring = False
+                for start, end in docstring_positions:
+                    if start <= line_num <= end:
+                        is_docstring = True
+                        break
+                
+                if is_docstring:
+                    # Skip docstring lines
+                    if line_num == end:
+                        i += 1  # Move to next line after docstring
+                    else:
+                        i += 1  # Move through the docstring
+                else:
+                    # Keep non-docstring lines
+                    result.append(lines[i])
+                    i += 1
+            
+            return '\n'.join(result)
+            
+        except SyntaxError:
+            # If parsing fails, don't attempt to remove docstrings
+            if self.options.verbose:
+                print(colorize("Syntax error during AST parsing for docstrings, keeping all strings", Colors.YELLOW))
+            return content
+        except Exception as e:
+            # If any error occurs, be safe and leave content unchanged
+            if self.options.verbose:
+                print(colorize(f"Error removing docstrings: {e}, keeping all strings", Colors.YELLOW))
+            return content
 
     def _remove_line_comments(self, content: str) -> str:
         """Remove single-line comments while preserving strings"""
-        lines = content.split('\n')
-        result = []
-        
-        for line in lines:
-            # Skip lines that are just comments
-            if line.strip().startswith('#'):
-                continue
-                
-            # For lines with code and comments, strip the comment part
-            in_string = False
-            string_char = None
-            i = 0
+        # First, let's use an AST-based approach to avoid corrupting actual strings
+        try:
+            # Parse to get the AST
+            tree = ast.parse(content)
             
-            while i < len(line):
-                char = line[i]
+            # Find all strings in the code, so we know what NOT to touch
+            string_positions = []
+            
+            # We need to find all string literals
+            for node in ast.walk(tree):
+                # Handle all string types (including f-strings in Python 3.6+)
+                if isinstance(node, ast.Str) or (hasattr(ast, 'JoinedStr') and isinstance(node, ast.JoinedStr)):
+                    if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
+                        # Get line range of the string
+                        string_positions.append((node.lineno, node.end_lineno))
+            
+            # Process line by line
+            lines = content.split('\n')
+            for i, line in enumerate(lines):
+                line_num = i + 1  # AST uses 1-indexed line numbers
                 
-                # Handle string boundaries
-                if char in "\"'" and (i == 0 or line[i-1] != '\\'):
-                    if not in_string:
+                # Skip processing if this line is part of a multi-line string
+                in_string = False
+                for start, end in string_positions:
+                    if start <= line_num <= end:
                         in_string = True
-                        string_char = char
-                    elif string_char == char:
-                        in_string = False
-                        
-                # Handle comments outside strings
-                if char == '#' and not in_string:
-                    line = line[:i].rstrip()
-                    break
-                    
-                i += 1
+                        break
                 
-            # Add the processed line
-            result.append(line)
+                if in_string:
+                    # Don't modify lines that are part of string literals
+                    continue
+                
+                # Process this line to remove comments
+                # But handle the case of inline comments more carefully
+                if '#' in line:
+                    # Check each character to avoid strings
+                    in_string_char = False
+                    string_delim = None
+                    escape = False
+                    j = 0
+                    
+                    while j < len(line):
+                        char = line[j]
+                        
+                        # Handle string boundaries
+                        if char in "\"'" and not escape:
+                            if not in_string_char:
+                                in_string_char = True
+                                string_delim = char
+                            elif string_delim == char:
+                                in_string_char = False
+                        
+                        # Handle escape characters
+                        if char == '\\' and not escape:
+                            escape = True
+                        else:
+                            escape = False
+                        
+                        # Handle comments outside strings
+                        if char == '#' and not in_string_char:
+                            lines[i] = line[:j].rstrip()
+                            break
+                        
+                        j += 1
             
-        return '\n'.join(result)
+            return '\n'.join(lines)
+            
+        except SyntaxError:
+            # If AST parsing fails, use a more conservative approach
+            if self.options.verbose:
+                print(colorize("Syntax error during AST parsing for comments, using fallback method", Colors.YELLOW))
+            
+            # Fallback to a more conservative approach that preserves all strings
+            lines = content.split('\n')
+            result = []
+            
+            for line in lines:
+                # Skip full comment lines
+                if line.strip().startswith('#'):
+                    continue
+                    
+                # For lines with potential inline comments, preserve strings
+                if '#' in line:
+                    in_string = False
+                    string_char = None
+                    escape = False
+                    comment_pos = -1
+                    
+                    for i, char in enumerate(line):
+                        # Handle escape sequences
+                        if escape:
+                            escape = False
+                            continue
+                            
+                        if char == '\\':
+                            escape = True
+                            continue
+                            
+                        # Track string boundaries
+                        if char in "\"'":
+                            if not in_string:
+                                in_string = True
+                                string_char = char
+                            elif string_char == char:
+                                in_string = False
+                                
+                        # Detect comments outside strings
+                        if char == '#' and not in_string:
+                            comment_pos = i
+                            break
+                    
+                    # Remove comment portion if found
+                    if comment_pos >= 0:
+                        line = line[:comment_pos].rstrip()
+                
+                result.append(line)
+                
+            return '\n'.join(result)
+                
+        except Exception as e:
+            # If any error occurs, be conservative
+            if self.options.verbose:
+                print(colorize(f"Error removing comments: {e}, preserving code", Colors.YELLOW))
+            return content
 
     def _remove_print_statements(self, content: str) -> str:
-        """Remove print statements from the content"""
-        # This matches both simple print("text") and more complex print(f"{var}")
+        """Remove or replace print statements ensuring code remains syntactically valid
+        
+        Uses AST parsing to identify blocks where print is the only statement,
+        ensuring all control structures remain syntactically valid.
+        Only replaces prints with 'pass' when they are the only statement in a block.
+        """
+        if self.options.safe_mode:
+            # In safe mode, just replace all print statements with 'pass'
+            return self._safe_replace_prints_with_pass(content)
+            
+        try:
+            # Parse the code with AST to identify all print statements
+            tree = ast.parse(content)
+            
+            # Create collections for tracking
+            pass_replacements = []  # Lines to replace with 'pass'
+            print_lines = set()      # All print statement lines
+            non_print_lines = set()  # Lines with statements other than print
+            blocks = {}              # Maps block start line to end line
+            
+            # Find all print statements
+            for node in ast.walk(tree):
+                # Track print statements
+                if (isinstance(node, ast.Expr) and
+                    isinstance(node.value, ast.Call) and
+                    isinstance(node.value.func, ast.Name) and
+                    node.value.func.id == 'print'):
+                    print_lines.add(node.lineno)
+                
+                # Track non-print statements
+                elif isinstance(node, ast.stmt) and not isinstance(node, (ast.Expr, ast.Pass)):
+                    if hasattr(node, 'lineno'):
+                        non_print_lines.add(node.lineno)
+                        
+                # Track control blocks to know their ranges
+                if isinstance(node, (ast.If, ast.For, ast.While, ast.With, ast.Try,
+                                    ast.ExceptHandler, ast.FunctionDef, ast.ClassDef)):
+                    if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
+                        blocks[node.lineno] = node.end_lineno
+            
+            # Find blocks where print is the only statement
+            for node in ast.walk(tree):
+                # Handle all block types that have a body
+                if hasattr(node, 'body') and isinstance(node.body, list):
+                    # If body is non-empty
+                    if len(node.body) > 0:
+                        # Get line range of this block
+                        start_line = node.lineno if hasattr(node, 'lineno') else None
+                        
+                        # Count non-print statements in this block
+                        non_print_count = 0
+                        
+                        # Check each statement in the body
+                        for stmt in node.body:
+                            if not (isinstance(stmt, ast.Expr) and 
+                                    isinstance(stmt.value, ast.Call) and
+                                    isinstance(stmt.value.func, ast.Name) and
+                                    stmt.value.func.id == 'print'):
+                                non_print_count += 1
+                        
+                        # If block has only one statement and it's a print, mark for replacement
+                        if len(node.body) == 1 and non_print_count == 0:
+                            stmt = node.body[0]
+                            if (isinstance(stmt, ast.Expr) and
+                                isinstance(stmt.value, ast.Call) and
+                                isinstance(stmt.value.func, ast.Name) and
+                                stmt.value.func.id == 'print'):
+                                pass_replacements.append(stmt.lineno)
+                
+                # Also check orelse blocks (else/elif parts)
+                if hasattr(node, 'orelse') and isinstance(node.orelse, list):
+                    # If there's exactly one statement and it's a print
+                    if len(node.orelse) == 1:
+                        stmt = node.orelse[0]
+                        # Check if it's a print statement (not an elif)
+                        if (isinstance(stmt, ast.Expr) and
+                            isinstance(stmt.value, ast.Call) and
+                            isinstance(stmt.value.func, ast.Name) and
+                            stmt.value.func.id == 'print'):
+                            pass_replacements.append(stmt.lineno)
+            
+            # Now split the content into lines
+            lines = content.split('\n')
+            result = []
+            
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                stripped = line.strip()
+                line_num = i + 1  # AST uses 1-indexed line numbers
+                
+                # If this is a print that should be replaced with 'pass'
+                if line_num in pass_replacements:
+                    # Replace with 'pass' maintaining indentation
+                    indent = line[:len(line) - len(stripped)]
+                    result.append(f"{indent}pass")
+                    i += 1
+                    continue
+                
+                # If this is a regular print statement (not the only statement in a block)
+                elif line_num in print_lines and line_num not in pass_replacements:
+                    # Check if it's a simple print statement
+                    if stripped.count('(') == stripped.count(')'):
+                        i += 1
+                        continue
+                    
+                    # Handle multi-line print statements
+                    else:
+                        paren_count = stripped.count('(') - stripped.count(')')
+                        j = i + 1
+                        
+                        # Find the end of the print statement
+                        while j < len(lines) and paren_count > 0:
+                            paren_count += lines[j].count('(') - lines[j].count(')')
+                            j += 1
+                            
+                        # Skip all these lines
+                        i = j
+                        continue
+                
+                # Handle block start markers (else, etc.)
+                elif re.match(r'^\s*(else|except|finally)\s*:', stripped):
+                    result.append(line)
+                    
+                    # Look ahead to see if next line is just a print statement
+                    if i+1 < len(lines):
+                        next_line = lines[i+1].strip()
+                        if re.match(r'^print\s*\(', next_line):
+                            # Check if it's a single print
+                            if next_line.count('(') == next_line.count(')'):
+                                # Now check if there's anything else in this block
+                                has_other_content = False
+                                
+                                # Get indentation level of current and next line
+                                curr_indent = len(line) - len(stripped)
+                                next_indent = len(lines[i+1]) - len(next_line)
+                                
+                                # Only if next line is properly indented
+                                if next_indent > curr_indent:
+                                    # Check subsequent lines to see if there's more content
+                                    k = i + 2
+                                    while k < len(lines):
+                                        k_line = lines[k].strip()
+                                        if not k_line:  # Skip empty lines
+                                            k += 1
+                                            continue
+                                            
+                                        k_indent = len(lines[k]) - len(k_line)
+                                        
+                                        # If same or deeper indentation, this is still in the block
+                                        if k_indent >= next_indent:
+                                            has_other_content = True
+                                            break
+                                        # If less indentation, we've exited the block
+                                        else:
+                                            break
+                                            
+                                        k += 1
+                                
+                                # If this is the only content in the block, replace with pass
+                                if not has_other_content:
+                                    indent = lines[i+1][:len(lines[i+1]) - len(next_line)]
+                                    result.append(f"{indent}pass")
+                                # Otherwise, just skip the print (don't replace with pass)
+                                i += 2
+                                continue
+                    
+                    i += 1
+                    continue
+                
+                # Handle other control blocks
+                elif re.match(r'^\s*(if|for|while|with|def|class|try)\s+.*:', stripped):
+                    result.append(line)
+                    
+                    # Look ahead to see if next line is just a print statement
+                    if i+1 < len(lines):
+                        next_line = lines[i+1].strip()
+                        if re.match(r'^print\s*\(', next_line):
+                            # Only if it's a simple print
+                            if next_line.count('(') == next_line.count(')'):
+                                # Now check if there's anything else in this block
+                                has_other_content = False
+                                
+                                # Get indentation level of current and next line
+                                curr_indent = len(line) - len(stripped)
+                                next_indent = len(lines[i+1]) - len(next_line)
+                                
+                                # Only if next line is properly indented
+                                if next_indent > curr_indent:
+                                    # Check subsequent lines to see if there's more content
+                                    k = i + 2
+                                    while k < len(lines):
+                                        k_line = lines[k].strip()
+                                        if not k_line:  # Skip empty lines
+                                            k += 1
+                                            continue
+                                            
+                                        k_indent = len(lines[k]) - len(k_line)
+                                        
+                                        # If same indentation as print, this is still in the block
+                                        if k_indent == next_indent:
+                                            has_other_content = True
+                                            break
+                                        # If deeper indentation, this is a nested block
+                                        elif k_indent > next_indent:
+                                            # Skip over the nested block
+                                            while k < len(lines):
+                                                if not lines[k].strip():
+                                                    k += 1
+                                                    continue
+                                                    
+                                                curr_k_indent = len(lines[k]) - len(lines[k].strip())
+                                                if curr_k_indent <= next_indent:
+                                                    break
+                                                k += 1
+                                        # If less indentation, we've exited the block
+                                        else:
+                                            break
+                                            
+                                        k += 1
+                                
+                                # If this is the only content in the block, replace with pass
+                                # Otherwise, just skip the print (don't replace with pass)
+                                if not has_other_content:
+                                    indent = lines[i+1][:len(lines[i+1]) - len(next_line)]
+                                    result.append(f"{indent}pass")
+                                i += 2
+                                continue
+                    
+                    i += 1
+                    continue
+                
+                # Keep all other lines
+                else:
+                    result.append(line)
+                    i += 1
+            
+            return '\n'.join(result)
+            
+        except SyntaxError:
+            # If parsing fails, fall back to the safer method
+            if self.options.verbose:
+                print(colorize("Syntax error during AST parsing, falling back to safe method", Colors.YELLOW))
+            return self._safe_replace_prints_with_pass(content)
+        except Exception as e:
+            if self.options.verbose:
+                print(colorize(f"AST parsing error, falling back to safe method: {e}", Colors.YELLOW))
+            return self._safe_replace_prints_with_pass(content)
+            
+    def _safe_replace_prints_with_pass(self, content: str) -> str:
+        """Safely replace print statements with 'pass' to maintain code structure
+        
+        More conservative approach that preserves syntactic validity
+        """
         lines = content.split('\n')
         result = []
         
@@ -257,13 +661,21 @@ class MicropythonOptimizer:
             line = lines[i]
             stripped = line.strip()
             
-            # Skip simple print lines
+            # Simple print statement on a single line
             if re.match(r'^\s*print\s*\(', stripped) and stripped.count('(') == stripped.count(')'):
+                # Replace with 'pass' maintaining indentation
+                indent = line[:len(line) - len(stripped)]
+                result.append(f"{indent}pass")
                 i += 1
                 continue
                 
             # Handle multi-line print statements
             if re.match(r'^\s*print\s*\(', stripped) and stripped.count('(') > stripped.count(')'):
+                # Replace first line with 'pass'
+                indent = line[:len(line) - len(stripped)]
+                result.append(f"{indent}pass")
+                
+                # Skip all lines in this print statement
                 paren_count = stripped.count('(') - stripped.count(')')
                 j = i + 1
                 
@@ -506,6 +918,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('output', nargs='?', help="Output file or directory (defaults to input)")
     
     parser.add_argument('--manifest', help="Path to manifest.json file to identify files to optimize")
+    parser.add_argument('--safe-mode', action='store_true', help="Replace print statements with 'pass' instead of removing them")
     parser.add_argument('--no-backup', action='store_true', help="Don't create backup files")
     parser.add_argument('--keep-docstrings', action='store_true', help="Keep docstrings")
     parser.add_argument('--keep-prints', action='store_true', help="Keep print statements")
@@ -678,6 +1091,8 @@ def main() -> None:
     # Print mode summary
     if args.stats_only:
         print(colorize("\nStats-only mode: No files were modified", Colors.YELLOW))
+    elif args.safe_mode:
+        print(colorize("\nSafe mode: Print statements were replaced with 'pass'", Colors.BLUE))
 
 
 if __name__ == "__main__":
