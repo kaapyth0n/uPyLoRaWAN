@@ -273,127 +273,76 @@ class MicropythonOptimizer:
 
     def _remove_line_comments(self, content: str) -> str:
         """Remove single-line comments while preserving strings"""
-        # First, let's use an AST-based approach to avoid corrupting actual strings
         try:
-            # Parse to get the AST
             tree = ast.parse(content)
-            
-            # Find all strings in the code, so we know what NOT to touch
             string_positions = []
-            
-            # We need to find all string literals
             for node in ast.walk(tree):
-                # Handle all string types (including f-strings in Python 3.6+)
                 if isinstance(node, ast.Str) or (hasattr(ast, 'JoinedStr') and isinstance(node, ast.JoinedStr)):
                     if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
-                        # Get line range of the string
                         string_positions.append((node.lineno, node.end_lineno))
             
-            # Process line by line
             lines = content.split('\n')
             for i, line in enumerate(lines):
                 line_num = i + 1  # AST uses 1-indexed line numbers
-                
-                # Skip processing if this line is part of a multi-line string
-                in_string = False
-                for start, end in string_positions:
-                    if start <= line_num <= end:
-                        in_string = True
-                        break
-                
-                if in_string:
-                    # Don't modify lines that are part of string literals
+                # Skip lines entirely within a multi-line string
+                if any(start < line_num < end for start, end in string_positions):
                     continue
-                
-                # Process this line to remove comments
-                # But handle the case of inline comments more carefully
                 if '#' in line:
-                    # Check each character to avoid strings
                     in_string_char = False
                     string_delim = None
                     escape = False
                     j = 0
-                    
                     while j < len(line):
                         char = line[j]
-                        
-                        # Handle string boundaries
                         if char in "\"'" and not escape:
                             if not in_string_char:
                                 in_string_char = True
                                 string_delim = char
                             elif string_delim == char:
                                 in_string_char = False
-                        
-                        # Handle escape characters
                         if char == '\\' and not escape:
                             escape = True
                         else:
                             escape = False
-                        
-                        # Handle comments outside strings
                         if char == '#' and not in_string_char:
                             lines[i] = line[:j].rstrip()
                             break
-                        
                         j += 1
-            
             return '\n'.join(lines)
-            
         except SyntaxError:
-            # If AST parsing fails, use a more conservative approach
             if self.options.verbose:
                 print(colorize("Syntax error during AST parsing for comments, using fallback method", Colors.YELLOW))
-            
-            # Fallback to a more conservative approach that preserves all strings
             lines = content.split('\n')
             result = []
-            
             for line in lines:
-                # Skip full comment lines
                 if line.strip().startswith('#'):
                     continue
-                    
-                # For lines with potential inline comments, preserve strings
                 if '#' in line:
                     in_string = False
                     string_char = None
                     escape = False
                     comment_pos = -1
-                    
-                    for i, char in enumerate(line):
-                        # Handle escape sequences
+                    for k, char in enumerate(line):
                         if escape:
                             escape = False
                             continue
-                            
                         if char == '\\':
                             escape = True
                             continue
-                            
-                        # Track string boundaries
                         if char in "\"'":
                             if not in_string:
                                 in_string = True
                                 string_char = char
                             elif string_char == char:
                                 in_string = False
-                                
-                        # Detect comments outside strings
                         if char == '#' and not in_string:
-                            comment_pos = i
+                            comment_pos = k
                             break
-                    
-                    # Remove comment portion if found
                     if comment_pos >= 0:
                         line = line[:comment_pos].rstrip()
-                
                 result.append(line)
-                
             return '\n'.join(result)
-                
         except Exception as e:
-            # If any error occurs, be conservative
             if self.options.verbose:
                 print(colorize(f"Error removing comments: {e}, preserving code", Colors.YELLOW))
             return content
