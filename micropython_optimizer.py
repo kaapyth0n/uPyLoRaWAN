@@ -24,6 +24,7 @@ Options:
     --stats-only         Show statistics without modifying files
     --verbose            Show detailed information during processing
     --exclude=FILE1,FILE2 Comma-separated list of files to exclude
+    --remove-redundant-if-else  Experimental: Remove if-else blocks where both branches are empty or pass
 
 Examples:
     # Process a single file
@@ -142,6 +143,41 @@ class MicropythonOptimizer:
                 
         return stats
 
+    def _remove_redundant_if_else(self, content: str) -> str:
+        """Experimental: Remove if-else blocks where both branches are empty or pass."""
+        try:
+            tree = ast.parse(content)
+            new_body = []
+            for node in tree.body:
+                if isinstance(node, ast.If) and self._is_redundant_if_else(node):
+                    continue  # Skip redundant if-else
+                new_body.append(node)
+            return ast.unparse(ast.Module(body=new_body, type_ignores=[]))
+        except SyntaxError:
+            if self.options.verbose:
+                print("Syntax error during redundant if-else removal, skipping")
+            return content
+        except Exception as e:
+            if self.options.verbose:
+                print(f"Error removing redundant if-else: {e}, skipping")
+            return content
+
+    def _is_redundant_if_else(self, node: ast.If) -> bool:
+        """Check if both branches of an if-else are effectively empty."""
+        if not node.orelse:  # No else clause
+            return False
+        return self._is_effectively_empty(node.body) and self._is_effectively_empty(node.orelse)
+
+    def _is_effectively_empty(self, statements: List[ast.stmt]) -> bool:
+        """Check if a list of statements is effectively empty."""
+        for stmt in statements:
+            if isinstance(stmt, ast.Pass):
+                continue
+            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and stmt.value.value is None:
+                continue  # Treat None expressions as empty
+            return False
+        return True
+
     def _optimize_content(self, content: str, filename: str) -> str:
         """Apply all optimizations to content"""
         # Parse the file to check syntax first
@@ -190,6 +226,8 @@ class MicropythonOptimizer:
         if header:
             content = header + content
             
+        if self.options.remove_redundant_if_else:
+            content = self._remove_redundant_if_else(content)
         return content
 
     def _remove_docstrings(self, content: str) -> str:
@@ -877,6 +915,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--stats-only', action='store_true', help="Show statistics without modifying files")
     parser.add_argument('--verbose', action='store_true', help="Show detailed information")
     parser.add_argument('--exclude', help="Comma-separated list of files to exclude")
+    parser.add_argument(
+        '--remove-redundant-if-else',
+        action='store_true',
+        help="Experimental: Remove if-else blocks where both branches are empty or pass"
+    )
     
     return parser.parse_args()
 
