@@ -1,161 +1,155 @@
 {
-  "timestamp": "2025-03-12T23:47:08Z",
+  "timestamp": "2025-03-13T03:57:47Z",
   "files": {
     "delayed_watchdog.py": {
-      "version": "1.0",
+      "version": "1.1",
       "path": "/delayed_watchdog.py",
-      "hash": "f3c9f2e9458d0a2d5a6768974e08328e8bacb0272cef386ff19d5b25c2bbf7ca",
-      "size": 4256
+      "hash": "d6df508c84bacee89c7134904169f05c41c34d46d05abc4a1a5b710309a003bf",
+      "size": 1598
     },
     "ttn/ttn_eu.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/ttn/ttn_eu.py",
-      "hash": "635ecf6a2895c2c9f0a3539215d71eefa16e2258fcfed852c78157e8a62e6b70",
-      "size": 1658
+      "hash": "53405fd96e3aa0c3e414bcfb952ee23f3701301b1287cb3cfe1862ebdb5feaa1",
+      "size": 164
     },
     "umqtt/robust.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/umqtt/robust.py",
-      "hash": "9a5a0a6181030f56b6d82c824106e46c8daf366061e7e9ec2e022ef30a6c54ed",
-      "size": 1328
+      "hash": "33339c8dde9d18a67b52c8fa56706354c67f647378dfcc6be5d67561ba433b95",
+      "size": 1039
     },
     "umqtt/simple.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/umqtt/simple.py",
-      "hash": "204904031a59541440fac2852582157bf12314c40646dfbe4a942145e5eb8386",
-      "size": 6430
+      "hash": "45cab45ce230466e91cec3fb51356f097af4c121a1c09ea91b9a16f3ccbc93cd",
+      "size": 5737
     },
     "boot.py": {
-      "version": "2.2",
+      "version": "2.3",
       "path": "/boot.py",
-      "hash": "6f59b4fac71e1dc0044769e98325484d3f95630320d18edc9c55832226a500de",
-      "size": 7976
+      "hash": "8482189458c50f3461185f33fde37458b497a318c61513d501eb6fe6f0ae282e",
+      "size": 5315
     },
     "main.py": {
-      "version": "3.8",
+      "version": "3.9",
       "path": "/main.py",
-      "hash": "dd6416ef92b0f81a8dbe669d1d418685213668c72fbbf0a8049087d096c40922",
-      "size": 35770
+      "hash": "79a76a3a8ab32d2874ed39bef25c3cbfe280c76b13b6ba7969b6603936772963",
+      "size": 20752
     },
     "config_portal.py": {
-      "version": "1.6",
+      "version": "1.7",
       "path": "/config_portal.py",
-      "hash": "08ddd1943b316177309e9c54853cf81422fb1a4dfc575e57085a13a60cfc900e",
-      "size": 17040
+      "hash": "103e156ba1870ccb5cfea43db9ec8823a578a424fd60235600e5b31623b33024",
+      "size": 13394
     },
     "encryption_aes.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/encryption_aes.py",
-      "hash": "5e4b9dd4606de62df0870c554d3dce70de2f628abf7754c27ed122f5adcb8329",
-      "size": 10243
+      "hash": "67750781cb8f2c39b9eb170c182213ca3d35700ae163e310c508efed84edac59",
+      "size": 6250
     },
     "IND1.py": {
-      "version": "1.0",
+      "version": "1.1",
       "path": "/IND1.py",
-      "hash": "bd1a4e96e5b4f40a589bab23790effe0daa535d7240e1a6b81d0a38013cc94be",
-      "size": 12720
+      "hash": "501a6e7c7ebb3b4f00d564c0b92c11b8de7157e74eef4fc8fc79a01d660c53d2",
+      "size": 7680
     },
     "sx127x.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/sx127x.py",
-      "hash": "fec25c155de99ed7624d1b93e8bfcc6dff1ce1ad0f13ac0b4f6e4a7c29481edb",
-      "size": 26982
+      "hash": "da479cfe6af0ac3fa81726911822f88e2d14414acb0ebd869d839c775cf3e9f3",
+      "size": 17463
     },
     "FrSet.py": {
-      "version": "1.0",
+      "version": "1.1",
       "path": "/FrSet.py",
-      "hash": "187176d53413ae732ad453ddcff8c5c685f77fc88fc80e91300d3d814523a3b0",
-      "size": 26075
+      "hash": "5d7865035cc924de4ef26df19d4993d90b88bf40cf7ed8e40aa20ba1ef7c0d56",
+      "size": 9597
     },
     "update_checker.py": {
-      "version": "1.8",
+      "version": "1.9",
       "path": "/update_checker.py",
-      "hash": "c24e5c17131735a497640032b77aaa6584fe6482f8037f4cb99fdff0b8a30432",
-      "size": 20082
+      "hash": "5e361e9de4afa0802fec56c315bb52ddea1e6933270a3f51ee8b52744f251667",
+      "size": 10268
     },
     "interfaces.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/interfaces.py",
-      "hash": "8a7c58c66fff488b31f38590055299173870f5235a74c6bb8f087761f17b10d8",
-      "size": 3849
+      "hash": "22d6d7eb96eba228fc5e3c5305117978e7bbe9763a05302ff6ccca5520132527",
+      "size": 1215
     },
     "state_machine.py": {
-      "version": "1.7",
+      "version": "1.8",
       "path": "/state_machine.py",
-      "hash": "fc667d09faada26e0bb1b4daac8a06a49d8eb883eb49e756c92df7abc5229085",
-      "size": 10845
+      "hash": "e6beed8ed390439afcd38fb07d13e4b67f4166eb763d8d6a38816a46d685b6de",
+      "size": 6237
     },
     "temp_controller.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/temp_controller.py",
-      "hash": "4daa9900d8c074f97e0d8a5487450f1e519f0e14a156dea8f40eccf241b386d2",
-      "size": 8595
+      "hash": "990551938e89a020245133be144502404f049e8876bd929ba78426de47f75404",
+      "size": 4602
     },
     "config_manager.py": {
-      "version": "1.9",
+      "version": "2.0",
       "path": "/config_manager.py",
-      "hash": "376dba2eaef8b6e715f887c3ce1607d9de8f4d977eff1cd1e5f096ddcee0b9fd",
-      "size": 18753
+      "hash": "cc3b86c63825fadbc8a6b8538c080674b8cc803db4162e99512677bdbf9e1ff5",
+      "size": 9515
     },
     "error_logger.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/error_logger.py",
-      "hash": "3d585969753d38433983ef8986b60369dbaa0b55b7ab482a6b0f06d2c4507024",
-      "size": 4581
+      "hash": "1aa1f75c51e53221c2f405d80899641bb589c682773fdc8412a4460364bbef62",
+      "size": 1924
     },
     "watchdog.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/watchdog.py",
-      "hash": "cfeeb95e098e42f133c489fb2d7076935fb24c756e2dd94c91d684ce4ef195be",
-      "size": 6620
+      "hash": "97af0821b8e736107534478ce5e3a079b39d4bb47c2e2a1d188207a52c0bf2c0",
+      "size": 3627
     },
     "system_recovery.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/system_recovery.py",
-      "hash": "34649681e91d4b1ca3f0e1d8992192d91f4876c628eaf2599d6f53518b5178e2",
-      "size": 6005
+      "hash": "860451151ab2100590d90dd9f3566da7688f78f554c949f97010f68335c91dcf",
+      "size": 3919
     },
     "display_manager.py": {
-      "version": "1.7",
+      "version": "1.8",
       "path": "/display_manager.py",
-      "hash": "c69eb88d3f0e4e92e99fc0c8cc7ee6176be19fccec3c8a5d0c207e21928600df",
-      "size": 10204
+      "hash": "14af0bc06119364a04d7789b67b71744829116239fb23950708440dad4d78121",
+      "size": 5104
     },
     "lora_handler.py": {
-      "version": "1.8",
+      "version": "1.9",
       "path": "/lora_handler.py",
-      "hash": "e26fe618016bbd2ac46cf082f12d1877108446375adbadc56c453cc7070e3e76",
-      "size": 33037
+      "hash": "115fda2fd1cadac8efd278c3838f1a0a47631daf34358740729036dd0822eabf",
+      "size": 18462
     },
     "constants.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/constants.py",
-      "hash": "bce0ed33f4e7b8de4be747793175cee7d76f42c481ba4910b799f622431d7194",
-      "size": 2932
+      "hash": "7d800dfbfb4a34adbd2c586ae5410111fff8208744aeb83e15c1687ac1ef16ba",
+      "size": 1438
     },
     "utils.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/utils.py",
-      "hash": "4e89533cd30f5a58fa119ef06292f196f25a685e9e5111485921990366658caf",
-      "size": 5447
-    },
-    "tests.py": {
-      "version": "1.3",
-      "path": "/tests.py",
-      "hash": "fdaf369dd24e089eb27484e5144078e9d51dfb59e5f914b3641ffbc0cbc98be3",
-      "size": 7365
+      "hash": "dfb634675ef000715cff8db556b8211669c66d61b81bb0e53a8835247b47630e",
+      "size": 2991
     },
     "module_detector.py": {
-      "version": "1.3",
+      "version": "1.4",
       "path": "/module_detector.py",
-      "hash": "3bdfa93be7586ab5323572dde8be5e0bf47e24f306b1e9905ea318718edff81c",
-      "size": 6731
+      "hash": "ac1d014664da56d7c96b66f285f16d80eb85932a77f7f7def9d36af7d064c33d",
+      "size": 3602
     },
     "mqtt_handler.py": {
-      "version": "1.8",
+      "version": "1.9",
       "path": "/mqtt_handler.py",
-      "hash": "9f375b5400ddff36e1e7d21e0668d95b01c823cc25667b400377362d370dd57c",
-      "size": 23754
+      "hash": "49bbfc5732fc6081e785d9440ac628ca9f246be25f5f65642f8082d35cb8a7ae",
+      "size": 11742
     }
   }
 }
