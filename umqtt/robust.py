@@ -1,20 +1,11 @@
 import time
 from . import simple
 
-
 class MQTTClient(simple.MQTTClient):
     DELAY = 2
-    DEBUG = False
 
     def delay(self, i):
         time.sleep(self.DELAY)
-
-    def log(self, in_reconnect, e):
-        if self.DEBUG:
-            if in_reconnect:
-                print("mqtt reconnect: %r" % e)
-            else:
-                print("mqtt: %r" % e)
 
     def reconnect(self):
         i = 0
@@ -22,7 +13,6 @@ class MQTTClient(simple.MQTTClient):
             try:
                 return super().connect(False)
             except OSError as e:
-                self.log(True, e)
                 i += 1
                 self.delay(i)
 
@@ -31,7 +21,7 @@ class MQTTClient(simple.MQTTClient):
             try:
                 return super().publish(topic, msg, retain, qos)
             except OSError as e:
-                self.log(False, e)
+                pass
             self.reconnect()
 
     def wait_msg(self):
@@ -39,7 +29,7 @@ class MQTTClient(simple.MQTTClient):
             try:
                 return super().wait_msg()
             except OSError as e:
-                self.log(False, e)
+                pass
             self.reconnect()
 
     def check_msg(self, attempts=2):
@@ -48,6 +38,6 @@ class MQTTClient(simple.MQTTClient):
             try:
                 return super().wait_msg()
             except OSError as e:
-                self.log(False, e)
+                pass
             self.reconnect()
             attempts -= 1

@@ -1,36 +1,22 @@
-# Start delayed watchdog (must be the first thing we do)
 try:
     import delayed_watchdog
-    # Configure for 30 minute activation delay 
-    delayed_watchdog.configure(
-        activation_delay_ms=1800000,  # 30 minutes
-        watchdog_timeout_ms=8388      # ~8 seconds (just under the maximum allowed)
-    )
-    # Schedule the watchdog
+    delayed_watchdog.configure(activation_delay_ms=1800000, watchdog_timeout_ms=8388)
     delayed_watchdog.schedule()
-    print("Delayed watchdog scheduled (will activate in 30 minutes if not cancelled)")
 except Exception as e:
-    print(f"WARNING: Failed to schedule delayed watchdog: {e}")
-
-# Continue with normal boot process
+    pass
 import network
 import utime
 import ntptime
 import json
 import machine
 from IND1 import Module_IND1
-
-# Initialize display globally so it's available throughout the boot process
 display = None
 try:
-    print("Initializing display in boot...")
-    display = Module_IND1(2)  # IND1-1.1 module in slot 2
-    print("Display initialized successfully")
+    display = Module_IND1(2)
 except:
-    print("Display not found or initialization failed")
+    pass
 
-def update_display(title, line1="", line2="", show=True):
-    """Helper function to update display"""
+def update_display(title, line1='', line2='', show=True):
     if display:
         try:
             display.erase(0, display=0)
@@ -42,151 +28,106 @@ def update_display(title, line1="", line2="", show=True):
             if show:
                 display.show(0)
         except:
-            print("Display update failed")
+            pass
 
 def check_button():
-    """Check if configuration button is pressed"""
     if display:
         try:
-            button_state = display.fr.read(28)  # Read button status
-            return bool(button_state)  # Changed to check any button
+            button_state = display.fr.read(28)
+            return bool(button_state)
         except:
             return False
     return False
 
 def load_wifi_config():
-    update_display("Boot Status", "Loading WiFi", "configuration...")
+    update_display('Boot Status', 'Loading WiFi', 'configuration...')
     try:
         with open('wifi_config.json', 'r') as f:
             config = json.load(f)
-            print(f"Loaded WiFi config for SSID: {config['ssid']}")
-            update_display("Boot Status", "Found config:", config['ssid'])
+            update_display('Boot Status', 'Found config:', config['ssid'])
             return config
     except:
-        print("No wifi_config.json found or invalid format")
-        update_display("Boot Status", "No WiFi config", "found")
+        update_display('Boot Status', 'No WiFi config', 'found')
         return None
 
 def connect_wifi(ssid, password):
     sta_if = network.WLAN(network.STA_IF)
-    
     if not sta_if.active():
-        update_display("Boot Status", "Activating", "WiFi...")
-        print('Activating WiFi interface...')
+        update_display('Boot Status', 'Activating', 'WiFi...')
         sta_if.active(True)
         utime.sleep(1)
-    
     if sta_if.isconnected():
-        print(f'Already connected to: {sta_if.config("ssid")}')
-        print(f'Network config: {sta_if.ifconfig()}')
-        update_display("Boot Status", "Connected to:", sta_if.config("ssid"))
+        update_display('Boot Status', 'Connected to:', sta_if.config('ssid'))
         return True
-
-    update_display("Boot Status", "Connecting to:", ssid)
-    print(f'Connecting to network: {ssid}...')
+    update_display('Boot Status', 'Connecting to:', ssid)
     sta_if.connect(ssid, password)
-    
-    # Wait for connection with timeout
     start = utime.time()
     dots = 0
-    while not sta_if.isconnected() and utime.time() - start < 20:  # 20 second timeout
+    while not sta_if.isconnected() and utime.time() - start < 20:
         status = sta_if.status()
         if status == network.STAT_CONNECTING:
             dots = (dots + 1) % 4
-            update_display("Boot Status", f"Connecting{'.' * dots}", ssid)
-            print('.', end='')
+            update_display('Boot Status', f"Connecting{'.' * dots}", ssid)
         elif status == network.STAT_WRONG_PASSWORD:
-            update_display("Boot Status", "Wrong WiFi", "password!", True)
-            print("\nWrong WiFi password!")
+            update_display('Boot Status', 'Wrong WiFi', 'password!', True)
             return False
         elif status == network.STAT_NO_AP_FOUND:
-            update_display("Boot Status", "WiFi network", "not found!", True)
-            print("\nWiFi network not found!")
+            update_display('Boot Status', 'WiFi network', 'not found!', True)
             return False
         elif status == network.STAT_CONNECT_FAIL:
-            update_display("Boot Status", "Connection", "failed!", True)
-            print("\nConnection failed!")
+            update_display('Boot Status', 'Connection', 'failed!', True)
             return False
         utime.sleep(0.5)
-    
     if sta_if.isconnected():
-        print("\nConnected successfully!")
-        print(f'Network config: {sta_if.ifconfig()}')
-        update_display("Boot Status", "Connected!", sta_if.ifconfig()[0])
+        update_display('Boot Status', 'Connected!', sta_if.ifconfig()[0])
         return True
     else:
-        print("\nConnection attempt timed out")
-        update_display("Boot Status", "Connection", "timed out!")
+        update_display('Boot Status', 'Connection', 'timed out!')
         return False
 
 def sync_time():
-    update_display("Boot Status", "Synchronizing", "time...")
+    update_display('Boot Status', 'Synchronizing', 'time...')
     try:
         ntptime.settime()
-        print(f"Time synchronized: {utime.localtime()}")
-        update_display("Boot Status", "Time synced:", f"{utime.localtime()[3]:02d}:{utime.localtime()[4]:02d}")
+        update_display('Boot Status', 'Time synced:', f'{utime.localtime()[3]:02d}:{utime.localtime()[4]:02d}')
         return True
     except:
-        print("Time sync failed")
-        update_display("Boot Status", "Time sync", "failed!")
+        update_display('Boot Status', 'Time sync', 'failed!')
         return False
 
 def check_updates():
     try:
-        print("\nChecking for updates...")
         if display:
-            update_display(
-                "Boot",
-                "Checking for",
-                "updates..."
-            )
-            
+            update_display('Boot', 'Checking for', 'updates...')
         import update_checker
         result = update_checker.check_and_update()
-        
         if result.success and result.updated_files:
-            print(f"Updated {len(result.updated_files)} files, restarting...")
             if display:
-                update_display(
-                    "Update Complete",
-                    f"{len(result.updated_files)} files",
-                    "updated"
-                )
-            utime.sleep(2)  # Show status
+                update_display('Update Complete', f'{len(result.updated_files)} files', 'updated')
+            utime.sleep(2)
             import machine
             machine.reset()
-            
     except Exception as e:
-        print(f"Update check failed: {e}")
-        # Continue boot process even if update fails
-
-# Initial boot message
+        pass
 if display:
-    #display.beep(1)
-    update_display("Smart Boiler", "System", "starting...")
+    update_display('Smart Boiler', 'System', 'starting...')
     utime.sleep(1)
-
-# Check for forced configuration mode
-update_display("Boot Status", "Hold button for", "config mode", True)
+update_display('Boot Status', 'Hold button for', 'config mode', True)
 start_time = utime.time()
-while utime.time() - start_time < 3:  # 3 second window to check button
+while utime.time() - start_time < 3:
     if check_button():
-        update_display("Boot Status", "Entering", "config mode...")
-        print("\nButton pressed - starting config portal...")
+        update_display('Boot Status', 'Entering', 'config mode...')
         import config_portal
         success, new_config = config_portal.run_portal(timeout_minutes=10)
         if success and new_config:
-            update_display("Boot Status", "New config saved", "Connecting...")
+            update_display('Boot Status', 'New config saved', 'Connecting...')
             if connect_wifi(new_config['ssid'], new_config['password']):
                 sync_time()
                 break
             else:
-                update_display("Boot Status", "Connection failed", "Try again")
+                update_display('Boot Status', 'Connection failed', 'Try again')
         break
     utime.sleep(0.1)
-
-# Normal boot process
-print("\nChecking WiFi configuration...")
 config = load_wifi_config()
 if config:
     try:
@@ -194,26 +135,20 @@ if config:
             sync_time()
             check_updates()
         else:
-            update_display("Boot Status", "WiFi failed", "Press B to start portal...")
-            print("Could not connect to WiFi - checking button to start config portal...")
+            update_display('Boot Status', 'WiFi failed', 'Press B to start portal...')
             if check_button():
-                print("Could not connect to WiFi - starting config portal...")
                 import config_portal
                 success, new_config = config_portal.run_portal(timeout_minutes=10)
                 if success and new_config:
-                    machine.reset()  # Reset to apply new configuration
+                    machine.reset()
     except Exception as e:
-        print(f'WiFi connection error: {str(e)}')
-        update_display("Boot Status", "WiFi Error:", str(e)[:16])
+        update_display('Boot Status', 'WiFi Error:', str(e)[:16])
 else:
-    update_display("Boot Status", "No config found", "Starting portal...")
-    print("No WiFi configuration found - starting config portal...")
+    update_display('Boot Status', 'No config found', 'Starting portal...')
     import config_portal
     success, new_config = config_portal.run_portal(timeout_minutes=10)
     if success and new_config:
-        machine.reset()  # Reset to apply new configuration
-
-# Final boot status
+        machine.reset()
 if display:
-    update_display("Smart Boiler", "System Ready", "")
+    update_display('Smart Boiler', 'System Ready', '')
     display.beep(2)
