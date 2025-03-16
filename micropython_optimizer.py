@@ -720,7 +720,8 @@ class MicropythonOptimizer:
                         imports[name.name] = {
                             'asname': name.asname or name.name,
                             'node': node,
-                            'used': False
+                            'used': False,
+                            'lineno': node.lineno
                         }
                 elif isinstance(node, ast.ImportFrom):
                     module = node.module
@@ -732,7 +733,8 @@ class MicropythonOptimizer:
                             'used': False,
                             'from_import': True,
                             'module': module,
-                            'name': name.name
+                            'name': name.name,
+                            'lineno': node.lineno
                         }
             
             # Mark imports as used if they appear in the code
@@ -760,21 +762,54 @@ class MicropythonOptimizer:
                 if not info['used'] and not name.startswith('_')
             ]
             
-            # Simple implementation: just comment out unused import lines
-            lines = content.split('\n')
-            for info in unused_imports:
-                node = info['node']
-                start_line = node.lineno - 1  # AST is 1-indexed, list is 0-indexed
-                
-                # Comment out the line
-                if start_line < len(lines):
-                    lines[start_line] = f"# UNUSED: {lines[start_line]}"
+            if self.options.verbose:
+                if unused_imports:
+                    print("\nFound unused imports:")
+                    for info in unused_imports:
+                        if 'from_import' in info:
+                            if info['module']:
+                                print(f"  Line {info['lineno']}: from {info['module']} import {info['name']}")
+                            else:
+                                print(f"  Line {info['lineno']}: from . import {info['name']}")
+                        else:
+                            print(f"  Line {info['lineno']}: import {info['asname']}")
             
-            return '\n'.join(lines)
+            # Remove unused import lines
+            if unused_imports:
+                lines = content.split('\n')
+                line_indices_to_remove = []
+                
+                # Collect line numbers to remove
+                for info in unused_imports:
+                    line_num = info['lineno'] - 1  # Convert from 1-indexed to 0-indexed
+                    
+                    if line_num < len(lines):
+                        if self.options.verbose:
+                            print(f"  Removing: {lines[line_num]}")
+                        line_indices_to_remove.append(line_num)
+                
+                # Sort in descending order to prevent index shifting when removing lines
+                line_indices_to_remove.sort(reverse=True)
+                
+                # Remove the lines
+                for line_idx in line_indices_to_remove:
+                    if line_idx < len(lines):
+                        del lines[line_idx]
+                
+                if self.options.verbose:
+                    print(f"Removed {len(line_indices_to_remove)} unused import lines")
+                
+                return '\n'.join(lines)
+            else:
+                # No changes needed
+                return content
+                
         except Exception as e:
             # If any error occurs, return the original content
             if self.options.verbose:
                 print(colorize(f"Error analyzing imports: {e}", Colors.YELLOW))
+                import traceback
+                traceback.print_exc()  # Print stack trace for better debugging
             return content
 
     def _convert_spaces_to_tabs(self, content: str, tab_size: int = 4) -> str:
