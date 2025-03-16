@@ -61,6 +61,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.last_button_time = 0
         self.button_debounce_delay = 0.5  # 500ms debounce
         self.last_wifi_check = 0
+        self.output_voltage_calculated = None  # Stores the calculated output voltage
+        self.output_voltage_measured = None   # Stores the measured output voltage
         
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
@@ -396,11 +398,13 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 if current_setpoint != target_setpoint:
                     self.fr.write(28, target_setpoint, slot=6)
                     
+                # Read current calculated voltage
+                self.output_voltage_calculated = self.fr.read(40, slot=6)  # DAC_L3 parameter
+
                 # Read current output voltage to determine heating state
-                voltage = self.fr.read(24, slot=6)  # V_L3 parameter
-                if voltage is None:
-                    voltage = 0.0
-                self.heating_active = voltage > 1.0  # Consider heating active if > 1V
+                self.output_voltage_measured = self.fr.read(24, slot=6)  # V_L3 parameter
+                
+                self.heating_active = self.output_voltage_measured is not None and self.output_voltage_measured > 1.0  # Consider heating active if > 1V
                 
             elif mode == 'soft_pid':
                 # If we were previously in hardware PID mode, disable it
@@ -431,6 +435,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         dt
                     )
                     
+                    # Store the calculated output voltage
+                    self.output_voltage_calculated = output_voltage
+                    
                     # Update last control time
                     self.temp_controller.last_control_time = current_time
                     
@@ -439,8 +446,15 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         # Write output to DAC
                         self.fr.write(40, output_voltage, slot=6)  # DAC_L3 parameter
                         
+                        # Read the actual measured voltage (V_L3)
+                        try:
+                            self.output_voltage_measured = self.fr.read(24, slot=6)  # V_L3 parameter
+                        except Exception as e:
+                            self.logger.log_error('control', f'Error reading measured voltage: {e}', 1)
+                            self.output_voltage_measured = None
+                        
                         # Update heating status for display
-                        self.heating_active = output_voltage > 1.0
+                        self.heating_active = self.output_voltage_measured is not None and self.output_voltage_measured > 1.0  # Consider heating active if > 1V
                         
                         # Log PID values periodically
                         if hasattr(self, '_last_pid_log') and current_time - self._last_pid_log > 30:
@@ -611,13 +625,12 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Get current mode
             mode = self._get_mode()
             
-            # Get output voltage for PID and sensor modes
-            output_voltage = None
-            if mode == 'pid':
-                try:
-                    output_voltage = self.fr.read(24, slot=6)  # V_L3 parameter
-                except:
-                    pass
+            # Get output voltage based on mode
+            output_voltage_calc = None
+            output_voltage_meas = None
+            if mode in ['pid', 'soft_pid']:
+                output_voltage_calc = self.output_voltage_calculated
+                output_voltage_meas = self.output_voltage_measured
             
             # Get device address for display
             devaddr = None
@@ -637,7 +650,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 'mqtt_rx': self.mqtt_handler.messages_received,
                 'lora_tx': self.lora_handler.packets_sent,
                 'lora_rx': self.lora_handler.packets_received,
-                'output_voltage': output_voltage,
+                'output_voltage_calculated': output_voltage_calc,
+                'output_voltage_measured': output_voltage_meas,
                 'devaddr': devaddr
             }
             

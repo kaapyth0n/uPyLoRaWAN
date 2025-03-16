@@ -202,7 +202,8 @@ class DisplayManager:
                 - mqtt_rx: MQTT packets received
                 - lora_tx: LoRa packets transmitted
                 - lora_rx: LoRa packets received
-                - output_voltage: Current DAC output voltage (if PID enabled)
+                - output_voltage_calculated: Calculated output voltage
+                - output_voltage_measured: Measured output voltage
                 - devaddr: Device address as hex string (optional)
                 
         Returns:
@@ -222,8 +223,11 @@ class DisplayManager:
             # Operating mode and heating status
             mode_text = f"Mode: {status['mode'].upper()}"
             heating_text = f"State: {'HEAT' if status['heating_active'] else 'IDLE'}"
-            if status['mode'] == 'pid' and 'output_voltage' in status:
-                heating_text += f" {status['output_voltage']:.1f}V"
+            
+            # Add voltage information if available
+            if 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
+                heating_text += f" {status['output_voltage_calculated']:.1f}V"
+            
             self.display.show_text(mode_text, x=0, y=8, font=2)
             self.display.show_text(heating_text, x=0, y=16, font=2)
             

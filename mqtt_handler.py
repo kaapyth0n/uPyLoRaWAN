@@ -431,16 +431,13 @@ class MQTTHandler:
             self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
             self.publish_parameter('heating', self.controller.heating_active)
             
-            # Add voltage output for PID mode
-            current_mode = self.controller.config_manager.get_param('mode')
-            if current_mode == 'pid':
-                try:
-                    # Read voltage from IO module
-                    voltage = self.controller.fr.read(24, slot=6)  # V_L3 parameter
-                    if voltage is not None:
-                        self.publish_parameter('voltage_output', voltage)
-                except Exception as e:
-                    print(f"Error queuing voltage output: {e}")
+            # Check for calculated voltage
+            if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
+                self.publish_parameter('voltage_calculated', self.controller.output_voltage_calculated)
+                
+            # Check for measured voltage 
+            if hasattr(self.controller, 'output_voltage_measured') and self.controller.output_voltage_measured is not None:
+                self.publish_parameter('voltage_measured', self.controller.output_voltage_measured)
             
             # Get and publish memory statistics
             try:

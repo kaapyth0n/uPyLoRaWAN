@@ -432,9 +432,15 @@ class LoRaHandler:
                 'heating': self.controller.heating_active
             }
             
-            # Create status message
-            # Format: [Message Type (1 byte), Temp*10 (2 bytes), Setpoint*10 (2 bytes), Heating (1 byte)]
-            msg = bytearray(6)
+            # Get voltage information - choose calculated voltage for LoRa messages
+            # (since this is the control signal we want to report)
+            if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
+                status['voltage'] = self.controller.output_voltage_calculated
+
+            # Determine message length - include voltage if available
+            msg_length = 8 if 'voltage' in status else 6
+            msg = bytearray(msg_length)
+            
             msg[0] = 0x01  # Message type: status update
             
             # Convert temperature values to fixed point (1 decimal place)
@@ -457,6 +463,12 @@ class LoRaHandler:
                 
             # Add heating state
             msg[5] = 1 if self.controller.heating_active else 0
+            
+            # Add voltage if available
+            if 'voltage' in status:
+                voltage_fixed = int(status['voltage'] * 10)
+                msg[6] = (voltage_fixed >> 8) & 0xFF
+                msg[7] = voltage_fixed & 0xFF
             
             # Send message
             if self.send_data(msg, len(msg), self.frame_counter):
