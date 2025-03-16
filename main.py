@@ -455,18 +455,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         # Update heating status for display
                         self.heating_active = self.output_voltage_measured is not None and self.output_voltage_measured > 1.0  # Consider heating active if > 1V
                         
-                        # Log PID values periodically
-                        if hasattr(self, '_last_pid_log') and current_time - self._last_pid_log > 30:
-                            self.logger.log_error(
-                                'pid',
-                                f'PID: SP={self._get_setpoint():.1f}, PV={self.current_temp:.1f}, ' +
-                                f'Out={output_voltage:.2f}V, I={self.temp_controller.integral_error:.2f}',
-                                severity=1
-                            )
-                            self._last_pid_log = current_time
-                        else:
-                            if not hasattr(self, '_last_pid_log'):
-                                self._last_pid_log = current_time
                     except Exception as e:
                         self.logger.log_error('control', f'Error setting PID output: {e}', 2)
                 

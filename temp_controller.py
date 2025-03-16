@@ -19,6 +19,11 @@ class TemperatureController:
         self.last_error = 0
         self.min_control_interval = 1.0  # Minimum time between control decisions
         
+        # Add public variables for PID components
+        self.p_value = None
+        self.i_value = None
+        self.d_value = None
+
     def add_temp_to_history(self, timestamp, temp):
         """Add a temperature reading to the history"""
         if len(self.temp_history) >= self.max_history_len:
@@ -231,6 +236,11 @@ class TemperatureController:
         
         # Calculate final output
         output = p_term + i_term + d_term
+        
+        # Store the PID components as public variables for MQTT reporting
+        self.p_value = p_term
+        self.i_value = i_term
+        self.d_value = d_term
         
         # Apply global limits
         output = max(pid_min, min(pid_max, output))

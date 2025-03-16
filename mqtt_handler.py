@@ -438,6 +438,17 @@ class MQTTHandler:
             if hasattr(self.controller, 'output_voltage_measured') and self.controller.output_voltage_measured is not None:
                 self.publish_parameter('voltage_measured', self.controller.output_voltage_measured)
             
+            # Add PID component values if they exist
+            if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid']:
+                if hasattr(self.controller.temp_controller, 'p_value') and self.controller.temp_controller.p_value is not None:
+                    self.publish_parameter('pid_p', round(self.controller.temp_controller.p_value, 3))
+                
+                if hasattr(self.controller.temp_controller, 'i_value') and self.controller.temp_controller.i_value is not None:
+                    self.publish_parameter('pid_i', round(self.controller.temp_controller.i_value, 3))
+                
+                if hasattr(self.controller.temp_controller, 'd_value') and self.controller.temp_controller.d_value is not None:
+                    self.publish_parameter('pid_d', round(self.controller.temp_controller.d_value, 3))
+            
             # Get and publish memory statistics
             try:
                 # Force garbage collection before measuring
