@@ -246,7 +246,8 @@ class MicropythonOptimizer:
             # Module docstring
             if (len(tree.body) > 0 and 
                 isinstance(tree.body[0], ast.Expr) and 
-                isinstance(tree.body[0].value, ast.Str)):
+                (isinstance(tree.body[0].value, ast.Constant) or 
+                (hasattr(ast, 'Str') and isinstance(tree.body[0].value, ast.Str)))):
                 docstring_positions.append((tree.body[0].lineno, tree.body[0].end_lineno))
             
             # Walk the tree to find class and function docstrings
@@ -255,14 +256,16 @@ class MicropythonOptimizer:
                 if isinstance(node, ast.ClassDef):
                     if (len(node.body) > 0 and 
                         isinstance(node.body[0], ast.Expr) and 
-                        isinstance(node.body[0].value, ast.Str)):
+                        (isinstance(node.body[0].value, ast.Constant) or 
+                        (hasattr(ast, 'Str') and isinstance(node.body[0].value, ast.Str)))):
                         docstring_positions.append((node.body[0].lineno, node.body[0].end_lineno))
                 
                 # Function docstrings
                 elif isinstance(node, ast.FunctionDef):
                     if (len(node.body) > 0 and 
                         isinstance(node.body[0], ast.Expr) and 
-                        isinstance(node.body[0].value, ast.Str)):
+                        (isinstance(node.body[0].value, ast.Constant) or 
+                        (hasattr(ast, 'Str') and isinstance(node.body[0].value, ast.Str)))):
                         docstring_positions.append((node.body[0].lineno, node.body[0].end_lineno))
             
             # If no docstrings found, return content unchanged
@@ -315,7 +318,7 @@ class MicropythonOptimizer:
             tree = ast.parse(content)
             string_positions = []
             for node in ast.walk(tree):
-                if isinstance(node, ast.Str) or (hasattr(ast, 'JoinedStr') and isinstance(node, ast.JoinedStr)):
+                if (isinstance(node, ast.Constant) or (hasattr(ast, 'Str') and isinstance(node, ast.Str))) or (hasattr(ast, 'JoinedStr') and isinstance(node, ast.JoinedStr)):
                     if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
                         string_positions.append((node.lineno, node.end_lineno))
             
