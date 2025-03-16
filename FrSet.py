@@ -279,21 +279,21 @@ class FrSet:
                 #if rw == 0 : return '\x00'
             #на всякий случай ограничиваем маркером \x00 максимально длинный конец
             rx[-1] = 0
-        try:
-            # Попытка декодировать bytearray в строку
-            x = rx[2:]  # Обрезаем первые два байта
-            result = []
-            for byte in x:
-                if 0x20 <= byte <= 0x7E:  # Печатаемые ASCII символы
-                    result.append(chr(byte))
-                elif byte == 0x00:  # Остановка при байте 0x00
-                    break
-                else:  # Непечатаемые символы
-                    result.append(f"x{byte:02X}")
-            return ''.join(result)
-        except Exception:
-            # Возвращение пустой строки в случае любой ошибки
-            return ''
+            try:
+                # Попытка декодировать bytearray в строку
+                x = rx[2:]  # Обрезаем первые два байта
+                result = []
+                for byte in x:
+                    if 0x20 <= byte <= 0x7E:  # Печатаемые ASCII символы
+                        result.append(chr(byte))
+                    elif byte == 0x00:  # Остановка при байте 0x00
+                        break
+                    else:  # Непечатаемые символы
+                        result.append(f"x{byte:02X}")
+                return ''.join(result)
+            except Exception:
+                # Возвращение пустой строки в случае любой ошибки
+                return ''
             
         else:                              #ошибка типа
             return None
