@@ -12,6 +12,9 @@ class TemperatureController:
 		self.integral_error = 0
 		self.last_error = 0
 		self.min_control_interval = 1.0
+		self.p_value = None
+		self.i_value = None
+		self.d_value = None
 
 	def add_temp_to_history(self, timestamp, temp):
 		if len(self.temp_history) >= self.max_history_len:
@@ -121,6 +124,9 @@ class TemperatureController:
 			i_term = i_min
 			self.integral_error = i_term * ti / kp
 		output = p_term + i_term + d_term
+		self.p_value = p_term
+		self.i_value = i_term
+		self.d_value = d_term
 		output = max(pid_min, min(pid_max, output))
 		self.last_error = error
 		return output

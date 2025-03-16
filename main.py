@@ -99,7 +99,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 			detector = ModuleDetector(self.fr)
 			success, results = detector.detect_modules()
 			if not success and (not self._use_lora_relay):
-				detector.print_module_status(results)
 				raise Exception('Required modules missing')
 			if not self._test_io_module():
 				raise Exception('IO module test failed')
@@ -234,11 +233,6 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 							self.logger.log_error('control', f'Error reading measured voltage: {e}', 1)
 							self.output_voltage_measured = None
 						self.heating_active = self.output_voltage_measured is not None and self.output_voltage_measured > 1.0
-						if hasattr(self, '_last_pid_log') and current_time - self._last_pid_log > 30:
-							self.logger.log_error('pid', f'PID: SP={self._get_setpoint():.1f}, PV={self.current_temp:.1f}, ' + f'Out={output_voltage:.2f}V, I={self.temp_controller.integral_error:.2f}', severity=1)
-							self._last_pid_log = current_time
-						elif not hasattr(self, '_last_pid_log'):
-							self._last_pid_log = current_time
 					except Exception as e:
 						self.logger.log_error('control', f'Error setting PID output: {e}', 2)
 			elif mode == 'relay' or mode == 'sensor':
