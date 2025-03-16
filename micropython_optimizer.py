@@ -228,6 +228,12 @@ class MicropythonOptimizer:
             
         if self.options.remove_redundant_if_else:
             content = self._remove_redundant_if_else(content)
+
+        # Step 7: Convert spaces to tabs if option is set
+        if self.options.spaces_to_tabs:
+            tab_size = self.options.tab_size
+            content = self._convert_spaces_to_tabs(content, tab_size)
+        
         return content
 
     def _remove_docstrings(self, content: str) -> str:
@@ -771,6 +777,41 @@ class MicropythonOptimizer:
                 print(colorize(f"Error analyzing imports: {e}", Colors.YELLOW))
             return content
 
+    def _convert_spaces_to_tabs(self, content: str, tab_size: int = 4) -> str:
+        """Convert spaces used for indentation to tabs
+        
+        Args:
+            content (str): File content to process
+            tab_size (int): Number of spaces that represent one tab (default: 4)
+            
+        Returns:
+            str: Content with indentation converted to tabs
+        """
+        lines = content.split('\n')
+        result = []
+        
+        for line in lines:
+            # Skip empty lines
+            if not line.strip():
+                result.append(line)
+                continue
+                
+            # Count leading spaces
+            leading_spaces = len(line) - len(line.lstrip(' '))
+            
+            # Calculate number of tabs and remaining spaces
+            tabs = leading_spaces // tab_size
+            remaining_spaces = leading_spaces % tab_size
+            
+            # Replace leading spaces with tabs
+            if tabs > 0:
+                converted_line = '\t' * tabs + ' ' * remaining_spaces + line.lstrip(' ')
+                result.append(converted_line)
+            else:
+                result.append(line)
+                
+        return '\n'.join(result)
+
     def process_directory(self, input_dir: str, output_dir: str = None) -> Dict[str, Any]:
         """Process all Python files in a directory
         
@@ -927,6 +968,17 @@ def parse_args() -> argparse.Namespace:
         '--remove-redundant-if-else',
         action='store_true',
         help="Experimental: Remove if-else blocks where both branches are empty or pass"
+    )
+    parser.add_argument(
+        '--spaces-to-tabs',
+        action='store_true',
+        help="Convert spaces used for indentation to tabs"
+    )
+    parser.add_argument(
+        '--tab-size',
+        type=int,
+        default=4,
+        help="Number of spaces that represent one tab (default: 4)"
     )
     
     args = parser.parse_args()
