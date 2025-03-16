@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-03-16T18:23:50Z",
+  "timestamp": "2025-03-16T19:09:25Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.2",
@@ -146,9 +146,9 @@
       "size": 3029
     },
     "mqtt_handler.py": {
-      "version": "2.0",
+      "version": "2.1",
       "path": "/mqtt_handler.py",
-      "hash": "859a8f84e4309194a6759de4595619b6e2b51cbf26ce5a1a8146e353aed8331f",
+      "hash": "d7a6f3a3570716d39a88d0b0e1dfe93c4b652f9d1549b51797c34a40196f6fe9",
       "size": 9542
     }
   }
