@@ -150,24 +150,24 @@ class ConfigurationManager:
                 'id': 17,
                 'type': float,
                 'min': 0.1,  # Prevent division by zero
-                'max': 1000.0,
-                'default': 100.0,
+                'max': 10000.0,
+                'default': 600.0,
                 'description': 'PID Integral Time Constant (standard form)'
             },
             'pid_td_std': {
                 'id': 18,
                 'type': float,
                 'min': 0.0,
-                'max': 100.0,
-                'default': 10.0,
+                'max': 10000.0,
+                'default': 600.0,
                 'description': 'PID Derivative Time Constant (standard form)'
             },
             'pid_dt': {
                 'id': 19,
                 'type': float,
                 'min': 0.1,
-                'max': 600.0,
-                'default': 1.0,
+                'max': 1000.0,
+                'default': 10.0,
                 'description': 'PID Control Interval (seconds)'
             }
         }
