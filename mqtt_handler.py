@@ -261,7 +261,6 @@ class MQTTHandler:
             self.client.publish(topic, payload, qos=qos, retain=retain)
             
             self.messages_published += 1
-            self.last_publish = time.time()
             return True
                 
         except Exception as e:
@@ -454,6 +453,9 @@ class MQTTHandler:
             except Exception as e:
                 print(f"Error queuing memory stats: {e}")
             
+            # Use last_publish specifically to track status updates
+            self.last_publish = time.time()
+                
         except Exception as e:
             print(f"Error queuing status data: {e}")
             
