@@ -106,7 +106,6 @@ class MQTTHandler:
 			topic, payload, qos, retain = self.message_queue.pop(0)
 			self.client.publish(topic, payload, qos=qos, retain=retain)
 			self.messages_published += 1
-			self.last_publish = time.time()
 			return True
 		except Exception as e:
 			self.initialized = False
@@ -207,6 +206,7 @@ class MQTTHandler:
 				self.publish_parameter('memory_percent_used', round(alloc * 100 / total, 1))
 			except Exception as e:
 				pass
+			self.last_publish = time.time()
 		except Exception as e:
 			pass
 
