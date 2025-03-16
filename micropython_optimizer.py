@@ -904,8 +904,13 @@ def parse_args() -> argparse.Namespace:
         epilog=__doc__.split('\n\n')[1:]  # Use the module docstring for examples
     )
     
-    parser.add_argument('input', nargs='?', help="Input file or directory (not needed with --manifest)")
-    parser.add_argument('output', nargs='?', help="Output file or directory (defaults to input)")
+    # Change these to named arguments with help text to clarify
+    parser.add_argument('--input', help="Input file or directory (not needed with --manifest)")
+    parser.add_argument('--output', help="Output file or directory (defaults to input)")
+    
+    # Add positional arguments as fallbacks for backward compatibility
+    parser.add_argument('input_pos', nargs='?', help=argparse.SUPPRESS)  # Hide in help
+    parser.add_argument('output_pos', nargs='?', help=argparse.SUPPRESS) # Hide in help
     
     parser.add_argument('--manifest', help="Path to manifest.json file to identify files to optimize")
     parser.add_argument('--safe-mode', action='store_true', help="Replace print statements with 'pass' instead of removing them")
@@ -924,7 +929,16 @@ def parse_args() -> argparse.Namespace:
         help="Experimental: Remove if-else blocks where both branches are empty or pass"
     )
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    
+    # Support both positional and named arguments
+    # Named arguments take precedence
+    if args.input is None and args.input_pos is not None:
+        args.input = args.input_pos
+    if args.output is None and args.output_pos is not None:
+        args.output = args.output_pos
+    
+    return args
 
 
 def load_manifest(manifest_path):
@@ -971,6 +985,9 @@ def process_manifest_files(optimizer, manifest, output_dir, base_dir=None):
     """
     if base_dir is None:
         base_dir = os.getcwd()
+        
+    # Ensure output_dir exists
+    os.makedirs(output_dir, exist_ok=True)
         
     stats = {
         "files_processed": 0,
@@ -1021,8 +1038,11 @@ def process_manifest_files(optimizer, manifest, output_dir, base_dir=None):
             print(colorize(f"Warning: File in manifest not found: {input_path}", Colors.YELLOW))
             continue
         
-        # Construct output path
+        # Construct output path - importantly, use output_dir as the base
         output_path = os.path.normpath(os.path.join(output_dir, file_path))
+        
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         # Optimize the file
         if optimizer.options.verbose:
@@ -1060,6 +1080,14 @@ def main() -> None:
         # Determine output directory
         manifest_dir = os.path.dirname(os.path.abspath(args.manifest))
         output_path = os.path.abspath(args.output) if args.output else manifest_dir
+        
+        # Make sure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Print info about paths
+        if args.verbose:
+            print(f"Manifest directory: {manifest_dir}")
+            print(f"Output directory: {output_path}")
         
         # Process files from manifest
         stats = process_manifest_files(optimizer, manifest, output_path, manifest_dir)
