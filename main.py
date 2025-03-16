@@ -1,6 +1,5 @@
 import json
 import time
-from config import *
 from FrSet import FrSet
 
 from interfaces import ObjectInterface, BoilerInterface

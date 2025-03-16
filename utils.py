@@ -1,6 +1,5 @@
 import time
 import gc
-from constants import BoilerDefaults
 
 def celsius_to_resistance(temp):
     """Convert temperature to NTC 10K resistance value

@@ -1,6 +1,5 @@
 import time
-import math
-from machine import SPI, SoftSPI, Pin, PWM
+from machine import SoftSPI, Pin, PWM
 import uctypes
 
 #буфера для коротких системных сообщений по SPI

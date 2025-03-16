@@ -1,5 +1,4 @@
 import time
-from collections import deque
 
 class TemperatureController:
     """Advanced temperature controller with trend analysis"""
