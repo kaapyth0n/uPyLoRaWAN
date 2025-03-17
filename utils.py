@@ -1,5 +1,6 @@
 import time
 import gc
+import math
 
 def celsius_to_resistance(temp):
 	try:
@@ -23,6 +24,8 @@ def validate_temperature(temp):
 		return (False, f'Temperature too low: {temp}')
 	if temp > 125:
 		return (False, f'Temperature too high: {temp}')
+	if math.isnan(temp):
+		return (False, 'Temperature is NaN')
 	return (True, 'Temperature valid')
 
 def memory_stats():

@@ -108,20 +108,11 @@ class TemperatureController:
 		d_term = kp * td * derivative
 		self.integral_error += error * dt
 		i_term = kp * self.integral_error / ti
-		if p_term >= pid_max:
-			i_max = 0
-			i_min = pid_min - pid_max
-		elif p_term <= pid_min:
-			i_max = pid_max - pid_min
-			i_min = 0
-		else:
-			i_max = pid_max - p_term
-			i_min = pid_min - p_term
-		if i_term > i_max:
-			i_term = i_max
+		if i_term > pid_max:
+			i_term = pid_max
 			self.integral_error = i_term * ti / kp
-		elif i_term < i_min:
-			i_term = i_min
+		elif i_term < pid_min:
+			i_term = pid_min
 			self.integral_error = i_term * ti / kp
 		output = p_term + i_term + d_term
 		self.p_value = p_term
