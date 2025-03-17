@@ -209,28 +209,13 @@ class TemperatureController:
         # Calculate integral term
         i_term = kp * self.integral_error / ti
         
-        # Apply dynamic limits to integral term based on P-term
-        # This ensures the total output stays within range
-        if p_term >= pid_max:
-            # P term already at max, integral can only reduce output
-            i_max = 0
-            i_min = pid_min - pid_max
-        elif p_term <= pid_min:
-            # P term at or below min, integral can only increase output
-            i_max = pid_max - pid_min
-            i_min = 0
-        else:
-            # P term in range, limit integral to keep total output in range
-            i_max = pid_max - p_term
-            i_min = pid_min - p_term
-        
         # Apply limits to integral term
-        if i_term > i_max:
-            i_term = i_max
+        if i_term > pid_max:
+            i_term = pid_max
             # Recalculate integral_error to match limited i_term
             self.integral_error = i_term * ti / kp
-        elif i_term < i_min:
-            i_term = i_min
+        elif i_term < pid_min:
+            i_term = pid_min
             # Recalculate integral_error to match limited i_term
             self.integral_error = i_term * ti / kp
         
