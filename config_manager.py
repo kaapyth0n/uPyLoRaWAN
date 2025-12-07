@@ -28,7 +28,7 @@ class ConfigurationManager:
             'mode': {
                 'id': 0,  # Add ID for each parameter
                 'type': str,
-                'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid'],
+                'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid', 'ntc10k'],
                 'default': 'relay'
             },
             'setpoint': {
@@ -169,6 +169,22 @@ class ConfigurationManager:
                 'max': 1000.0,
                 'default': 10.0,
                 'description': 'PID Control Interval (seconds)'
+            },
+            'simulated_temp': {
+                'id': 20,
+                'type': float,
+                'min': -40.0,
+                'max': 100.0,
+                'default': 20.0,
+                'description': 'Simulated outdoor temperature for NTC10k mode (°C)'
+            },
+            'direct_resistance': {
+                'id': 21,
+                'type': float,
+                'min': 901.0,
+                'max': 100000.0,
+                'default': 10000.0,
+                'description': 'Direct resistance value for sensor mode (Ohms)'
             }
         }
         

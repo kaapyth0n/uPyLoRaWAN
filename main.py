@@ -458,7 +458,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     except Exception as e:
                         self.logger.log_error('control', f'Error setting PID output: {e}', 2)
                 
-            elif mode == 'relay' or mode == 'sensor':
+            elif mode == 'relay':
                 # If we were previously in PID mode, disable it
                 if self._pid_configured:
                     try:
@@ -472,21 +472,59 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         )
                     except Exception as e:
                         self.logger.log_error('control', f'Error disabling PID: {e}', 2)
-                
+
                 # Regular on/off control for relay mode
-                if mode == 'relay':
-                    dt = time.time() - self.temp_controller.last_control_time
-                    should_heat, error = self.temp_controller.calculate_control_action(
-                        self.current_temp,
-                        self._get_setpoint(),
-                        dt
-                    )
-                    
-                    if should_heat:
-                        self._activate_heating()
-                    else:
-                        self._deactivate_heating()
-                        
+                dt = time.time() - self.temp_controller.last_control_time
+                should_heat, error = self.temp_controller.calculate_control_action(
+                    self.current_temp,
+                    self._get_setpoint(),
+                    dt
+                )
+
+                if should_heat:
+                    self._activate_heating()
+                else:
+                    self._deactivate_heating()
+
+            elif mode == 'ntc10k':
+                # NTC10k temperature simulation mode using SSR2-2.10
+                # Writes target temperature to parameter 8, module calculates resistance
+                if self._pid_configured:
+                    try:
+                        self.fr.write(26, 0, slot=6)
+                        self._pid_configured = False
+                    except Exception as e:
+                        self.logger.log_error('control', f'Error disabling PID: {e}', 2)
+
+                try:
+                    simulated_temp = self.config_manager.get_param('simulated_temp')
+                    # Write temperature to SSR2-2.10 parameter 8 (T_NTC10k)
+                    # Module automatically converts to appropriate resistance
+                    self.fr.write(8, simulated_temp, slot=5)
+                    self.heating_active = True  # Indicate simulation is active
+                except Exception as e:
+                    self.logger.log_error('control', f'NTC10k simulation error: {e}', 2)
+                    self.heating_active = False
+
+            elif mode == 'sensor':
+                # Direct resistance control mode using SSR2-2.10
+                # Writes resistance value directly to parameter 6
+                if self._pid_configured:
+                    try:
+                        self.fr.write(26, 0, slot=6)
+                        self._pid_configured = False
+                    except Exception as e:
+                        self.logger.log_error('control', f'Error disabling PID: {e}', 2)
+
+                try:
+                    resistance = self.config_manager.get_param('direct_resistance')
+                    # Write resistance directly to SSR2-2.10 parameter 6 (R_Emulated)
+                    self.fr.write(6, resistance, slot=5)
+                    self.heating_active = True  # Indicate simulation is active
+                except Exception as e:
+                    self.logger.log_error('control', f'Direct resistance control error: {e}', 2)
+                    self.heating_active = False
+
             return True
             
         except Exception as e:
