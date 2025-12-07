@@ -110,3 +110,10 @@ Devices download firmware directly from GitHub after power on, based on the `upd
 3. **Commit to release branch**: Push both optimized files and updated manifest to the appropriate branch
 
 Note: `manifest_generator.py` only updates files already present in `manifest.json`. To add new files to OTA updates, manually add their entries to the manifest first, then run the generator.
+-  For the generated new code, always add a reasonable amount of comments so that it would be easy to understand the general purpose of the file and its functions.
+- For the modified exising code, always try to keep the exisiting comments intact. Only generate the modified functions, or file parts, rather than the whole file, unless specifially asked to.
+- For python code which should be executed on the SBI device, check if it satisfy the constraints of micropython.
+- SBI is a constrained device, if possible you should choose the solution with less memory footprint
+- Keep in mind that the program is running on a constrained device with limited space on a filesystem and we would like the device to run for a prolonged time without maintenance and even without internet connection
+- When modifying the code it would be better if the API of the files are not broken, since they are updated one-by-one and sometimes not all files are updated to the latest version
+- Explore multiple solutions individually if possible, comparing approaches in reflections.
