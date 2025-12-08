@@ -7,6 +7,7 @@ class BoilerDefaults:
 	MIN_OFF_TIME = 60
 	MODE_RELAY = 'relay'
 	MODE_SENSOR = 'sensor'
+	MODE_NTC10K = 'ntc10k'
 	DEFAULT_MODE = MODE_RELAY
 	WATCHDOG_TIMEOUT = 3600
 	MAX_TEMP_AGE = 300

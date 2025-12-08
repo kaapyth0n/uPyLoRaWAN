@@ -4,17 +4,13 @@ class ModuleDetector:
 
 	def __init__(self, fr_interface):
 		self.fr = fr_interface
-		self.required_modules = {SystemParameters.DISPLAY_SLOT: {'name': 'IND1-1.1', 'required': False, 'description': 'Display module'}, SystemParameters.IO_MODULE_SLOT: {'name': 'IO1-2.2', 'required': True, 'description': 'Temperature sensor module'}, SystemParameters.SSR_MODULE_SLOT: {'name': 'SSR2-2', 'required': True, 'description': 'Relay module'}}
+		self.required_modules = {SystemParameters.DISPLAY_SLOT: {'name': 'IND1-1.1', 'required': False, 'description': 'Display module'}, SystemParameters.IO_MODULE_SLOT: {'name': 'IO1-2.2', 'required': True, 'description': 'Temperature sensor module'}, SystemParameters.SSR_MODULE_SLOT: {'name': 'SSR2-2', 'required': False, 'description': 'SSR/Resistance simulator module'}}
 
 	def detect_modules(self):
 		results = {}
 		success = True
 		for slot, config in self.required_modules.items():
 			try:
-				from config import device_config
-				if slot == SystemParameters.SSR_MODULE_SLOT and 'use_lora_relay' in device_config and device_config['use_lora_relay']:
-					results[slot] = {'present': False, 'type': 'N/A - Using LoRa relay', 'error': None, 'required': False}
-					continue
 				module_type = self.fr.read(0, slot=slot)
 				if module_type is None:
 					if config['required']:
@@ -52,15 +48,22 @@ class ModuleDetector:
 		success, results = self.detect_modules()
 		if not success:
 			return (False, 'Required modules not present')
+		io_ok = results.get(SystemParameters.IO_MODULE_SLOT, {}).get('present', False)
+		ssr_ok = results.get(SystemParameters.SSR_MODULE_SLOT, {}).get('present', False)
+		from config import device_config
+		lora_relay_ok = device_config.get('use_lora_relay', False)
 		if mode == 'relay':
-			io_ok = results.get(SystemParameters.IO_MODULE_SLOT, {}).get('present', False)
-			ssr_ok = results.get(SystemParameters.SSR_MODULE_SLOT, {}).get('present', False)
 			if not io_ok:
 				return (False, 'Temperature module required for relay mode')
-			if not ssr_ok:
-				return (False, 'Relay module required for relay mode')
+			if not ssr_ok and (not lora_relay_ok):
+				return (False, 'Relay module or LoRa relay required for relay mode')
 		elif mode == 'sensor':
-			ssr_ok = results.get(SystemParameters.SSR_MODULE_SLOT, {}).get('present', False)
 			if not ssr_ok:
-				return (False, 'Sensor module required for sensor mode')
+				return (False, 'SSR2-2.10 module required for sensor (direct resistance) mode')
+		elif mode == 'ntc10k':
+			if not ssr_ok:
+				return (False, 'SSR2-2.10 module required for NTC10k simulation mode')
+		elif mode == 'pid' or mode == 'soft_pid':
+			if not io_ok:
+				return (False, 'IO module required for PID mode')
 		return (True, 'Mode requirements met')

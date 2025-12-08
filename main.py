@@ -43,6 +43,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 		self.last_wifi_check = 0
 		self.output_voltage_calculated = None
 		self.output_voltage_measured = None
+		self._ntc10k_current_temp = None
+		self._ntc10k_last_update = 0
+		self._previous_mode = None
 		self.state_machine.current_state = SystemState.INITIALIZING
 		self._pid_configured = False
 		self.config_manager.add_change_callback(self._on_config_change)
@@ -199,6 +202,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 			if self.current_temp is None or self._get_setpoint() is None:
 				return False
 			mode = self._get_mode()
+			if mode != self._previous_mode:
+				if mode == 'ntc10k':
+					self._ntc10k_current_temp = None
+				self._previous_mode = mode
 			if mode == 'pid':
 				if not self._pid_configured:
 					if not self._configure_pid():
@@ -235,7 +242,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 						self.heating_active = self.output_voltage_measured is not None and self.output_voltage_measured > 1.0
 					except Exception as e:
 						self.logger.log_error('control', f'Error setting PID output: {e}', 2)
-			elif mode == 'relay' or mode == 'sensor':
+			elif mode == 'relay':
 				if self._pid_configured:
 					try:
 						self.fr.write(26, 0, slot=6)
@@ -243,13 +250,59 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 						self.logger.log_error('control', f'PID controller disabled when switching to {mode} mode', severity=1)
 					except Exception as e:
 						self.logger.log_error('control', f'Error disabling PID: {e}', 2)
-				if mode == 'relay':
-					dt = time.time() - self.temp_controller.last_control_time
-					should_heat, error = self.temp_controller.calculate_control_action(self.current_temp, self._get_setpoint(), dt)
-					if should_heat:
-						self._activate_heating()
-					else:
-						self._deactivate_heating()
+				dt = time.time() - self.temp_controller.last_control_time
+				should_heat, error = self.temp_controller.calculate_control_action(self.current_temp, self._get_setpoint(), dt)
+				if should_heat:
+					self._activate_heating()
+				else:
+					self._deactivate_heating()
+			elif mode == 'ntc10k':
+				if self._pid_configured:
+					try:
+						self.fr.write(26, 0, slot=6)
+						self._pid_configured = False
+					except Exception as e:
+						self.logger.log_error('control', f'Error disabling PID: {e}', 2)
+				try:
+					current_time = time.time()
+					if self._ntc10k_current_temp is None:
+						self._ntc10k_current_temp = self.config_manager.get_param('simulated_temp')
+						self._ntc10k_last_update = current_time
+					dt = current_time - self._ntc10k_last_update
+					if dt >= 10.0:
+						setpoint = self._get_setpoint()
+						error = setpoint - self.current_temp
+						hysteresis = self.config_manager.get_param('hysteresis')
+						if abs(error) > hysteresis:
+							max_change = dt / 60.0
+							if error > 0:
+								change = -max_change
+							else:
+								change = max_change
+							new_temp = self._ntc10k_current_temp + change
+							new_temp = max(-40.0, min(40.0, new_temp))
+							if new_temp != self._ntc10k_current_temp:
+								self._ntc10k_current_temp = new_temp
+						self._ntc10k_last_update = current_time
+					self.fr.write(8, self._ntc10k_current_temp, slot=5)
+					self.heating_active = True
+				except Exception as e:
+					self.logger.log_error('control', f'NTC10k regulation error: {e}', 2)
+					self.heating_active = False
+			elif mode == 'sensor':
+				if self._pid_configured:
+					try:
+						self.fr.write(26, 0, slot=6)
+						self._pid_configured = False
+					except Exception as e:
+						self.logger.log_error('control', f'Error disabling PID: {e}', 2)
+				try:
+					resistance = self.config_manager.get_param('direct_resistance')
+					self.fr.write(6, resistance, slot=5)
+					self.heating_active = True
+				except Exception as e:
+					self.logger.log_error('control', f'Direct resistance control error: {e}', 2)
+					self.heating_active = False
 			return True
 		except Exception as e:
 			self.logger.log_error('control', f'Control logic error: {e}', 2)
@@ -323,13 +376,16 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 			mode = self._get_mode()
 			output_voltage_calc = None
 			output_voltage_meas = None
+			ntc10k_temp = None
 			if mode in ['pid', 'soft_pid']:
 				output_voltage_calc = self.output_voltage_calculated
 				output_voltage_meas = self.output_voltage_measured
+			elif mode == 'ntc10k':
+				ntc10k_temp = self._ntc10k_current_temp
 			devaddr = None
 			if hasattr(self.lora_handler, 'device_address') and self.lora_handler.device_address:
 				devaddr = ''.join((f'{b:02x}' for b in self.lora_handler.device_address))
-			status = {'mode': mode, 'heating_active': self.heating_active, 'target_temp': self._get_setpoint(), 'current_temp': self.current_temp, 'wifi_connected': wifi.isconnected(), 'mqtt_connected': self.mqtt_handler.initialized, 'mqtt_tx': self.mqtt_handler.messages_published, 'mqtt_rx': self.mqtt_handler.messages_received, 'lora_tx': self.lora_handler.packets_sent, 'lora_rx': self.lora_handler.packets_received, 'output_voltage_calculated': output_voltage_calc, 'output_voltage_measured': output_voltage_meas, 'devaddr': devaddr}
+			status = {'mode': mode, 'heating_active': self.heating_active, 'target_temp': self._get_setpoint(), 'current_temp': self.current_temp, 'wifi_connected': wifi.isconnected(), 'mqtt_connected': self.mqtt_handler.initialized, 'mqtt_tx': self.mqtt_handler.messages_published, 'mqtt_rx': self.mqtt_handler.messages_received, 'lora_tx': self.lora_handler.packets_sent, 'lora_rx': self.lora_handler.packets_received, 'output_voltage_calculated': output_voltage_calc, 'output_voltage_measured': output_voltage_meas, 'ntc10k_simulated_temp': ntc10k_temp, 'devaddr': devaddr}
 			success = self.display_manager.show_system_status(status)
 			if not success:
 				self.logger.log_error('display', 'Failed to update status display', severity=1)
