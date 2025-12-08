@@ -62,10 +62,15 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.last_wifi_check = 0
         self.output_voltage_calculated = None  # Stores the calculated output voltage
         self.output_voltage_measured = None   # Stores the measured output voltage
-        
+
+        # NTC10k automatic regulation runtime state (not stored in config)
+        self._ntc10k_current_temp = None  # Current simulated outdoor temp being output
+        self._ntc10k_last_update = 0      # Timestamp of last output change
+        self._previous_mode = None        # Track mode changes for state reset
+
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
-        
+
         # Add PID configuration tracking
         self._pid_configured = False
         
@@ -376,13 +381,21 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             )
 
     def _update_control_logic(self):
-        """Update control logic for relay, sensor, PID and soft PID modes"""
+        """Update control logic for relay, sensor, PID, soft PID and ntc10k modes"""
         try:
             if self.current_temp is None or self._get_setpoint() is None:
                 return False
 
             mode = self._get_mode()
-            
+
+            # Detect mode changes and reset state as needed
+            if mode != self._previous_mode:
+                if mode == 'ntc10k':
+                    # Reset ntc10k state to reinitialize from config
+                    self._ntc10k_current_temp = None
+                    print(f'Mode changed to ntc10k, will initialize from config')
+                self._previous_mode = mode
+
             if mode == 'pid':
                 # Configure PID if needed
                 if not self._pid_configured:
@@ -487,8 +500,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     self._deactivate_heating()
 
             elif mode == 'ntc10k':
-                # NTC10k temperature simulation mode using SSR2-2.10
-                # Writes target temperature to parameter 8, module calculates resistance
+                # NTC10k automatic regulation mode using SSR2-2.10
+                # Adjusts simulated outdoor temperature to reach target flow temperature
+                # Inverse relationship: lower outdoor temp = higher flow temp from boiler
                 if self._pid_configured:
                     try:
                         self.fr.write(26, 0, slot=6)
@@ -497,13 +511,51 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         self.logger.log_error('control', f'Error disabling PID: {e}', 2)
 
                 try:
-                    simulated_temp = self.config_manager.get_param('simulated_temp')
-                    # Write temperature to SSR2-2.10 parameter 8 (T_NTC10k)
-                    # Module automatically converts to appropriate resistance
-                    self.fr.write(8, simulated_temp, slot=5)
-                    self.heating_active = True  # Indicate simulation is active
+                    current_time = time.time()
+
+                    # Initialize simulated temp from config on first run or mode switch
+                    if self._ntc10k_current_temp is None:
+                        self._ntc10k_current_temp = self.config_manager.get_param('simulated_temp')
+                        self._ntc10k_last_update = current_time
+                        print(f'NTC10k: initialized to {self._ntc10k_current_temp}C')
+
+                    # Calculate time since last update
+                    dt = current_time - self._ntc10k_last_update
+
+                    # Rate limit: max 1°C per 60 seconds
+                    # Update check interval: every 10 seconds for smoother control
+                    if dt >= 10.0:
+                        setpoint = self._get_setpoint()
+                        error = setpoint - self.current_temp
+                        hysteresis = self.config_manager.get_param('hysteresis')
+
+                        # Only adjust if outside hysteresis band
+                        if abs(error) > hysteresis:
+                            # Max change: 1°C/min = 1/6 °C per 10 seconds
+                            max_change = dt / 60.0  # °C change allowed in dt seconds
+
+                            # Inverse control: error > 0 means too cold, decrease outdoor temp
+                            if error > 0:
+                                change = -max_change
+                            else:
+                                change = max_change
+
+                            # Apply change with output limits (-40 to +40°C outdoor range)
+                            new_temp = self._ntc10k_current_temp + change
+                            new_temp = max(-40.0, min(40.0, new_temp))
+
+                            if new_temp != self._ntc10k_current_temp:
+                                self._ntc10k_current_temp = new_temp
+                                print(f'NTC10k: adjusted to {self._ntc10k_current_temp:.1f}C (error={error:.1f})')
+
+                        self._ntc10k_last_update = current_time
+
+                    # Write current simulated temp to SSR2-2.10 parameter 8 (T_NTC10k)
+                    self.fr.write(8, self._ntc10k_current_temp, slot=5)
+                    self.heating_active = True
+
                 except Exception as e:
-                    self.logger.log_error('control', f'NTC10k simulation error: {e}', 2)
+                    self.logger.log_error('control', f'NTC10k regulation error: {e}', 2)
                     self.heating_active = False
 
             elif mode == 'sensor':
@@ -653,9 +705,12 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Get output voltage based on mode
             output_voltage_calc = None
             output_voltage_meas = None
+            ntc10k_temp = None
             if mode in ['pid', 'soft_pid']:
                 output_voltage_calc = self.output_voltage_calculated
                 output_voltage_meas = self.output_voltage_measured
+            elif mode == 'ntc10k':
+                ntc10k_temp = self._ntc10k_current_temp
             
             # Get device address for display
             devaddr = None
@@ -677,6 +732,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 'lora_rx': self.lora_handler.packets_received,
                 'output_voltage_calculated': output_voltage_calc,
                 'output_voltage_measured': output_voltage_meas,
+                'ntc10k_simulated_temp': ntc10k_temp,
                 'devaddr': devaddr
             }
             

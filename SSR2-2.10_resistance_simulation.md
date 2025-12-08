@@ -16,27 +16,47 @@ The SSR2-2.10 module is a resistance simulator that can emulate NTC10k, NTC5k, o
 
 ## Operating Modes
 
-### NTC10k Mode (`ntc10k`)
+### NTC10k Automatic Mode (`ntc10k`)
 
-Simulates an NTC10k outdoor temperature sensor. You set the desired temperature, and the module automatically calculates and outputs the corresponding resistance.
+Automatic regulation mode that adjusts the simulated outdoor temperature to reach a target flow temperature. Similar to PID control but outputs to NTC10k resistance simulation.
+
+**Control Principle:**
+- Uses `setpoint` as the target flow temperature
+- Reads actual flow temperature from IO1 module
+- **Inverse relationship**: to increase flow temp, the simulated outdoor temp is decreased (and vice versa)
+- Rate-limited to max 1°C per minute for smooth, stable control
 
 **Configuration Parameters:**
 | Parameter | ID | Type | Range | Default | Description |
 |-----------|-----|------|-------|---------|-------------|
 | `mode` | 0 | str | - | relay | Set to `"ntc10k"` |
-| `simulated_temp` | 20 | float | -40 to 100 | 20.0 | Temperature to simulate (C) |
+| `setpoint` | 1 | float | 0 to 100 | 40.0 | Target flow temperature (C) |
+| `simulated_temp` | 20 | float | -40 to 100 | 20.0 | Initial simulated outdoor temp (C) |
+| `hysteresis` | 4 | float | 0.1 to 25 | 5.0 | Dead band before adjustments (C) |
 
 **Usage:**
 ```python
 # Via config_manager
 config_manager.set_param('mode', 'ntc10k')
-config_manager.set_param('simulated_temp', 15.0)  # Simulate 15C outdoor temp
+config_manager.set_param('setpoint', 45.0)       # Target 45C flow temperature
+config_manager.set_param('simulated_temp', 10.0) # Start from 10C outdoor (optional)
 ```
 
 **How it works:**
-- Writes temperature value to SSR2-2.10 parameter 8 (T_NTC10k)
-- Module internally converts temperature to NTC10k resistance curve
-- Resistance is output on terminals X2-2 (LN_2)
+1. On mode entry, initializes simulated temp from `simulated_temp` config parameter
+2. Every 10 seconds, calculates error: `setpoint - current_flow_temp`
+3. If error exceeds hysteresis:
+   - Flow too cold (error > 0): decrease simulated outdoor temp
+   - Flow too hot (error < 0): increase simulated outdoor temp
+4. Change rate limited to 1°C/minute for stability
+5. Output limits: -40°C to +40°C simulated outdoor range
+6. Writes to SSR2-2.10 parameter 8 (T_NTC10k)
+7. Module converts temperature to NTC10k resistance curve
+
+**Runtime Values (not stored in config):**
+- Current simulated outdoor temperature is a runtime value
+- Reported in status as `ntc10k_simulated_temp`
+- Resets to `simulated_temp` config value when re-entering the mode
 
 ### Direct Resistance Mode (`sensor`)
 
@@ -92,12 +112,21 @@ param_id=20, value=10.0
 
 ## Typical Use Case
 
+### Automatic Flow Temperature Control (ntc10k mode)
+
 1. Disconnect boiler's outdoor temperature sensor
 2. Connect boiler's sensor input to SSR2-2.10 output (X2-2)
 3. Set mode to `ntc10k`
-4. Adjust `simulated_temp` to control boiler's heating curve:
-   - Lower temperature = boiler produces more heat
-   - Higher temperature = boiler produces less heat
+4. Set `setpoint` to desired flow temperature (e.g., 45°C)
+5. Optionally set `simulated_temp` as starting point
+6. System automatically adjusts simulated outdoor temp to reach target flow temp
+
+### Manual Resistance Control (sensor mode)
+
+1. Connect boiler's sensor input to SSR2-2.10 output (X2-2)
+2. Set mode to `sensor`
+3. Set `direct_resistance` to desired value
+4. Manually adjust as needed via MQTT/LoRaWAN
 
 ## Notes
 
