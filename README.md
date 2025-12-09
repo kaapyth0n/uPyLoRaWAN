@@ -138,6 +138,19 @@ Also there is a RFM95W LoRa module (M3+M4 slots) connected to the following pins
 On start, the controller loads and runs `boot.py` file and `FrSet.py` file is also loaded. `FrSet.py` is designed to help dealing with the FR modules. Then the controller runs `main.py` file.
 I have also the high-level library for dealing with the IND1-1.1 module called `IND1.py`.
 
+# Display Buttons
+The IND1 display module has three buttons with the following functions:
+
+## During Boot
+Any button press during the 3-second boot window triggers configuration mode (Wi-Fi AP setup).
+
+## During Normal Operation
+- **Button 1** (top): Increase temperature setpoint by 1°C
+- **Button 2** (middle): Decrease temperature setpoint by 1°C
+- **Button 3** (bottom): Cycle through operating modes (relay → sensor → pid → soft_pid → ntc10k → relay...)
+
+All button presses provide audio feedback via the buzzer. The mode list is read dynamically from the configuration, so any future modes added to the system will automatically be included in the cycle.
+
 # Wi-Fi
 If Wi-Fi wasn't configured before, or if any of the IND1 buttons are pressed, on boot the device starts the AP with an internal web-server which works on http://192.168.4.1 and shows an interface to set the local Wi-Fi connection. After 10 minutes of inactivity, the AP shuts down and the program execution continues. If the Wi-Fi was set, the device reboots.
 
@@ -187,7 +200,7 @@ The device accepts query messages to the ../Boiler:1/query topic, with payloads 
 
 # Setup on the new hardware
 1. Connect the device using the USB adapter
-2. Upload: config.py, wifi_config.json (if present), boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
+2. Upload: config.py, config_manager.py, wifi_config.json (if present), boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
 3. Restart, set up the Wi-Fi using AP if needed, then power-cycle, it will download all the other files then
 
 # Licenses

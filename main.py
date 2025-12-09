@@ -105,20 +105,43 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 self.last_button_state = button_state
                 self.last_button_time = current_time
                 
+                # Third button pressed (bit 2) - cycle mode
+                if button_state & 0x04:
+                    # Get available modes dynamically from config manager
+                    allowed_modes = self.config_manager.parameter_definitions['mode']['allowed_values']
+                    current_mode = self.config_manager.get_param('mode')
+
+                    # Find current index and calculate next (circular)
+                    try:
+                        current_index = allowed_modes.index(current_mode)
+                        next_index = (current_index + 1) % len(allowed_modes)
+                        new_mode = allowed_modes[next_index]
+                    except ValueError:
+                        # Current mode not in list, reset to first mode
+                        new_mode = allowed_modes[0]
+
+                    success, message = self.config_manager.set_param('mode', new_mode)
+                    if success:
+                        print(f"Mode changed to {new_mode}")
+                        if self.display_manager.display:
+                            self.display_manager.display.beep(1)
+                    else:
+                        print(f"Failed to change mode: {message}")
+                    return
+
+                # First button pressed (bit 0) - increase setpoint
                 new_setpoint = self._get_setpoint()
-                # First button pressed (bit 0)
                 if button_state & 0x01:
-                    # Increase setpoint
                     new_setpoint = self._get_setpoint() + 1
-                # Second button pressed (bit 1)
+                # Second button pressed (bit 1) - decrease setpoint
                 elif button_state & 0x02:
-                    # Decrease setpoint
                     new_setpoint = self._get_setpoint() - 1
-                
+                else:
+                    return  # No relevant button pressed
+
                 success, message = self.config_manager.set_param('setpoint', new_setpoint)
                 if success:
                     print(f"Setpoint changed to {new_setpoint}°C")
-                    # Beep to indicate change
                     if self.display_manager.display:
                         self.display_manager.display.beep(1)
                 else:
