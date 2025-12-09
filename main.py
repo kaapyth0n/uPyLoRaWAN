@@ -68,11 +68,29 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 			if button_state != self.last_button_state:
 				self.last_button_state = button_state
 				self.last_button_time = current_time
+				if button_state & 4:
+					allowed_modes = self.config_manager.parameter_definitions['mode']['allowed_values']
+					current_mode = self.config_manager.get_param('mode')
+					try:
+						current_index = allowed_modes.index(current_mode)
+						next_index = (current_index + 1) % len(allowed_modes)
+						new_mode = allowed_modes[next_index]
+					except ValueError:
+						new_mode = allowed_modes[0]
+					success, message = self.config_manager.set_param('mode', new_mode)
+					if success:
+						if self.display_manager.display:
+							self.display_manager.display.beep(1)
+					else:
+						pass
+					return
 				new_setpoint = self._get_setpoint()
 				if button_state & 1:
 					new_setpoint = self._get_setpoint() + 1
 				elif button_state & 2:
 					new_setpoint = self._get_setpoint() - 1
+				else:
+					return
 				success, message = self.config_manager.set_param('setpoint', new_setpoint)
 				if success:
 					if self.display_manager.display:
