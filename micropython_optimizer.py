@@ -13,6 +13,8 @@ Usage:
     python micropython_optimizer.py --manifest=manifest.json [options] [output_dir]
 
 Options:
+    --input=FILE          Input file or directory (alternative to positional argument, not needed with --manifest)
+    --output=DIR          Output file or directory (alternative to positional argument, defaults to input)
     --manifest=FILE.json  Use manifest.json to identify files to optimize
     --safe-mode           Replace print statements with 'pass' instead of removing them
     --no-backup          Don't create backup files
@@ -25,6 +27,8 @@ Options:
     --verbose            Show detailed information during processing
     --exclude=FILE1,FILE2 Comma-separated list of files to exclude
     --remove-redundant-if-else  Experimental: Remove if-else blocks where both branches are empty or pass
+    --spaces-to-tabs     Convert spaces used for indentation to tabs
+    --tab-size=N         Number of spaces that represent one tab when using --spaces-to-tabs (default: 4)
 
 Examples:
     # Process a single file
