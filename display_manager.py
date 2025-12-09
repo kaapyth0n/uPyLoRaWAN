@@ -223,9 +223,13 @@ class DisplayManager:
             # Operating mode and heating status
             mode_text = f"Mode: {status['mode'].upper()}"
             heating_text = f"State: {'HEAT' if status['heating_active'] else 'IDLE'}"
-            
-            # Add voltage information if available
-            if 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
+
+            # Add mode-specific output information
+            if status['mode'] == 'ntc10k' and 'ntc10k_simulated_temp' in status and status['ntc10k_simulated_temp'] is not None:
+                # Show simulated outdoor temperature for ntc10k mode
+                heating_text += f" {status['ntc10k_simulated_temp']:.1f}C"
+            elif 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
+                # Show voltage for PID modes
                 heating_text += f" {status['output_voltage_calculated']:.1f}V"
             
             self.display.show_text(mode_text, x=0, y=8, font=2)

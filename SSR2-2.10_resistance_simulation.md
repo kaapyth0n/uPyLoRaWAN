@@ -58,6 +58,11 @@ config_manager.set_param('simulated_temp', 10.0) # Start from 10C outdoor (optio
 - Reported in status as `ntc10k_simulated_temp`
 - Resets to `simulated_temp` config value when re-entering the mode
 
+**Status Reporting:**
+- **MQTT**: Published as `simulated_temp` topic with current simulated outdoor temperature
+- **LoRaWAN**: Bytes 6-7 of status message contain simulated temp (int16 * 10) instead of voltage
+- **Display**: State line shows "HEAT {temp}C" with current simulated outdoor temperature
+
 ### Direct Resistance Mode (`sensor`)
 
 Directly sets the output resistance value. Useful for manual control or custom resistance curves.

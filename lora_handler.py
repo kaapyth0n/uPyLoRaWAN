@@ -462,12 +462,24 @@ class LoRaHandler:
             # Byte 5: Heating state
             msg[5] = 1 if self.controller.heating_active else 0
 
-            # Bytes 6-7: Voltage (always present, 0 if unavailable)
-            voltage = 0
-            if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
-                voltage = int(self.controller.output_voltage_calculated * 10)
-            msg[6] = (voltage >> 8) & 0xFF
-            msg[7] = voltage & 0xFF
+            # Bytes 6-7: Voltage or simulated temperature depending on mode
+            # In ntc10k mode: simulated outdoor temperature (int16 * 10)
+            # In other modes: calculated voltage (int16 * 10)
+            output_value = 0
+            mode = self.controller.config_manager.get_param('mode')
+            if mode == 'ntc10k':
+                # Report simulated temperature in ntc10k mode
+                if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
+                    output_value = int(self.controller._ntc10k_current_temp * 10)
+                    # Handle signed int16 for negative values
+                    if output_value < 0:
+                        output_value = output_value & 0xFFFF
+            else:
+                # Report voltage in other modes
+                if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
+                    output_value = int(self.controller.output_voltage_calculated * 10)
+            msg[6] = (output_value >> 8) & 0xFF
+            msg[7] = output_value & 0xFF
 
             # Bytes 8-9: Outdoor temperature
             if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:

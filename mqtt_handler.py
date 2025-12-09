@@ -437,10 +437,14 @@ class MQTTHandler:
             # Check for calculated voltage
             if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
                 self.publish_parameter('voltage_calculated', self.controller.output_voltage_calculated)
-                
-            # Check for measured voltage 
+
+            # Check for measured voltage
             if hasattr(self.controller, 'output_voltage_measured') and self.controller.output_voltage_measured is not None:
                 self.publish_parameter('voltage_measured', self.controller.output_voltage_measured)
+
+            # Publish NTC10K simulated temperature if in ntc10k mode
+            if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
+                self.publish_parameter('simulated_temp', round(self.controller._ntc10k_current_temp, 1))
             
             # Add PID component values if they exist
             if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid']:
