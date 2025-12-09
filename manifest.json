@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-03-17T16:10:08Z",
+  "timestamp": "2025-12-09T01:46:02Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.2",
@@ -32,10 +32,10 @@
       "size": 4529
     },
     "main.py": {
-      "version": "4.1",
+      "version": "4.2",
       "path": "/main.py",
-      "hash": "50613046f2517cc8278dab4fdc001bfcd17086a642c07e8fcc256c16db3c979e",
-      "size": 16626
+      "hash": "a891448a849623b75837480c0a456487ab5d2cd562b49cf39611b98d92679f36",
+      "size": 19503
     },
     "config_portal.py": {
       "version": "1.8",
@@ -92,10 +92,10 @@
       "size": 3788
     },
     "config_manager.py": {
-      "version": "2.2",
+      "version": "2.3",
       "path": "/config_manager.py",
-      "hash": "c78bbd117286cf1818a529b0ca95087c8cdfed2093dc74bcca390d0f3c74c002",
-      "size": 8273
+      "hash": "bcbd59c627c692f71e9e7138584cfc5490bb92abb8bef09ffd310ee2249ea9cc",
+      "size": 8816
     },
     "error_logger.py": {
       "version": "1.6",
@@ -122,16 +122,16 @@
       "size": 4205
     },
     "lora_handler.py": {
-      "version": "2.0",
+      "version": "2.1",
       "path": "/lora_handler.py",
-      "hash": "96e239adb80342683fc0415c4768797fd40135d40ebf16872f38b664ab1b5811",
-      "size": 14839
+      "hash": "c2d8bd19d5f828848b2a6bb939098bf2fcd712ad179a7043a3b7b9e9de1b1f89",
+      "size": 14895
     },
     "constants.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/constants.py",
-      "hash": "115fe237bb30e5de3648e9d9dcb2338bc09573459d9317768ec0073c803b4d98",
-      "size": 1273
+      "hash": "f3e81a4183affe737253d785720278bbdc183939d964ac6572eead01052dc392",
+      "size": 1297
     },
     "utils.py": {
       "version": "1.6",
@@ -140,16 +140,16 @@
       "size": 2638
     },
     "module_detector.py": {
-      "version": "1.5",
+      "version": "1.6",
       "path": "/module_detector.py",
-      "hash": "2049d3fc069b99ff52ebe24198f061707d4a4d283b2859dd160005079711e9ee",
-      "size": 3029
+      "hash": "d514ff9b0afc74ca91179b899c167df7f6926b1493beb3696379c4f6fd25794b",
+      "size": 3071
     },
     "mqtt_handler.py": {
-      "version": "2.2",
+      "version": "2.3",
       "path": "/mqtt_handler.py",
-      "hash": "fd5e5af1093fe6e9f1f04a72154b5096f3f872c0b66d10ad98500b72a3498313",
-      "size": 10233
+      "hash": "dafbd61daec148cd31b7ba1dc0667b0bed47e142d4a34f1aa221c01f46f9e99b",
+      "size": 10399
     }
   }
 }
