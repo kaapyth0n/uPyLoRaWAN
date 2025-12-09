@@ -94,7 +94,9 @@ class DisplayManager:
 			self.display.show_text('Smart Boiler Status', x=0, y=0, font=2)
 			mode_text = f"Mode: {status['mode'].upper()}"
 			heating_text = f"State: {('HEAT' if status['heating_active'] else 'IDLE')}"
-			if 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
+			if status['mode'] == 'ntc10k' and 'ntc10k_simulated_temp' in status and (status['ntc10k_simulated_temp'] is not None):
+				heating_text += f" {status['ntc10k_simulated_temp']:.1f}C"
+			elif 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
 				heating_text += f" {status['output_voltage_calculated']:.1f}V"
 			self.display.show_text(mode_text, x=0, y=8, font=2)
 			self.display.show_text(heating_text, x=0, y=16, font=2)

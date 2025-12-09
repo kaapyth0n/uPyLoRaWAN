@@ -243,11 +243,17 @@ class LoRaHandler:
 				msg[3] = 255
 				msg[4] = 255
 			msg[5] = 1 if self.controller.heating_active else 0
-			voltage = 0
-			if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
-				voltage = int(self.controller.output_voltage_calculated * 10)
-			msg[6] = voltage >> 8 & 255
-			msg[7] = voltage & 255
+			output_value = 0
+			mode = self.controller.config_manager.get_param('mode')
+			if mode == 'ntc10k':
+				if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
+					output_value = int(self.controller._ntc10k_current_temp * 10)
+					if output_value < 0:
+						output_value = output_value & 65535
+			elif hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
+				output_value = int(self.controller.output_voltage_calculated * 10)
+			msg[6] = output_value >> 8 & 255
+			msg[7] = output_value & 255
 			if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:
 				outdoor = self.controller.outdoor_temp
 				outdoor_fixed = int(outdoor * 10)
