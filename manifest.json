@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-09T01:46:02Z",
+  "timestamp": "2025-12-09T20:33:01Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.2",
@@ -116,16 +116,16 @@
       "size": 3250
     },
     "display_manager.py": {
-      "version": "1.9",
+      "version": "2.0",
       "path": "/display_manager.py",
-      "hash": "38bbf325f62b04995e04d36b6d6bd02af9f1e1a91fcafd9de0173bfd295cb6b6",
-      "size": 4205
+      "hash": "b3ecfb31719c795daca7d7ed7f1f2a2c19d2a87b47a43d8a288ea8a8ab649a8a",
+      "size": 4392
     },
     "lora_handler.py": {
-      "version": "2.1",
+      "version": "2.2",
       "path": "/lora_handler.py",
-      "hash": "c2d8bd19d5f828848b2a6bb939098bf2fcd712ad179a7043a3b7b9e9de1b1f89",
-      "size": 14895
+      "hash": "459d498861b67d08c2c3d47ecc7e242d8c650d3df9f2fd97f10be6c2fbe1d460",
+      "size": 15245
     },
     "constants.py": {
       "version": "1.5",
@@ -146,10 +146,10 @@
       "size": 3071
     },
     "mqtt_handler.py": {
-      "version": "2.3",
+      "version": "2.4",
       "path": "/mqtt_handler.py",
-      "hash": "dafbd61daec148cd31b7ba1dc0667b0bed47e142d4a34f1aa221c01f46f9e99b",
-      "size": 10399
+      "hash": "27cdd69d500165451081335c8322f44d183b51af57e722738a1ae5c7231e0118",
+      "size": 10601
     }
   }
 }
