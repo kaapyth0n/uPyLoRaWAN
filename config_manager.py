@@ -135,7 +135,7 @@ class ConfigurationManager:
             'update_branch': {
                 'id': 15,
                 'type': str,
-                'default': 'LoRaWAN',
+                'default': 'lora_2512_o',
                 'description': 'GitHub branch to check for updates'
             },
             'pid_kp_std': {
