@@ -185,6 +185,13 @@ class ConfigurationManager:
                 'max': 100000.0,
                 'default': 10000.0,
                 'description': 'Direct resistance value for sensor mode (Ohms)'
+            },
+            'outdoor_sensor_type': {
+                'id': 22,
+                'type': str,
+                'allowed_values': ['ntc10k', 'ntc5k', 'pt1000', 'ds18b20', 'disabled'],
+                'default': 'ntc10k',
+                'description': 'Outdoor temperature sensor type on IO1 LN_2 input'
             }
         }
         

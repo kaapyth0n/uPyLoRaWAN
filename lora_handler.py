@@ -419,31 +419,28 @@ class LoRaHandler:
         return False
             
     def send_status(self):
-        """Send current status via LoRaWAN"""
+        """Send current status via LoRaWAN
+
+        Message format (10 bytes):
+            [0]   = 0x01 (status type)
+            [1-2] = Flow temperature (int16 * 10)
+            [3-4] = Setpoint (int16 * 10)
+            [5]   = Heating state (0 or 1)
+            [6-7] = Voltage (int16 * 10, 0 if unavailable)
+            [8-9] = Outdoor temperature (int16 * 10)
+                    -32768 (0x8000) = short circuit
+                    -32767 (0x8001) = open circuit
+                    0xFFFF = unavailable/disabled
+        """
         if not self.initialized:
             return False
-            
-        try:
-            # Create status message
-            status = {
-                'mode': self.controller.config_manager.get_param('mode'),
-                'temp': self.controller.current_temp,
-                'setpoint': self.controller.config_manager.get_param('setpoint'),
-                'heating': self.controller.heating_active
-            }
-            
-            # Get voltage information - choose calculated voltage for LoRa messages
-            # (since this is the control signal we want to report)
-            if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
-                status['voltage'] = self.controller.output_voltage_calculated
 
-            # Determine message length - include voltage if available
-            msg_length = 8 if 'voltage' in status else 6
-            msg = bytearray(msg_length)
-            
+        try:
+            # Fixed message length: 10 bytes (backward compatible format)
+            msg = bytearray(10)
             msg[0] = 0x01  # Message type: status update
-            
-            # Convert temperature values to fixed point (1 decimal place)
+
+            # Bytes 1-2: Flow temperature (fixed point, 1 decimal)
             if self.controller.current_temp is not None:
                 temp_fixed = int(self.controller.current_temp * 10)
                 msg[1] = (temp_fixed >> 8) & 0xFF
@@ -451,32 +448,49 @@ class LoRaHandler:
             else:
                 msg[1] = 0xFF  # Invalid temperature marker
                 msg[2] = 0xFF
-                
-            # Convert setpoint
-            if status['setpoint'] is not None:
-                setpoint_fixed = int(status['setpoint'] * 10)
+
+            # Bytes 3-4: Setpoint (fixed point, 1 decimal)
+            setpoint = self.controller.config_manager.get_param('setpoint')
+            if setpoint is not None:
+                setpoint_fixed = int(setpoint * 10)
                 msg[3] = (setpoint_fixed >> 8) & 0xFF
                 msg[4] = setpoint_fixed & 0xFF
             else:
                 msg[3] = 0xFF  # Invalid setpoint marker
                 msg[4] = 0xFF
-                
-            # Add heating state
+
+            # Byte 5: Heating state
             msg[5] = 1 if self.controller.heating_active else 0
-            
-            # Add voltage if available
-            if 'voltage' in status:
-                voltage_fixed = int(status['voltage'] * 10)
-                msg[6] = (voltage_fixed >> 8) & 0xFF
-                msg[7] = voltage_fixed & 0xFF
-            
+
+            # Bytes 6-7: Voltage (always present, 0 if unavailable)
+            voltage = 0
+            if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
+                voltage = int(self.controller.output_voltage_calculated * 10)
+            msg[6] = (voltage >> 8) & 0xFF
+            msg[7] = voltage & 0xFF
+
+            # Bytes 8-9: Outdoor temperature
+            if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:
+                outdoor = self.controller.outdoor_temp
+                # Convert to fixed-point int16
+                outdoor_fixed = int(outdoor * 10)
+                # Handle signed int16 for negative values (including error codes)
+                if outdoor_fixed < 0:
+                    outdoor_fixed = outdoor_fixed & 0xFFFF  # Convert to unsigned representation
+                msg[8] = (outdoor_fixed >> 8) & 0xFF
+                msg[9] = outdoor_fixed & 0xFF
+            else:
+                # Sensor unavailable/disabled marker
+                msg[8] = 0xFF
+                msg[9] = 0xFF
+
             # Send message
             if self.send_data(msg, len(msg), self.frame_counter):
                 self.last_status_time = time.time()
                 return True
-                
+
             return False
-            
+
         except Exception as e:
             self.controller.logger.log_error(
                 'lora',

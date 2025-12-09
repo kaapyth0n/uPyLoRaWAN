@@ -62,6 +62,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.last_wifi_check = 0
         self.output_voltage_calculated = None  # Stores the calculated output voltage
         self.output_voltage_measured = None   # Stores the measured output voltage
+        self.outdoor_temp = None              # Outdoor temperature from IO1 LN_2 input
 
         # NTC10k automatic regulation runtime state (not stored in config)
         self._ntc10k_current_temp = None  # Current simulated outdoor temp being output
@@ -292,6 +293,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         if last_temperature != self.current_temp:
                             last_temperature = self.current_temp
                             print(f"Temperature: {self.current_temp:.1f}°C")
+
+                    # Read outdoor temperature (no watchdog dependency)
+                    self.read_outdoor_temperature()
 
                     # Add button check to main loop
                     self._check_buttons()
@@ -789,7 +793,56 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         # All retries failed
         self.logger.log_error('temperature', 'All temperature read attempts failed', 3)
         return None
-    
+
+    def read_outdoor_temperature(self):
+        """Read outdoor temperature from IO module LN_2 input (parameter 12)
+
+        Returns:
+            float or None: Temperature value, or None if read failed
+
+        Special return values for error conditions:
+            -32768: Sensor short circuit (very low resistance)
+            -32767: Sensor open circuit (very high resistance or NaN)
+        """
+        # Check if outdoor sensor is enabled
+        sensor_type = self.config_manager.get_param('outdoor_sensor_type')
+        if sensor_type == 'disabled':
+            self.outdoor_temp = None
+            return None
+
+        try:
+            # Read temperature from LN_2 (parameter 12)
+            temp = self.fr.read(12, slot=6)
+
+            if temp is None:
+                self.outdoor_temp = None
+                return None
+
+            # Check for NaN (sensor error/disconnected)
+            import math
+            if math.isnan(temp):
+                # NaN typically indicates open circuit or disconnected sensor
+                self.outdoor_temp = -32767
+                return -32767
+
+            # Validate outdoor temperature range (-40 to +60C for outdoor)
+            if temp < -40:
+                # Very low reading - likely short circuit
+                self.outdoor_temp = -32768
+                return -32768
+            elif temp > 60:
+                # Very high reading - likely open circuit or error
+                self.outdoor_temp = -32767
+                return -32767
+
+            self.outdoor_temp = temp
+            return temp
+
+        except Exception as e:
+            self.logger.log_error('temperature', f'Outdoor temp read failed: {e}', 2)
+            self.outdoor_temp = None
+            return None
+
     def _verify_relay_state(self, expected_state, retries=3):
         """Verify relay state matches expected value
         
