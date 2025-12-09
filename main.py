@@ -43,6 +43,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 		self.last_wifi_check = 0
 		self.output_voltage_calculated = None
 		self.output_voltage_measured = None
+		self.outdoor_temp = None
 		self._ntc10k_current_temp = None
 		self._ntc10k_last_update = 0
 		self._previous_mode = None
@@ -162,6 +163,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 						self.watchdog_manager.pet('temperature')
 						if last_temperature != self.current_temp:
 							last_temperature = self.current_temp
+					self.read_outdoor_temperature()
 					self._check_buttons()
 					if self._update_control_logic():
 						self.watchdog_manager.pet('control')
@@ -418,6 +420,33 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 					time.sleep(0.1)
 		self.logger.log_error('temperature', 'All temperature read attempts failed', 3)
 		return None
+
+	def read_outdoor_temperature(self):
+		sensor_type = self.config_manager.get_param('outdoor_sensor_type')
+		if sensor_type == 'disabled':
+			self.outdoor_temp = None
+			return None
+		try:
+			temp = self.fr.read(12, slot=6)
+			if temp is None:
+				self.outdoor_temp = None
+				return None
+			import math
+			if math.isnan(temp):
+				self.outdoor_temp = -32767
+				return -32767
+			if temp < -40:
+				self.outdoor_temp = -32768
+				return -32768
+			elif temp > 60:
+				self.outdoor_temp = -32767
+				return -32767
+			self.outdoor_temp = temp
+			return temp
+		except Exception as e:
+			self.logger.log_error('temperature', f'Outdoor temp read failed: {e}', 2)
+			self.outdoor_temp = None
+			return None
 
 	def _verify_relay_state(self, expected_state, retries=3):
 		retry_count = 0

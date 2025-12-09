@@ -225,11 +225,7 @@ class LoRaHandler:
 		if not self.initialized:
 			return False
 		try:
-			status = {'mode': self.controller.config_manager.get_param('mode'), 'temp': self.controller.current_temp, 'setpoint': self.controller.config_manager.get_param('setpoint'), 'heating': self.controller.heating_active}
-			if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
-				status['voltage'] = self.controller.output_voltage_calculated
-			msg_length = 8 if 'voltage' in status else 6
-			msg = bytearray(msg_length)
+			msg = bytearray(10)
 			msg[0] = 1
 			if self.controller.current_temp is not None:
 				temp_fixed = int(self.controller.current_temp * 10)
@@ -238,18 +234,30 @@ class LoRaHandler:
 			else:
 				msg[1] = 255
 				msg[2] = 255
-			if status['setpoint'] is not None:
-				setpoint_fixed = int(status['setpoint'] * 10)
+			setpoint = self.controller.config_manager.get_param('setpoint')
+			if setpoint is not None:
+				setpoint_fixed = int(setpoint * 10)
 				msg[3] = setpoint_fixed >> 8 & 255
 				msg[4] = setpoint_fixed & 255
 			else:
 				msg[3] = 255
 				msg[4] = 255
 			msg[5] = 1 if self.controller.heating_active else 0
-			if 'voltage' in status:
-				voltage_fixed = int(status['voltage'] * 10)
-				msg[6] = voltage_fixed >> 8 & 255
-				msg[7] = voltage_fixed & 255
+			voltage = 0
+			if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
+				voltage = int(self.controller.output_voltage_calculated * 10)
+			msg[6] = voltage >> 8 & 255
+			msg[7] = voltage & 255
+			if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:
+				outdoor = self.controller.outdoor_temp
+				outdoor_fixed = int(outdoor * 10)
+				if outdoor_fixed < 0:
+					outdoor_fixed = outdoor_fixed & 65535
+				msg[8] = outdoor_fixed >> 8 & 255
+				msg[9] = outdoor_fixed & 255
+			else:
+				msg[8] = 255
+				msg[9] = 255
 			if self.send_data(msg, len(msg), self.frame_counter):
 				self.last_status_time = time.time()
 				return True

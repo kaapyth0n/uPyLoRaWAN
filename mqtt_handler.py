@@ -193,6 +193,8 @@ class MQTTHandler:
 			self.publish_parameter('temperature', self.controller.current_temp)
 			self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
 			self.publish_parameter('heating', self.controller.heating_active)
+			if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:
+				self.publish_parameter('outdoor_temp', self.controller.outdoor_temp)
 			if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
 				self.publish_parameter('voltage_calculated', self.controller.output_voltage_calculated)
 			if hasattr(self.controller, 'output_voltage_measured') and self.controller.output_voltage_measured is not None:
