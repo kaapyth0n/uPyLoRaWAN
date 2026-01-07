@@ -430,7 +430,7 @@ class LoRaHandler:
             [8-9] = Outdoor temperature (int16 * 10)
                     -32768 (0x8000) = short circuit
                     -32767 (0x8001) = open circuit
-                    0xFFFF = unavailable/disabled
+                    -32766 (0x8002) = unavailable/disabled
         """
         if not self.initialized:
             return False
