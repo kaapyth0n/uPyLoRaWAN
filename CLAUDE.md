@@ -70,7 +70,7 @@ config_manager.set_param_by_id(param_id, value)  # by ID for LoRaWAN
 - **pid**: Hardware PID in IO1 module
 - **soft_pid**: Software PID implemented in temp_controller.py
 
-See `SSR2-2.10_resistance_simulation.md` for detailed documentation on resistance simulation modes.
+See `docs/SSR2-2.10_resistance_simulation.md` for detailed documentation on resistance simulation modes.
 
 ## Configuration Files
 
