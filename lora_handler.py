@@ -492,9 +492,9 @@ class LoRaHandler:
                 msg[8] = (outdoor_fixed >> 8) & 0xFF
                 msg[9] = outdoor_fixed & 0xFF
             else:
-                # Sensor unavailable/disabled marker
-                msg[8] = 0xFF
-                msg[9] = 0xFF
+                # Sensor unavailable/disabled: -32766 (0x8002)
+                msg[8] = 0x80
+                msg[9] = 0x02
 
             # Send message
             if self.send_data(msg, len(msg), self.frame_counter):

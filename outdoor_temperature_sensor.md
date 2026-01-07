@@ -47,12 +47,12 @@ Payload: ntc10k
 |-------|-------------|---------|
 | -32768 | 0x8000 | Sensor short circuit (very low resistance) |
 | -32767 | 0x8001 | Sensor open circuit (very high resistance or NaN) |
-| N/A | 0xFFFF | Sensor unavailable or disabled |
+| -32766 | 0x8002 | Sensor unavailable or disabled |
 
 The error codes are determined by:
 - Temperature < -40°C: Short circuit (0x8000)
 - Temperature > +60°C or NaN: Open circuit (0x8001)
-- Sensor disabled or read failure: Unavailable (0xFFFF)
+- Sensor disabled or read failure: Unavailable (0x8002)
 
 ## MQTT Publishing
 
@@ -90,7 +90,7 @@ The outdoor temperature is included in the status message at bytes 8-9.
 | Negative (e.g., -10.5°C) | -105 | 0xFF 0x97 |
 | Short circuit | -32768 | 0x80 0x00 |
 | Open circuit | -32767 | 0x80 0x01 |
-| Unavailable/disabled | 65535 | 0xFF 0xFF |
+| Unavailable/disabled | -32766 | 0x80 0x02 |
 
 ### Backward Compatibility
 
