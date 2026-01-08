@@ -29,7 +29,7 @@ class ConfigurationManager:
                 'id': 0,  # Add ID for each parameter
                 'type': str,
                 'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid', 'ntc10k'],
-                'default': 'relay'
+                'default': BoilerDefaults.DEFAULT_MODE
             },
             'setpoint': {
                 'id': 1,
@@ -85,40 +85,40 @@ class ConfigurationManager:
                 'type': int,
                 'min': 1,   # Minimum 1 second
                 'max': 3600, # Maximum 1 hour
-                'default': 300  # Default 5 minutes
+                'default': BoilerDefaults.LORA_KEEPALIVE
             },
             'pid_max_volts': {
                 'id': 9,
                 'type': float,
                 'min': 0.0,
                 'max': 22.5,
-                'default': 22.5
+                'default': BoilerDefaults.PID_MAX_VOLTS
             },
             'pid_kp': {
                 'id': 10,
                 'type': float,
                 'min': 0.0,
                 'max': 100.0,
-                'default': 1.0
+                'default': BoilerDefaults.PID_KP
             },
             'pid_ki': {
                 'id': 11,
                 'type': float,
                 'min': 0.0,
                 'max': 100.0,
-                'default': 0.1
+                'default': BoilerDefaults.PID_KI
             },
             'pid_kd': {
                 'id': 12,
                 'type': float,
                 'min': 0.0,
                 'max': 100.0,
-                'default': 0.01
+                'default': BoilerDefaults.PID_KD
             },
             'devaddr': {
                 'id': 13,  # Next ID in the sequence
                 'type': str,
-                'default': '00000000',  # Default is all zeros in hex format
+                'default': BoilerDefaults.DEVADDR,
                 'description': 'LoRaWAN Device Address (hex format)',
                 'validator': self._validate_hex_string,
                 'format': 'hex',
@@ -129,13 +129,13 @@ class ConfigurationManager:
                 'type': float,
                 'min': 0.0,
                 'max': 22.5,
-                'default': 0.0,
+                'default': BoilerDefaults.PID_MIN_VOLTS,
                 'description': 'PID minimum output voltage limit'
             },
             'update_branch': {
                 'id': 15,
                 'type': str,
-                'default': 'lora_2512_o',
+                'default': BoilerDefaults.UPDATE_BRANCH,
                 'description': 'GitHub branch to check for updates'
             },
             'pid_kp_std': {
@@ -143,7 +143,7 @@ class ConfigurationManager:
                 'type': float,
                 'min': 0.01,
                 'max': 100.0,
-                'default': 1.0,
+                'default': BoilerDefaults.PID_KP_STD,
                 'description': 'PID Proportional Gain (standard form)'
             },
             'pid_ti_std': {
@@ -151,7 +151,7 @@ class ConfigurationManager:
                 'type': float,
                 'min': 0.1,  # Prevent division by zero
                 'max': 10000.0,
-                'default': 600.0,
+                'default': BoilerDefaults.PID_TI_STD,
                 'description': 'PID Integral Time Constant (standard form)'
             },
             'pid_td_std': {
@@ -159,7 +159,7 @@ class ConfigurationManager:
                 'type': float,
                 'min': 0.0,
                 'max': 10000.0,
-                'default': 600.0,
+                'default': BoilerDefaults.PID_TD_STD,
                 'description': 'PID Derivative Time Constant (standard form)'
             },
             'pid_dt': {
@@ -167,7 +167,7 @@ class ConfigurationManager:
                 'type': float,
                 'min': 0.1,
                 'max': 1000.0,
-                'default': 10.0,
+                'default': BoilerDefaults.PID_DT,
                 'description': 'PID Control Interval (seconds)'
             },
             'simulated_temp': {
@@ -175,7 +175,7 @@ class ConfigurationManager:
                 'type': float,
                 'min': -40.0,
                 'max': 100.0,
-                'default': 20.0,
+                'default': BoilerDefaults.SIMULATED_TEMP,
                 'description': 'Simulated outdoor temperature for NTC10k mode (°C)'
             },
             'direct_resistance': {
@@ -183,14 +183,14 @@ class ConfigurationManager:
                 'type': float,
                 'min': 901.0,
                 'max': 100000.0,
-                'default': 10000.0,
+                'default': BoilerDefaults.DIRECT_RESISTANCE,
                 'description': 'Direct resistance value for sensor mode (Ohms)'
             },
             'outdoor_sensor_type': {
                 'id': 22,
                 'type': str,
                 'allowed_values': ['ntc10k', 'ntc5k', 'pt1000', 'ds18b20', 'disabled'],
-                'default': 'ntc10k',
+                'default': BoilerDefaults.OUTDOOR_SENSOR_TYPE,
                 'description': 'Outdoor temperature sensor type on IO1 LN_2 input'
             }
         }

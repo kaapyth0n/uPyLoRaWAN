@@ -25,6 +25,29 @@ class BoilerDefaults:
     # Communication parameters
     STATUS_INTERVAL = 300      # Status update interval (seconds)
     MAX_RETRIES = 3           # Maximum command retry attempts
+    LORA_KEEPALIVE = 300      # LoRa keepalive interval (seconds)
+
+    # PID control defaults
+    PID_MAX_VOLTS = 22.5      # Maximum PID output voltage
+    PID_MIN_VOLTS = 0.0       # Minimum PID output voltage
+    PID_KP = 1.0              # PID proportional gain
+    PID_KI = 0.1              # PID integral gain
+    PID_KD = 0.01             # PID derivative gain
+    PID_KP_STD = 1.0          # PID proportional gain (standard form)
+    PID_TI_STD = 600.0        # PID integral time constant (standard form)
+    PID_TD_STD = 600.0        # PID derivative time constant (standard form)
+    PID_DT = 10.0             # PID control interval (seconds)
+
+    # LoRaWAN defaults
+    DEVADDR = '00000000'      # Default device address (hex)
+
+    # Update settings
+    UPDATE_BRANCH = 'lora_2512_o'  # Default GitHub branch for OTA updates
+
+    # Sensor simulation defaults
+    SIMULATED_TEMP = 20.0         # Default simulated outdoor temperature (°C)
+    DIRECT_RESISTANCE = 10000.0   # Default resistance for sensor mode (Ohms)
+    OUTDOOR_SENSOR_TYPE = 'ntc10k'  # Default outdoor sensor type
 
 class ErrorCodes:
     """Error codes for system events"""

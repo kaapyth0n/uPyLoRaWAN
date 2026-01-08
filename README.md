@@ -200,8 +200,19 @@ The device accepts query messages to the ../Boiler:1/query topic, with payloads 
 
 # Setup on the new hardware
 1. Connect the device using the USB adapter
-2. Upload: config.py, config_manager.py, wifi_config.json (if present), boot.py, config_portal.py, FrSet.py, IND1.py, update_checker.py
-3. Restart, set up the Wi-Fi using AP if needed, then power-cycle, it will download all the other files then
+2. Upload the following files:
+   - `config.py` - Device-specific settings (LoRa keys, MQTT broker)
+   - `constants.py` - Default values (**critical** - required by config_manager.py)
+   - `config_manager.py` - Configuration management
+   - `boot.py` - Boot sequence and OTA update trigger
+   - `config_portal.py` - Wi-Fi configuration portal
+   - `FrSet.py` - Hardware communication
+   - `IND1.py` - Display driver
+   - `update_checker.py` - OTA update logic
+   - `wifi_config.json` (if present) - Wi-Fi credentials
+3. Restart, set up the Wi-Fi using AP if needed, then power-cycle, it will download all the other files
+
+**Important**: `config_manager.py` imports `constants.py` at startup. If `constants.py` is missing, the device will fail to boot and cannot perform OTA updates. The `UPDATE_BRANCH` setting in `constants.py` determines which GitHub branch the device pulls updates from (default: `lora_2512_o`).
 
 # Licenses
 * Apache 2.0
