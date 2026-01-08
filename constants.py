@@ -14,7 +14,21 @@ class BoilerDefaults:
 	SAFETY_MARGIN = 2.0
 	STATUS_INTERVAL = 300
 	MAX_RETRIES = 3
-
+	LORA_KEEPALIVE = 300
+	PID_MAX_VOLTS = 22.5
+	PID_MIN_VOLTS = 0.0
+	PID_KP = 1.0
+	PID_KI = 0.1
+	PID_KD = 0.01
+	PID_KP_STD = 1.0
+	PID_TI_STD = 600.0
+	PID_TD_STD = 600.0
+	PID_DT = 10.0
+	DEVADDR = '00000000'
+	UPDATE_BRANCH = 'lora_2512_o'
+	SIMULATED_TEMP = 20.0
+	DIRECT_RESISTANCE = 10000.0
+	OUTDOOR_SENSOR_TYPE = 'ntc10k'
 class ErrorCodes:
 	TEMP_READ_FAIL = 'E001'
 	TEMP_TOO_HIGH = 'E002'
@@ -29,7 +43,6 @@ class ErrorCodes:
 	DISPLAY_FAIL = 'E301'
 	MODULE_MISSING = 'E302'
 	CONFIG_ERROR = 'E303'
-
 class SystemParameters:
 	DISPLAY_SLOT = 2
 	IO_MODULE_SLOT = 6
@@ -43,7 +56,6 @@ class SystemParameters:
 	CONFIG_FILE = 'boiler_config.json'
 	ERROR_LOG_FILE = 'error_log.json'
 	BACKUP_CONFIG = 'boiler_config.backup.json'
-
 class MessageTypes:
 	STATUS = 0
 	CONFIG = 1
