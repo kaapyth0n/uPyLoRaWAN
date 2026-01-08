@@ -13,6 +13,8 @@ Usage:
     python micropython_optimizer.py --manifest=manifest.json [options] [output_dir]
 
 Options:
+    --input=FILE          Input file or directory (alternative to positional argument, not needed with --manifest)
+    --output=DIR          Output file or directory (alternative to positional argument, defaults to input)
     --manifest=FILE.json  Use manifest.json to identify files to optimize
     --safe-mode           Replace print statements with 'pass' instead of removing them
     --no-backup          Don't create backup files
@@ -25,6 +27,8 @@ Options:
     --verbose            Show detailed information during processing
     --exclude=FILE1,FILE2 Comma-separated list of files to exclude
     --remove-redundant-if-else  Experimental: Remove if-else blocks where both branches are empty or pass
+    --spaces-to-tabs     Convert spaces used for indentation to tabs
+    --tab-size=N         Number of spaces that represent one tab when using --spaces-to-tabs (default: 4)
 
 Examples:
     # Process a single file
@@ -228,6 +232,12 @@ class MicropythonOptimizer:
             
         if self.options.remove_redundant_if_else:
             content = self._remove_redundant_if_else(content)
+
+        # Step 7: Convert spaces to tabs if option is set
+        if self.options.spaces_to_tabs:
+            tab_size = self.options.tab_size
+            content = self._convert_spaces_to_tabs(content, tab_size)
+        
         return content
 
     def _remove_docstrings(self, content: str) -> str:
@@ -246,7 +256,8 @@ class MicropythonOptimizer:
             # Module docstring
             if (len(tree.body) > 0 and 
                 isinstance(tree.body[0], ast.Expr) and 
-                isinstance(tree.body[0].value, ast.Str)):
+                (isinstance(tree.body[0].value, ast.Constant) or 
+                (hasattr(ast, 'Str') and isinstance(tree.body[0].value, ast.Str)))):
                 docstring_positions.append((tree.body[0].lineno, tree.body[0].end_lineno))
             
             # Walk the tree to find class and function docstrings
@@ -255,14 +266,16 @@ class MicropythonOptimizer:
                 if isinstance(node, ast.ClassDef):
                     if (len(node.body) > 0 and 
                         isinstance(node.body[0], ast.Expr) and 
-                        isinstance(node.body[0].value, ast.Str)):
+                        (isinstance(node.body[0].value, ast.Constant) or 
+                        (hasattr(ast, 'Str') and isinstance(node.body[0].value, ast.Str)))):
                         docstring_positions.append((node.body[0].lineno, node.body[0].end_lineno))
                 
                 # Function docstrings
                 elif isinstance(node, ast.FunctionDef):
                     if (len(node.body) > 0 and 
                         isinstance(node.body[0], ast.Expr) and 
-                        isinstance(node.body[0].value, ast.Str)):
+                        (isinstance(node.body[0].value, ast.Constant) or 
+                        (hasattr(ast, 'Str') and isinstance(node.body[0].value, ast.Str)))):
                         docstring_positions.append((node.body[0].lineno, node.body[0].end_lineno))
             
             # If no docstrings found, return content unchanged
@@ -315,7 +328,7 @@ class MicropythonOptimizer:
             tree = ast.parse(content)
             string_positions = []
             for node in ast.walk(tree):
-                if isinstance(node, ast.Str) or (hasattr(ast, 'JoinedStr') and isinstance(node, ast.JoinedStr)):
+                if (isinstance(node, ast.Constant) or (hasattr(ast, 'Str') and isinstance(node, ast.Str))) or (hasattr(ast, 'JoinedStr') and isinstance(node, ast.JoinedStr)):
                     if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
                         string_positions.append((node.lineno, node.end_lineno))
             
@@ -711,7 +724,8 @@ class MicropythonOptimizer:
                         imports[name.name] = {
                             'asname': name.asname or name.name,
                             'node': node,
-                            'used': False
+                            'used': False,
+                            'lineno': node.lineno
                         }
                 elif isinstance(node, ast.ImportFrom):
                     module = node.module
@@ -723,7 +737,8 @@ class MicropythonOptimizer:
                             'used': False,
                             'from_import': True,
                             'module': module,
-                            'name': name.name
+                            'name': name.name,
+                            'lineno': node.lineno
                         }
             
             # Mark imports as used if they appear in the code
@@ -751,22 +766,90 @@ class MicropythonOptimizer:
                 if not info['used'] and not name.startswith('_')
             ]
             
-            # Simple implementation: just comment out unused import lines
-            lines = content.split('\n')
-            for info in unused_imports:
-                node = info['node']
-                start_line = node.lineno - 1  # AST is 1-indexed, list is 0-indexed
-                
-                # Comment out the line
-                if start_line < len(lines):
-                    lines[start_line] = f"# UNUSED: {lines[start_line]}"
+            if self.options.verbose:
+                if unused_imports:
+                    print("\nFound unused imports:")
+                    for info in unused_imports:
+                        if 'from_import' in info:
+                            if info['module']:
+                                print(f"  Line {info['lineno']}: from {info['module']} import {info['name']}")
+                            else:
+                                print(f"  Line {info['lineno']}: from . import {info['name']}")
+                        else:
+                            print(f"  Line {info['lineno']}: import {info['asname']}")
             
-            return '\n'.join(lines)
+            # Remove unused import lines
+            if unused_imports:
+                lines = content.split('\n')
+                line_indices_to_remove = []
+                
+                # Collect line numbers to remove
+                for info in unused_imports:
+                    line_num = info['lineno'] - 1  # Convert from 1-indexed to 0-indexed
+                    
+                    if line_num < len(lines):
+                        if self.options.verbose:
+                            print(f"  Removing: {lines[line_num]}")
+                        line_indices_to_remove.append(line_num)
+                
+                # Sort in descending order to prevent index shifting when removing lines
+                line_indices_to_remove.sort(reverse=True)
+                
+                # Remove the lines
+                for line_idx in line_indices_to_remove:
+                    if line_idx < len(lines):
+                        del lines[line_idx]
+                
+                if self.options.verbose:
+                    print(f"Removed {len(line_indices_to_remove)} unused import lines")
+                
+                return '\n'.join(lines)
+            else:
+                # No changes needed
+                return content
+                
         except Exception as e:
             # If any error occurs, return the original content
             if self.options.verbose:
                 print(colorize(f"Error analyzing imports: {e}", Colors.YELLOW))
+                import traceback
+                traceback.print_exc()  # Print stack trace for better debugging
             return content
+
+    def _convert_spaces_to_tabs(self, content: str, tab_size: int = 4) -> str:
+        """Convert spaces used for indentation to tabs
+        
+        Args:
+            content (str): File content to process
+            tab_size (int): Number of spaces that represent one tab (default: 4)
+            
+        Returns:
+            str: Content with indentation converted to tabs
+        """
+        lines = content.split('\n')
+        result = []
+        
+        for line in lines:
+            # Skip empty lines
+            if not line.strip():
+                result.append(line)
+                continue
+                
+            # Count leading spaces
+            leading_spaces = len(line) - len(line.lstrip(' '))
+            
+            # Calculate number of tabs and remaining spaces
+            tabs = leading_spaces // tab_size
+            remaining_spaces = leading_spaces % tab_size
+            
+            # Replace leading spaces with tabs
+            if tabs > 0:
+                converted_line = '\t' * tabs + ' ' * remaining_spaces + line.lstrip(' ')
+                result.append(converted_line)
+            else:
+                result.append(line)
+                
+        return '\n'.join(result)
 
     def process_directory(self, input_dir: str, output_dir: str = None) -> Dict[str, Any]:
         """Process all Python files in a directory
@@ -901,8 +984,13 @@ def parse_args() -> argparse.Namespace:
         epilog=__doc__.split('\n\n')[1:]  # Use the module docstring for examples
     )
     
-    parser.add_argument('input', nargs='?', help="Input file or directory (not needed with --manifest)")
-    parser.add_argument('output', nargs='?', help="Output file or directory (defaults to input)")
+    # Change these to named arguments with help text to clarify
+    parser.add_argument('--input', help="Input file or directory (not needed with --manifest)")
+    parser.add_argument('--output', help="Output file or directory (defaults to input)")
+    
+    # Add positional arguments as fallbacks for backward compatibility
+    parser.add_argument('input_pos', nargs='?', help=argparse.SUPPRESS)  # Hide in help
+    parser.add_argument('output_pos', nargs='?', help=argparse.SUPPRESS) # Hide in help
     
     parser.add_argument('--manifest', help="Path to manifest.json file to identify files to optimize")
     parser.add_argument('--safe-mode', action='store_true', help="Replace print statements with 'pass' instead of removing them")
@@ -920,8 +1008,28 @@ def parse_args() -> argparse.Namespace:
         action='store_true',
         help="Experimental: Remove if-else blocks where both branches are empty or pass"
     )
+    parser.add_argument(
+        '--spaces-to-tabs',
+        action='store_true',
+        help="Convert spaces used for indentation to tabs"
+    )
+    parser.add_argument(
+        '--tab-size',
+        type=int,
+        default=4,
+        help="Number of spaces that represent one tab (default: 4)"
+    )
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    
+    # Support both positional and named arguments
+    # Named arguments take precedence
+    if args.input is None and args.input_pos is not None:
+        args.input = args.input_pos
+    if args.output is None and args.output_pos is not None:
+        args.output = args.output_pos
+    
+    return args
 
 
 def load_manifest(manifest_path):
@@ -968,6 +1076,9 @@ def process_manifest_files(optimizer, manifest, output_dir, base_dir=None):
     """
     if base_dir is None:
         base_dir = os.getcwd()
+        
+    # Ensure output_dir exists
+    os.makedirs(output_dir, exist_ok=True)
         
     stats = {
         "files_processed": 0,
@@ -1018,8 +1129,11 @@ def process_manifest_files(optimizer, manifest, output_dir, base_dir=None):
             print(colorize(f"Warning: File in manifest not found: {input_path}", Colors.YELLOW))
             continue
         
-        # Construct output path
+        # Construct output path - importantly, use output_dir as the base
         output_path = os.path.normpath(os.path.join(output_dir, file_path))
+        
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         # Optimize the file
         if optimizer.options.verbose:
@@ -1057,6 +1171,14 @@ def main() -> None:
         # Determine output directory
         manifest_dir = os.path.dirname(os.path.abspath(args.manifest))
         output_path = os.path.abspath(args.output) if args.output else manifest_dir
+        
+        # Make sure output directory exists
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Print info about paths
+        if args.verbose:
+            print(f"Manifest directory: {manifest_dir}")
+            print(f"Output directory: {output_path}")
         
         # Process files from manifest
         stats = process_manifest_files(optimizer, manifest, output_path, manifest_dir)

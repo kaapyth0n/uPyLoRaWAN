@@ -262,8 +262,8 @@ class LoRaHandler:
 				msg[8] = outdoor_fixed >> 8 & 255
 				msg[9] = outdoor_fixed & 255
 			else:
-				msg[8] = 255
-				msg[9] = 255
+				msg[8] = 0x80
+				msg[9] = 0x02
 			if self.send_data(msg, len(msg), self.frame_counter):
 				self.last_status_time = time.time()
 				return True
