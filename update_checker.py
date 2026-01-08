@@ -175,62 +175,95 @@ def fetch_manifest(base_url):
         gc.collect()  # Final cleanup
     
 def download_file(base_url, file_info):
-    """Download file and create necessary directories
-    
+    """Download file using chunked streaming to minimize memory usage
+
     Args:
         base_url (str): Base URL for downloads
         file_info (dict): File information from manifest
-    
+
     Returns:
         bool: True if successful
     """
+    r = None
     try:
         # Get full path
         path = file_info['path']
         if path.startswith('/'):
             path = path[1:]  # Remove leading slash
-            
+
         # Create temp filename
         temp_path = f"{path}.new"
-        
+
         # Ensure directory exists
         directory = path.rsplit('/', 1)[0] if '/' in path else ''
         print(f"\nProcessing download:")
         print(f"Path: {path}")
         print(f"Temp path: {temp_path}")
         print(f"Directory: {directory}")
-        
+
         if directory:
             if not ensure_directory_exists(directory):
                 print("Failed to create directory structure")
                 return False
-                
+
             # Verify path is writable
             success, message = verify_path_access(temp_path)
             if not success:
                 print(f"Path verification failed: {message}")
-                return False   
-        
-        # Download file
+                return False
+
+        # Free memory before download
+        gc.collect()
+
+        # Calculate optimal chunk size based on available memory
+        chunk_size = get_optimal_chunk_size()
+        print(f"Using chunk size: {chunk_size} bytes")
+
+        # Download file with streaming to avoid loading entire file into memory
         print(f"Downloading from: {base_url}/{path}")
-        r = urequests.get(f"{base_url}/{path}")
+        r = urequests.get(f"{base_url}/{path}", stream=True)
         print(f"Download status: {r.status_code}")
-        
+
         if r.status_code == 200:
             print(f"Writing to: {temp_path}")
             try:
+                bytes_written = 0
                 with open(temp_path, 'wb') as f:
-                    f.write(r.content)
-                print("File written successfully")
+                    # Read and write in chunks to minimize memory usage
+                    while True:
+                        chunk = r.raw.read(chunk_size)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        bytes_written += len(chunk)
+                        gc.collect()  # Free memory after each chunk
+
+                print(f"File written successfully ({bytes_written} bytes)")
                 return True
             except OSError as e:
                 print(f"Error writing file: {e}")
+                # Clean up partial file on error
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
                 raise
-            
+        else:
+            print(f"Server returned error status: {r.status_code}")
+            return False
+
     except Exception as e:
         print(f"Download failed: {e}")
         if isinstance(e, OSError):
             print(f"OSError number: {e.args[0]}")
+    finally:
+        # Always close the response to free resources
+        if r:
+            try:
+                r.close()
+            except:
+                pass
+        gc.collect()
     return False
 
 def ensure_directory_exists(directory):
