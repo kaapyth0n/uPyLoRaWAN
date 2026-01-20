@@ -769,11 +769,11 @@ class LoRaHandler:
             return False
 
     def send_param_value(self, param_id):
-        """Send parameter value via LoRaWAN
-        
+        """Send parameter value via LoRaWAN using NOTIFY message
+
         Args:
             param_id (int): Parameter ID
-            
+
         Returns:
             bool: True if successful
         """
@@ -782,25 +782,13 @@ class LoRaHandler:
             param_info = self.controller.config_manager.get_param_info(param_id=param_id)
             if not param_info:
                 return False
-                
+
             param_name = self.controller.config_manager.id_to_param[param_id]
             value = self.controller.config_manager.get_param(param_name)
-            
-            # Encode message
-            msg = bytearray()
-            msg.append(self.MSG_CONFIG)  # Message type
-            msg.append(param_id)         # Parameter ID
-            
-            # Encode value
-            encoded_value = self._encode_parameter_value(param_info, value)
-            if encoded_value is None:
-                return False
-                
-            msg.extend(encoded_value)
-            
-            # Send message
-            return self.send_data(msg, len(msg), self.frame_counter)
-            
+
+            # Use _send_notification to send with correct NOTIFY message type
+            return self._send_notification(param_id, value, param_info)
+
         except Exception as e:
             print(f"Parameter send error: {e}")
             return False

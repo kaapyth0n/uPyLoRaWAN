@@ -96,10 +96,20 @@ All parameters are enumerated in `config_manager.py`
 - 0x03: Write failed
 - 0x04: Type error
 
+## Notification Payload Format
+
+`[Sequence (1B)] [Parameter Code (1B)] [Parameter Value (...)]`
+
+Device sends NOTIFY (0x05) messages:
+- When a parameter value changes (triggered by local or remote config)
+- In response to CONFIG read requests (parameter value query)
+
+"Sequence" - auto-incremented by device for each notification sent.
+
 ### Examples:
-* --> `01 99 01 00af`: Configure (01) using sequence 99 parameter 01 with value 17.5 (00af)
-* <-- `04 99 01 00`: Acknowledge (04) sequence 01 parameter 01 success (00)
-* <-- `05 00 01 00af`: Notify (05) parameter 01 changed to 17.5 (00af)
+* --> `01 99 01 00af`: Configure (01) sequence 99 parameter 01 with value 17.5 (00af)
+* <-- `04 99 01 00`: Acknowledge (04) sequence 99 parameter 01 success (00)
+* <-- `05 00 01 00af`: Notify (05) sequence 00 parameter 01 changed to 17.5 (00af)
 
 ### Commands:
 - Reinitialize: `02 00`
@@ -134,10 +144,10 @@ The CONFIG message type (0x01) supports both read and write operations:
 - **Parameter 29** (`firmware_complete`): Boolean, read-only. Returns 0x01 if all files match manifest, 0x00 otherwise
 
 **Examples**:
-- Query firmware version: `01 00 1C` (CONFIG, seq=0, param_id=28)
-- Response: `01 1C 32 36 30 31 32 30 2D 36 32 36 31 31 64 35 61` (version string UTF-8 encoded)
-- Query firmware complete: `01 00 1D` (CONFIG, seq=0, param_id=29)
-- Response: `01 1D 01` (complete=true)
+- Query firmware version: `01 00 1C` (CONFIG read, seq=0, param_id=28)
+- Response: `05 00 1C 32 36 30 31 32 30 2D ...` (NOTIFY, seq, param_id=28, version UTF-8)
+- Query firmware complete: `01 00 1D` (CONFIG read, seq=0, param_id=29)
+- Response: `05 01 1D 01` (NOTIFY, seq, param_id=29, complete=true)
 
 ### Firmware State Storage
 
