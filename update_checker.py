@@ -105,6 +105,25 @@ def get_local_versions():
     except:
         return {}
 
+
+def save_firmware_state(version, complete):
+    """Save firmware version state to file.
+
+    This persists the firmware version from manifest and whether all files
+    match the manifest (complete OTA update).
+
+    Args:
+        version (str): Firmware version string (e.g., '250312-f3c9f2e9')
+        complete (bool): True if all files match manifest
+    """
+    try:
+        state = {'version': version, 'complete': complete}
+        with open('firmware_state.json', 'w') as f:
+            json.dump(state, f)
+        print(f"Firmware state saved: {version}, complete={complete}")
+    except Exception as e:
+        print(f"Failed to save firmware state: {e}")
+
 def get_optimal_chunk_size():
     """Calculate optimal chunk size based on available memory"""
     gc.collect()
@@ -441,19 +460,22 @@ def check_updates(base_url=None):
         print(f"Remote version: {info['version']}")
         local_version = local_versions.get(filename, "Not installed")
         print(f"Local version: {local_version}")
-        
+
         if filename not in local_versions or \
            local_versions[filename] < info['version']:
             print(f"Update needed for {filename}")
             updates_needed.append((filename, info))
         else:
             print(f"No update needed for {filename}")
-    
+
+    # Extract firmware version from manifest
+    fw_version = manifest.get('firmware_version', 'unknown')
+
     if updates_needed:
         print(f"\nFound {len(updates_needed)} files needing updates:")
         for filename, info in updates_needed:
             print(f"- {filename} (version {info['version']})")
-        
+
         update_display(
             "Updates Available",
             f"Found {len(updates_needed)}",
@@ -469,8 +491,11 @@ def check_updates(base_url=None):
             "up to date",
             beep=True
         )
-    
-    return updates_needed
+        # No updates needed means firmware is complete
+        save_firmware_state(fw_version, complete=True)
+
+    # Return tuple: (updates_needed, firmware_version)
+    return (updates_needed, fw_version)
 
 def process_updates(base_url, updates_needed):
     """Process updates with provided base URL"""
@@ -605,9 +630,17 @@ def check_and_update(base_url=None):
         )
         
         retries = 3
+        updates = None
+        fw_version = 'unknown'
         while retries > 0:
             try:
-                updates = check_updates(base_url)
+                result = check_updates(base_url)
+                # check_updates returns (updates_needed, firmware_version)
+                if isinstance(result, tuple):
+                    updates, fw_version = result
+                else:
+                    # Handle legacy return format (just updates)
+                    updates = result
                 break
             except MemoryError:
                 print(f"Memory error, retrying... ({retries} attempts left)")
@@ -617,25 +650,29 @@ def check_and_update(base_url=None):
             except Exception as e:
                 print(f"Error checking updates: {e}")
                 break
-        
+
         if retries == 0:
             print("Failed to check updates after retries")
             return UpdateResult(False, error="Memory error after retries")
-        
+
         if not updates:
             if updates is False:  # Error occurred
                 print("Update check failed")
                 return UpdateResult(False, error="Failed to check for updates")
-            else:  # No updates needed
+            else:  # No updates needed (already saved state in check_updates)
                 print("No updates needed")
                 return UpdateResult(True, [])
-        
+
         print(f"\nProcessing {len(updates)} updates...")
         updated_files = process_updates(base_url, updates)
-        
+
         print("Cleaning up...")
         gc.collect()  # Clean up memory after updates
-        
+
+        # Determine if firmware update is complete
+        complete = (updated_files == len(updates))
+        save_firmware_state(fw_version, complete)
+
         if updated_files > 0:
             print(f"Successfully updated {updated_files} files")
             return UpdateResult(True, [f[0] for f in updates[:updated_files]])

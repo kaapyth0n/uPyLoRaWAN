@@ -59,8 +59,10 @@ config_manager.set_param_by_id(param_id, value)  # by ID for LoRaWAN
 ### LoRaWAN Message Protocol
 - Message format: `[Type (1B)] [Payload...]`
 - Types: CONFIG (0x01), COMMAND (0x02), QUERY (0x03), ACK (0x04), NOTIFY (0x05)
-- CONFIG payload: `[Sequence] [ParamCode] [Value (2B big-endian)]`
+- CONFIG write: `[Sequence] [ParamCode] [Value (2B big-endian)]`
+- CONFIG read: `[Sequence] [ParamCode]` (no value = read request)
 - Float values transmitted as `int(value * 10)`
+- Virtual params: `firmware_version` (ID 28), `firmware_complete` (ID 29) - read-only
 
 ## Control Modes
 
@@ -77,6 +79,7 @@ See `docs/SSR2-2.10_resistance_simulation.md` for detailed documentation on resi
 - `config.py`: Device-specific settings (SPI pins, LoRa keys, MQTT broker)
 - `wifi_config.json`: Wi-Fi credentials (created via config portal)
 - `boiler_config.json`: Runtime parameters (setpoint, mode, PID gains)
+- `firmware_state.json`: Firmware version and OTA completion status (auto-generated)
 
 ## MQTT Topics
 
@@ -105,7 +108,7 @@ Devices download firmware directly from GitHub after power on, based on the `upd
    ```bash
    python manifest_generator.py
    ```
-   The manifest tracks file versions and hashes - devices use this to determine which files need updating. Missing or outdated manifest will break OTA updates.
+   The manifest tracks file versions, hashes, and unified `firmware_version` (YYMMDD-hash format). Devices use this to determine which files need updating and store the version in `firmware_state.json` after OTA. Missing or outdated manifest will break OTA updates.
 
 3. **Commit to release branch**: Push both optimized files and updated manifest to the appropriate branch
 

@@ -112,6 +112,45 @@ All parameters are enumerated in `config_manager.py`
 - Diagnostic: `03 01`
 - Errors: `03 02`
 
+## Firmware Version
+
+The device tracks a unified firmware version derived from all file hashes. This allows querying the exact firmware state via LoRa.
+
+### Version Format
+`YYMMDD-<8-char-hash>` (e.g., `260120-62611d5a`)
+
+- **YYMMDD**: Date when manifest was generated
+- **8-char-hash**: First 8 characters of SHA256 hash of all combined file hashes
+
+### Reading Firmware Version via LoRa
+
+The CONFIG message type (0x01) supports both read and write operations:
+
+**Read request format**: `[0x01][sequence][param_id]` (3 bytes, no value)
+**Write request format**: `[0x01][sequence][param_id][value...]` (4+ bytes)
+
+**Firmware parameters**:
+- **Parameter 28** (`firmware_version`): String, read-only. Returns version like `260120-62611d5a`
+- **Parameter 29** (`firmware_complete`): Boolean, read-only. Returns 0x01 if all files match manifest, 0x00 otherwise
+
+**Examples**:
+- Query firmware version: `01 00 1C` (CONFIG, seq=0, param_id=28)
+- Response: `01 1C 32 36 30 31 32 30 2D 36 32 36 31 31 64 35 61` (version string UTF-8 encoded)
+- Query firmware complete: `01 00 1D` (CONFIG, seq=0, param_id=29)
+- Response: `01 1D 01` (complete=true)
+
+### Firmware State Storage
+
+After each OTA update check, the device saves its firmware state to `firmware_state.json`:
+```json
+{
+  "version": "260120-62611d5a",
+  "complete": true
+}
+```
+
+- `version`: Current firmware version from manifest
+- `complete`: True if all files were successfully updated to match manifest
 
 # Hardware
 The device is a FB2-3_14 board [Fractal Set](https://drive.google.com/file/d/1T3OamZlSymlYZOmwFk_QJ0Zuoa1NRuzf/view?usp=drive_link) with Raspberry Pi Pico W module as a controller and MicroPython installed there.

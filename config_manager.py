@@ -238,6 +238,23 @@ class ConfigurationManager:
                 'default': BoilerDefaults.TEMP_FILTER_TAU,
                 'scale': 1,  # No scaling needed, 7200 fits in 16-bit (precision: 1 second)
                 'description': 'Low-pass filter time constant for temperature (seconds). 0=disabled. Typical: 1800 (30 min) for slow boilers'
+            },
+            # Virtual read-only firmware parameters (read from firmware_state.json)
+            'firmware_version': {
+                'id': 28,
+                'type': str,
+                'readonly': True,
+                'virtual': True,  # Not stored in config, read from firmware_state.json
+                'default': 'unknown',
+                'description': 'Firmware version (YYMMDD-hash format)'
+            },
+            'firmware_complete': {
+                'id': 29,
+                'type': bool,
+                'readonly': True,
+                'virtual': True,  # Not stored in config, read from firmware_state.json
+                'default': False,
+                'description': 'True if all files match manifest after OTA update'
             }
         }
         
@@ -434,31 +451,65 @@ class ConfigurationManager:
             
     def get_param(self, param_name):
         """Get parameter value
-        
+
         Args:
             param_name (str): Parameter name
-            
+
         Returns:
             Parameter value or None if not found
         """
-        return self.current_config.get(param_name, 
+        # Handle virtual firmware parameters (read from firmware_state.json)
+        if param_name in ('firmware_version', 'firmware_complete'):
+            return self._get_firmware_param(param_name)
+
+        return self.current_config.get(param_name,
             self.parameter_definitions.get(param_name, {}).get('default'))
+
+    def _get_firmware_param(self, param_name):
+        """Get virtual firmware parameter from firmware_state.json
+
+        Args:
+            param_name (str): 'firmware_version' or 'firmware_complete'
+
+        Returns:
+            Parameter value or default if not found
+        """
+        try:
+            with open('firmware_state.json', 'r') as f:
+                state = json.load(f)
+            if param_name == 'firmware_version':
+                return state.get('version', 'unknown')
+            elif param_name == 'firmware_complete':
+                return state.get('complete', False)
+        except:
+            pass
+        # Return default value on error
+        return self.parameter_definitions[param_name]['default']
             
     def set_param(self, param_name, value):
         """Set parameter value
-        
+
         Args:
             param_name (str): Parameter name
             value: Parameter value
-            
+
         Returns:
             tuple: (success (bool), message (str))
         """
+        # Check if parameter exists
+        if param_name not in self.parameter_definitions:
+            return False, f"Unknown parameter: {param_name}"
+
+        # Block writes to readonly parameters
+        param_def = self.parameter_definitions[param_name]
+        if param_def.get('readonly'):
+            return False, f"Parameter {param_name} is read-only"
+
         # Validate parameter
         valid, message = self.validate_param(param_name, value)
         if not valid:
             return False, message
-        
+
         print(f"Setting {param_name} to {value}")
         print(f"Current value: {self.current_config.get(param_name)}")
         
