@@ -69,6 +69,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self._ntc10k_last_update = 0      # Timestamp of last output change
         self._previous_mode = None        # Track mode changes for state reset
 
+        # Direct sensor mode runtime state (PID-controlled resistance output)
+        self._direct_sensor_current_r = None  # Current resistance being output (Ohms)
+        self._direct_sensor_last_update = 0   # Timestamp of last control update
+
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
 
@@ -421,6 +425,11 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     # Reset ntc10k state to reinitialize from config
                     self._ntc10k_current_temp = None
                     print(f'Mode changed to ntc10k, will initialize from config')
+                elif mode == 'direct_sensor':
+                    # Reset direct_sensor state to reinitialize from midpoint
+                    self._direct_sensor_current_r = None
+                    self.temp_controller.reset()  # Reset PID state
+                    print(f'Mode changed to direct_sensor, will initialize from midpoint')
                 self._previous_mode = mode
 
             if mode == 'pid':
@@ -553,7 +562,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     # Update check interval: every 10 seconds for smoother control
                     if dt >= 10.0:
                         setpoint = self._get_setpoint()
-                        error = setpoint - self.current_temp
+                        # Use filtered temperature if temp_filter_tau > 0
+                        effective_temp = self.temp_controller.get_effective_temp(self.current_temp, dt)
+                        error = setpoint - effective_temp
                         hysteresis = self.config_manager.get_param('hysteresis')
 
                         # Only adjust if outside hysteresis band
@@ -602,6 +613,64 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     self.heating_active = True  # Indicate simulation is active
                 except Exception as e:
                     self.logger.log_error('control', f'Direct resistance control error: {e}', 2)
+                    self.heating_active = False
+
+            elif mode == 'direct_sensor':
+                # Direct sensor mode: PID-controlled resistance output
+                # Uses PID to directly manipulate resistance for unknown NTC/PTC sensors
+                if self._pid_configured:
+                    try:
+                        self.fr.write(26, 0, slot=6)
+                        self._pid_configured = False
+                    except Exception as e:
+                        self.logger.log_error('control', f'Error disabling PID: {e}', 2)
+
+                try:
+                    current_time = time.time()
+
+                    # Get configuration parameters
+                    min_r = self.config_manager.get_param('ds_min_resistance')
+                    max_r = self.config_manager.get_param('ds_max_resistance')
+                    invert = self.config_manager.get_param('ds_invert_control')
+                    rate_limit = self.config_manager.get_param('ds_rate_limit')
+                    pid_dt = self.config_manager.get_param('pid_dt')
+
+                    # Initialize resistance to midpoint on first run or mode switch
+                    if self._direct_sensor_current_r is None:
+                        self._direct_sensor_current_r = (min_r + max_r) / 2
+                        self._direct_sensor_last_update = current_time
+                        print(f'Direct sensor: initialized to {self._direct_sensor_current_r:.1f} Ohms')
+
+                    # Calculate time since last update
+                    dt = current_time - self._direct_sensor_last_update
+
+                    # Only update at specified PID interval
+                    if dt >= pid_dt:
+                        # Calculate new resistance using PID
+                        new_r = self.temp_controller.calculate_direct_sensor_output(
+                            self.current_temp,
+                            self._get_setpoint(),
+                            dt,
+                            min_r,
+                            max_r,
+                            self._direct_sensor_current_r,
+                            rate_limit,
+                            invert
+                        )
+
+                        if new_r != self._direct_sensor_current_r:
+                            self._direct_sensor_current_r = new_r
+                            print(f'Direct sensor: R={self._direct_sensor_current_r:.1f} Ohms')
+
+                        self._direct_sensor_last_update = current_time
+                        self.temp_controller.last_control_time = current_time
+
+                    # Write current resistance to SSR2-2.10 parameter 6 (R_Emulated)
+                    self.fr.write(6, self._direct_sensor_current_r, slot=5)
+                    self.heating_active = True
+
+                except Exception as e:
+                    self.logger.log_error('control', f'Direct sensor control error: {e}', 2)
                     self.heating_active = False
 
             return True

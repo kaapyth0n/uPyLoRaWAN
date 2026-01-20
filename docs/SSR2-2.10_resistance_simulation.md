@@ -33,6 +33,9 @@ Automatic regulation mode that adjusts the simulated outdoor temperature to reac
 | `setpoint` | 1 | float | 0 to 100 | 40.0 | Target flow temperature (C) |
 | `simulated_temp` | 20 | float | -40 to 100 | 20.0 | Initial simulated outdoor temp (C) |
 | `hysteresis` | 4 | float | 0.1 to 25 | 5.0 | Dead band before adjustments (C) |
+| `temp_filter_tau` | 27 | float | 0 to 7200 | 0 | Temperature filter time constant (seconds). 0=disabled |
+
+**Temperature Filtering**: If `temp_filter_tau > 0`, the flow temperature used for error calculation is filtered with a low-pass filter. This helps with slow boilers that have significant oscillation. See [PID Tuning Guide](PID_tuning_guide.md) for details.
 
 **Usage:**
 ```python
@@ -62,6 +65,94 @@ config_manager.set_param('simulated_temp', 10.0) # Start from 10C outdoor (optio
 - **MQTT**: Published as `simulated_temp` topic with current simulated outdoor temperature
 - **LoRaWAN**: Bytes 6-7 of status message contain simulated temp (int16 * 10) instead of voltage
 - **Display**: State line shows "HEAT {temp}C" with current simulated outdoor temperature
+
+### Direct Sensor PID Mode (`direct_sensor`)
+
+PID-controlled resistance output mode for boilers with unknown NTC/PTC outdoor temperature sensors. Unlike `ntc10k` mode (which adjusts simulated temperature that the SSR module converts via NTC10k curve), this mode directly controls resistance as the PID output.
+
+**Use case**: Boilers with non-standard outdoor sensors where the temperature-resistance curve is unknown.
+
+**Control Principle:**
+- Uses `setpoint` as the target flow temperature
+- Reads actual flow temperature from IO1 module
+- PID output maps directly to resistance offset from midpoint
+- **NTC default**: Flow too hot → decrease resistance → boiler perceives warmer outdoor → reduces flow temp
+- **PTC mode** (`ds_invert_control=1`): Control direction is inverted
+- Rate-limited to prevent sudden resistance jumps
+
+**Configuration Parameters:**
+| Parameter | ID | Type | Range | Default | Description |
+|-----------|-----|------|-------|---------|-------------|
+| `mode` | 0 | str | - | relay | Set to `"direct_sensor"` |
+| `setpoint` | 1 | float | 0 to 100 | 40.0 | Target flow temperature (C) |
+| `ds_min_resistance` | 23 | float | 100 to 100000 | 900.0 | Min resistance bound (Ohms) |
+| `ds_max_resistance` | 24 | float | 100 to 100000 | 1200.0 | Max resistance bound (Ohms) |
+| `ds_invert_control` | 25 | int | 0 to 1 | 0 | 0=NTC (normal), 1=PTC (inverted) |
+| `ds_rate_limit` | 26 | float | 0.1 to 100 | 5.0 | Max change per PID update (Ohms) |
+
+**Reused PID parameters** (same as `soft_pid` mode):
+| Parameter | ID | Description |
+|-----------|-----|-------------|
+| `pid_kp_std` | 16 | Proportional gain (standard form) |
+| `pid_ti_std` | 17 | Integral time constant (seconds) |
+| `pid_td_std` | 18 | Derivative time constant (seconds) |
+| `pid_dt` | 19 | PID control/update interval (seconds) |
+| `temp_filter_tau` | 27 | Temperature filter time constant (seconds). 0=disabled |
+
+**See [PID Tuning Guide](PID_tuning_guide.md) for detailed tuning instructions.**
+
+**Rate Limiting Explained:**
+
+The `ds_rate_limit` parameter limits how much resistance can change per PID update cycle. The update cycle interval is controlled by `pid_dt`.
+
+With default values (`ds_rate_limit=5.0`, `pid_dt=10.0`):
+- Max change: 5 Ohms every 10 seconds
+- Effective rate: **0.5 Ohms/second** or **30 Ohms/minute**
+
+To change from 900 to 1200 Ohms (300 Ohm range) at default settings:
+- Time required: 300 ÷ 5 × 10 = **600 seconds (10 minutes)**
+
+Adjust both parameters to tune response speed:
+- Faster response: increase `ds_rate_limit` or decrease `pid_dt`
+- Smoother/slower: decrease `ds_rate_limit` or increase `pid_dt`
+
+**Usage:**
+```python
+# Via config_manager
+config_manager.set_param('mode', 'direct_sensor')
+config_manager.set_param('setpoint', 45.0)           # Target 45C flow temperature
+config_manager.set_param('ds_min_resistance', 900.0) # Min resistance (Ohms)
+config_manager.set_param('ds_max_resistance', 1200.0) # Max resistance (Ohms)
+config_manager.set_param('ds_invert_control', 0)     # NTC mode (normal)
+config_manager.set_param('ds_rate_limit', 5.0)       # Max 5 Ohm change per update
+```
+
+**How it works:**
+1. On mode entry, initializes resistance to midpoint: (min_r + max_r) / 2
+2. At each PID interval (`pid_dt`), calculates error: `setpoint - current_flow_temp`
+3. If `ds_invert_control=1` (PTC), negates the error
+4. Applies PID algorithm using `pid_kp_std`, `pid_ti_std`, `pid_td_std`
+5. Maps PID output to resistance: `midpoint + pid_output`
+6. Applies rate limiting: max `ds_rate_limit` Ohms change per update
+7. Clamps to bounds: `[ds_min_resistance, ds_max_resistance]`
+8. Writes to SSR2-2.10 parameter 6 (R_Emulated)
+
+**Safety Features:**
+- Bounds clamping: Output always within [min_r, max_r]
+- Rate limiting: Prevents sudden resistance jumps
+- Invalid input handling: Returns current resistance on None/invalid readings
+- PID state reset: Resets integral/derivative on mode switch
+- Hardware PID disable: Turns off IO1 hardware PID when entering mode
+
+**Runtime Values (not stored in config):**
+- Current resistance output is a runtime value
+- Resets to midpoint when re-entering the mode
+
+**Status Reporting:**
+- **MQTT**: Published as `current_resistance` topic with current output resistance (Ohms)
+- **MQTT**: PID components (`pid_p`, `pid_i`, `pid_d`) also published
+- **LoRaWAN**: Bytes 6-7 of status message contain resistance with scale 0.1 (value/10, precision 10 Ohms)
+- **Display**: Shows current resistance output (to be implemented)
 
 ### Direct Resistance Mode (`sensor`)
 
@@ -115,6 +206,39 @@ param_id=0, value="ntc10k"
 param_id=20, value=10.0
 ```
 
+### LoRaWAN Encoding for Large Value Parameters
+
+**Resistance parameters** (`direct_resistance`, `ds_min_resistance`, `ds_max_resistance`) use scale=0.1:
+- Range: 100-100,000 Ohms
+- Precision: 10 Ohms
+
+**Time constant parameter** (`temp_filter_tau`) uses scale=1:
+- Range: 0-7,200 seconds
+- Precision: 1 second
+
+Resistance parameters use a special encoding to fit in 16-bit LoRaWAN messages:
+
+- **Scale factor**: 0.1 (value is divided by 10 for transmission)
+- **Precision**: 10 Ohms
+- **Range**: 0-655350 Ohms (transmitted as 0-65535)
+
+Example: Setting `ds_max_resistance` to 50000 Ohms:
+- Transmitted value: 50000 * 0.1 = 5000 (fits in 16-bit)
+- Received and decoded: 5000 / 0.1 = 50000.0 Ohms
+
+### LoRaWAN Status Message Format (Bytes 6-7)
+
+Bytes 6-7 of the status message contain mode-dependent output values:
+
+| Mode | Value | Encoding | Precision |
+|------|-------|----------|-----------|
+| `ntc10k` | Simulated outdoor temp (°C) | int16 * 10 | 0.1°C |
+| `direct_sensor` | Current resistance (Ohms) | int16 * 0.1 | 10 Ohms |
+| `pid`, `soft_pid` | Calculated voltage (V) | int16 * 10 | 0.1V |
+| `relay`, `sensor` | Calculated voltage (V) | int16 * 10 | 0.1V |
+
+**Important**: The receiver must know the current mode to correctly decode bytes 6-7.
+
 ## Typical Use Case
 
 ### Automatic Flow Temperature Control (ntc10k mode)
@@ -133,8 +257,21 @@ param_id=20, value=10.0
 3. Set `direct_resistance` to desired value
 4. Manually adjust as needed via MQTT/LoRaWAN
 
+### PID-Controlled Resistance for Unknown Sensors (direct_sensor mode)
+
+1. Disconnect boiler's outdoor temperature sensor
+2. Connect boiler's sensor input to SSR2-2.10 output (X2-2)
+3. Measure or estimate the resistance range of the original sensor
+4. Set `ds_min_resistance` and `ds_max_resistance` to bracket the expected range
+5. Set mode to `direct_sensor`
+6. Set `setpoint` to desired flow temperature (e.g., 45°C)
+7. If using a PTC sensor, set `ds_invert_control=1`
+8. Tune PID parameters (`pid_kp_std`, `pid_ti_std`, `pid_td_std`) as needed
+9. System automatically adjusts resistance via PID to reach target flow temp
+
 ## Notes
 
-- The SSR2-2.10 module is required for `ntc10k` and `sensor` modes
+- The SSR2-2.10 module is required for `ntc10k`, `sensor`, and `direct_sensor` modes
 - Module detection will report an error if SSR2-2.10 is not present when using these modes
 - For relay on/off control, use the LoRa 1.1 board outputs instead (see `use_lora_relay` config)
+- `direct_sensor` mode is useful when the boiler's outdoor sensor type is unknown or uses a non-standard resistance curve

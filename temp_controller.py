@@ -18,11 +18,15 @@ class TemperatureController:
         self.integral_error = 0
         self.last_error = 0
         self.min_control_interval = 1.0  # Minimum time between control decisions
-        
+
         # Add public variables for PID components
         self.p_value = None
         self.i_value = None
         self.d_value = None
+
+        # Filtered temperature for slow thermal systems
+        self.filtered_temp = None         # Current filtered temperature value
+        self.last_filter_time = 0         # Timestamp of last filter update
 
     def add_temp_to_history(self, timestamp, temp):
         """Add a temperature reading to the history"""
@@ -149,26 +153,95 @@ class TemperatureController:
         self.integral_error = 0
         self.last_error = 0
         self.last_control_time = 0
+        self.filtered_temp = None
+        self.last_filter_time = 0
+
+    def update_filtered_temp(self, current_temp, dt):
+        """Update the filtered (low-pass) temperature value
+
+        Implements a first-order low-pass filter (exponential moving average):
+            filtered = alpha * current + (1 - alpha) * filtered
+        where alpha = dt / (tau + dt)
+
+        Args:
+            current_temp (float): Current raw temperature reading
+            dt (float): Time since last update (seconds)
+
+        Returns:
+            float: Filtered temperature value, or current_temp if filtering disabled
+        """
+        if current_temp is None:
+            return self.filtered_temp
+
+        tau = self.config.get_param('temp_filter_tau')
+
+        # If filtering is disabled (tau=0), just return current temp
+        if tau is None or tau <= 0:
+            self.filtered_temp = current_temp
+            return current_temp
+
+        # Initialize filter on first call
+        if self.filtered_temp is None:
+            self.filtered_temp = current_temp
+            self.last_filter_time = time.time()
+            return current_temp
+
+        # Calculate filter coefficient
+        # alpha approaches 1 as dt >> tau (fast response to changes)
+        # alpha approaches 0 as dt << tau (slow response, more filtering)
+        alpha = dt / (tau + dt)
+
+        # Apply exponential moving average filter
+        self.filtered_temp = alpha * current_temp + (1 - alpha) * self.filtered_temp
+        self.last_filter_time = time.time()
+
+        return self.filtered_temp
+
+    def get_effective_temp(self, current_temp, dt):
+        """Get the effective temperature for control calculations
+
+        Returns filtered temperature if filtering is enabled (temp_filter_tau > 0),
+        otherwise returns the raw current temperature.
+
+        Args:
+            current_temp (float): Current raw temperature reading
+            dt (float): Time since last update (seconds)
+
+        Returns:
+            float: Temperature to use for control calculations
+        """
+        tau = self.config.get_param('temp_filter_tau')
+
+        if tau is not None and tau > 0:
+            return self.update_filtered_temp(current_temp, dt)
+        else:
+            return current_temp
 
     def calculate_soft_pid_output(self, current_temp, setpoint, dt):
         """Calculate software PID output using standard form parameters
-        
+
+        Uses filtered temperature if temp_filter_tau > 0, which helps with
+        slow thermal systems that have significant oscillation or noise.
+
         Args:
-            current_temp (float): Current temperature reading
+            current_temp (float): Current temperature reading (will be filtered if enabled)
             setpoint (float): Target temperature
             dt (float): Time since last control action
-            
+
         Returns:
             float: Output value (0-max_volts)
         """
         if current_temp is None or setpoint is None:
             return 0.0
-            
+
+        # Get effective temperature (filtered if enabled)
+        effective_temp = self.get_effective_temp(current_temp, dt)
+
         # Get PID parameters - standard form
         kp = self.config.get_param('pid_kp_std')
         ti = self.config.get_param('pid_ti_std')
         td = self.config.get_param('pid_td_std')
-        
+
         # Safety checks for parameters
         if kp is None or kp <= 0:
             kp = 1.0  # Default value
@@ -176,13 +249,13 @@ class TemperatureController:
             ti = 100.0  # Prevent division by zero
         if td is None:
             td = 0.0  # Default to no derivative action
-        
+
         # Get min/max voltage limits
         pid_min = self.config.get_param('pid_min_volts') or 0.0
         pid_max = self.config.get_param('pid_max_volts') or 10.0
-        
-        # Calculate error
-        error = setpoint - current_temp
+
+        # Calculate error using effective (possibly filtered) temperature
+        error = setpoint - effective_temp
         
         # Store history
         self.add_temp_to_history(time.time(), current_temp)
@@ -232,5 +305,115 @@ class TemperatureController:
         
         # Store last error for next derivative calculation
         self.last_error = error
-        
+
         return output
+
+    def calculate_direct_sensor_output(self, current_temp, setpoint, dt,
+                                        min_r, max_r, current_r, rate_limit, invert):
+        """Calculate PID-controlled resistance output for direct_sensor mode
+
+        Uses PID to control resistance output directly for unknown NTC/PTC sensors.
+        Unlike ntc10k mode which adjusts simulated temperature, this mode outputs
+        resistance directly as the PID control variable.
+
+        Uses filtered temperature if temp_filter_tau > 0, which helps with
+        slow thermal systems that have significant oscillation or noise.
+
+        Args:
+            current_temp (float): Current flow temperature reading (will be filtered if enabled)
+            setpoint (float): Target flow temperature
+            dt (float): Time since last control action (seconds)
+            min_r (float): Minimum resistance bound (Ohms)
+            max_r (float): Maximum resistance bound (Ohms)
+            current_r (float): Current resistance output (Ohms)
+            rate_limit (float): Maximum resistance change per update (Ohms)
+            invert (int): 0=NTC (normal), 1=PTC (inverted control direction)
+
+        Returns:
+            float: New resistance value (clamped and rate-limited)
+        """
+        # Handle invalid inputs by returning current resistance
+        if current_temp is None or setpoint is None or current_r is None:
+            return current_r if current_r is not None else (min_r + max_r) / 2
+
+        # Get effective temperature (filtered if enabled)
+        effective_temp = self.get_effective_temp(current_temp, dt)
+
+        # Get PID parameters from config (reuse soft_pid parameters)
+        kp = self.config.get_param('pid_kp_std')
+        ti = self.config.get_param('pid_ti_std')
+        td = self.config.get_param('pid_td_std')
+
+        # Safety checks for parameters
+        if kp is None or kp <= 0:
+            kp = 1.0
+        if ti is None or ti <= 0:
+            ti = 100.0
+        if td is None:
+            td = 0.0
+
+        # Calculate error using effective (possibly filtered) temperature
+        error = setpoint - effective_temp
+
+        # Invert error for PTC sensors (inverted control direction)
+        if invert:
+            error = -error
+
+        # Store history for trend analysis
+        self.add_temp_to_history(time.time(), current_temp)
+        self.add_error_to_history(error)
+
+        # Calculate proportional term
+        p_term = kp * error
+
+        # Calculate derivative term
+        if dt > 0:
+            derivative = (error - self.last_error) / dt
+        else:
+            derivative = 0
+        d_term = kp * td * derivative
+
+        # Update integral with error contribution
+        self.integral_error += error * dt
+
+        # Calculate integral term
+        i_term = kp * self.integral_error / ti
+
+        # Calculate midpoint of resistance range
+        midpoint = (min_r + max_r) / 2
+        output_range = (max_r - min_r) / 2
+
+        # Limit integral term to prevent windup beyond output range
+        if i_term > output_range:
+            i_term = output_range
+            self.integral_error = i_term * ti / kp
+        elif i_term < -output_range:
+            i_term = -output_range
+            self.integral_error = i_term * ti / kp
+
+        # Calculate PID output as offset from midpoint
+        pid_output = p_term + i_term + d_term
+
+        # Store PID components for reporting
+        self.p_value = p_term
+        self.i_value = i_term
+        self.d_value = d_term
+
+        # Calculate new resistance: midpoint + pid_output
+        # For NTC: error > 0 (too cold) -> pid_output > 0 -> decrease resistance
+        # The control direction depends on how the boiler interprets outdoor sensor
+        new_r = midpoint + pid_output
+
+        # Apply rate limiting
+        if rate_limit > 0 and current_r is not None:
+            delta = new_r - current_r
+            if abs(delta) > rate_limit:
+                new_r = current_r + (rate_limit if delta > 0 else -rate_limit)
+
+        # Clamp to bounds
+        new_r = max(min_r, min(max_r, new_r))
+
+        # Store last error for next derivative calculation
+        self.last_error = error
+
+        return new_r

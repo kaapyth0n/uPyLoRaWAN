@@ -445,15 +445,25 @@ class MQTTHandler:
             # Publish NTC10K simulated temperature if in ntc10k mode
             if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
                 self.publish_parameter('simulated_temp', round(self.controller._ntc10k_current_temp, 1))
-            
-            # Add PID component values if they exist
-            if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid']:
+
+            # Publish current resistance if in direct_sensor mode
+            if hasattr(self.controller, '_direct_sensor_current_r') and self.controller._direct_sensor_current_r is not None:
+                self.publish_parameter('current_resistance', round(self.controller._direct_sensor_current_r, 1))
+
+            # Publish filtered temperature if filtering is enabled
+            if hasattr(self.controller.temp_controller, 'filtered_temp') and self.controller.temp_controller.filtered_temp is not None:
+                tau = self.controller.config_manager.get_param('temp_filter_tau')
+                if tau is not None and tau > 0:
+                    self.publish_parameter('filtered_temp', round(self.controller.temp_controller.filtered_temp, 2))
+
+            # Add PID component values if they exist (for pid, soft_pid, and direct_sensor modes)
+            if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid', 'direct_sensor']:
                 if hasattr(self.controller.temp_controller, 'p_value') and self.controller.temp_controller.p_value is not None:
                     self.publish_parameter('pid_p', round(self.controller.temp_controller.p_value, 3))
-                
+
                 if hasattr(self.controller.temp_controller, 'i_value') and self.controller.temp_controller.i_value is not None:
                     self.publish_parameter('pid_i', round(self.controller.temp_controller.i_value, 3))
-                
+
                 if hasattr(self.controller.temp_controller, 'd_value') and self.controller.temp_controller.d_value is not None:
                     self.publish_parameter('pid_d', round(self.controller.temp_controller.d_value, 3))
             

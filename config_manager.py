@@ -28,7 +28,7 @@ class ConfigurationManager:
             'mode': {
                 'id': 0,  # Add ID for each parameter
                 'type': str,
-                'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid', 'ntc10k'],
+                'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid', 'ntc10k', 'direct_sensor'],
                 'default': BoilerDefaults.DEFAULT_MODE
             },
             'setpoint': {
@@ -184,6 +184,7 @@ class ConfigurationManager:
                 'min': 901.0,
                 'max': 100000.0,
                 'default': BoilerDefaults.DIRECT_RESISTANCE,
+                'scale': 0.1,  # Encode as value/10 to fit in 16-bit (precision: 10 Ohms)
                 'description': 'Direct resistance value for sensor mode (Ohms)'
             },
             'outdoor_sensor_type': {
@@ -192,6 +193,51 @@ class ConfigurationManager:
                 'allowed_values': ['ntc10k', 'ntc5k', 'pt1000', 'ds18b20', 'disabled'],
                 'default': BoilerDefaults.OUTDOOR_SENSOR_TYPE,
                 'description': 'Outdoor temperature sensor type on IO1 LN_2 input'
+            },
+            # Direct sensor mode parameters (PID-controlled resistance output)
+            'ds_min_resistance': {
+                'id': 23,
+                'type': float,
+                'min': 100.0,
+                'max': 100000.0,
+                'default': BoilerDefaults.DIRECT_SENSOR_MIN_R,
+                'scale': 0.1,  # Encode as value/10 to fit in 16-bit (precision: 10 Ohms)
+                'description': 'Direct sensor mode minimum resistance bound (Ohms)'
+            },
+            'ds_max_resistance': {
+                'id': 24,
+                'type': float,
+                'min': 100.0,
+                'max': 100000.0,
+                'default': BoilerDefaults.DIRECT_SENSOR_MAX_R,
+                'scale': 0.1,  # Encode as value/10 to fit in 16-bit (precision: 10 Ohms)
+                'description': 'Direct sensor mode maximum resistance bound (Ohms)'
+            },
+            'ds_invert_control': {
+                'id': 25,
+                'type': int,
+                'min': 0,
+                'max': 1,
+                'default': BoilerDefaults.DIRECT_SENSOR_INVERT,
+                'description': 'Direct sensor control direction: 0=NTC (normal), 1=PTC (inverted)'
+            },
+            'ds_rate_limit': {
+                'id': 26,
+                'type': float,
+                'min': 0.1,
+                'max': 100.0,
+                'default': BoilerDefaults.DIRECT_SENSOR_RATE_LIMIT,
+                'description': 'Direct sensor max resistance change per PID update cycle (Ohms). Effective rate = ds_rate_limit / pid_dt Ohms/sec'
+            },
+            # Temperature filtering for slow thermal systems
+            'temp_filter_tau': {
+                'id': 27,
+                'type': float,
+                'min': 0.0,
+                'max': 7200.0,
+                'default': BoilerDefaults.TEMP_FILTER_TAU,
+                'scale': 1,  # No scaling needed, 7200 fits in 16-bit (precision: 1 second)
+                'description': 'Low-pass filter time constant for temperature (seconds). 0=disabled. Typical: 1800 (30 min) for slow boilers'
             }
         }
         

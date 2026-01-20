@@ -462,9 +462,10 @@ class LoRaHandler:
             # Byte 5: Heating state
             msg[5] = 1 if self.controller.heating_active else 0
 
-            # Bytes 6-7: Voltage or simulated temperature depending on mode
-            # In ntc10k mode: simulated outdoor temperature (int16 * 10)
-            # In other modes: calculated voltage (int16 * 10)
+            # Bytes 6-7: Mode-dependent output value
+            # - ntc10k mode: simulated outdoor temperature (int16 * 10, precision 0.1°C)
+            # - direct_sensor mode: current resistance (int16 * 0.1, precision 10 Ohms)
+            # - other modes: calculated voltage (int16 * 10, precision 0.1V)
             output_value = 0
             mode = self.controller.config_manager.get_param('mode')
             if mode == 'ntc10k':
@@ -474,6 +475,10 @@ class LoRaHandler:
                     # Handle signed int16 for negative values
                     if output_value < 0:
                         output_value = output_value & 0xFFFF
+            elif mode == 'direct_sensor':
+                # Report current resistance in direct_sensor mode (scale 0.1 to fit in 16-bit)
+                if hasattr(self.controller, '_direct_sensor_current_r') and self.controller._direct_sensor_current_r is not None:
+                    output_value = int(self.controller._direct_sensor_current_r * 0.1)
             else:
                 # Report voltage in other modes
                 if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
@@ -543,8 +548,10 @@ class LoRaHandler:
                 return value.to_bytes(2, 'big')
                 
             elif param_type == float:
-                # Encode floats as fixed point with 1 decimal place
-                fixed_point = int(value * 10)
+                # Encode floats using scale factor (default 10 for 1 decimal place)
+                # For large values like resistance, use scale=0.1 to fit in 16-bit
+                scale = param_info.get('scale', 10)
+                fixed_point = int(value * scale)
                 return fixed_point.to_bytes(2, 'big')
                 
             elif param_type == str:
@@ -611,9 +618,10 @@ class LoRaHandler:
                 return int.from_bytes(encoded_bytes, 'big')
                 
             elif param_type == float:
-                # Decode fixed point value
+                # Decode fixed point value using scale factor (default 10)
+                scale = param_info.get('scale', 10)
                 fixed_point = int.from_bytes(encoded_bytes, 'big')
-                return fixed_point / 10.0
+                return fixed_point / scale
                 
             elif param_type == str:
                 # Check if this is a hex format parameter

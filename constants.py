@@ -49,6 +49,15 @@ class BoilerDefaults:
     DIRECT_RESISTANCE = 10000.0   # Default resistance for sensor mode (Ohms)
     OUTDOOR_SENSOR_TYPE = 'ntc10k'  # Default outdoor sensor type
 
+    # Direct sensor mode defaults (PID-controlled resistance output)
+    DIRECT_SENSOR_MIN_R = 900.0       # Minimum resistance bound (Ohms)
+    DIRECT_SENSOR_MAX_R = 1200.0      # Maximum resistance bound (Ohms)
+    DIRECT_SENSOR_INVERT = 0          # 0=NTC (normal), 1=PTC (inverted control)
+    DIRECT_SENSOR_RATE_LIMIT = 5.0    # Max resistance change per PID cycle (Ohms). Rate = this / PID_DT
+
+    # Temperature filtering for PID-based control modes
+    TEMP_FILTER_TAU = 0.0             # Filter time constant (seconds). 0=disabled, typical: 1800 (30 min)
+
 class ErrorCodes:
     """Error codes for system events"""
     

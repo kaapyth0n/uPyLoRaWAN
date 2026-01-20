@@ -171,6 +171,11 @@ class ModuleDetector:
             if not ssr_ok:
                 return False, "SSR2-2.10 module required for NTC10k simulation mode"
 
+        elif mode == 'direct_sensor':
+            # Direct sensor mode requires SSR2-2.10 module for resistance output
+            if not ssr_ok:
+                return False, "SSR2-2.10 module required for direct_sensor mode"
+
         elif mode == 'pid' or mode == 'soft_pid':
             # PID modes require IO module for temperature reading and DAC output
             if not io_ok:
