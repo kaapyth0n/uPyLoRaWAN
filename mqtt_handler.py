@@ -19,10 +19,23 @@ MQTT_ERR_AUTH = -11
 MQTT_ERR_ACL_DENIED = -12
 MQTT_ERR_UNKNOWN = -13
 MQTT_ERR_ERRNO = -14
-MQTT_ERR_DESCRIPTIONS = {MQTT_ERR_NOMEM: 'Out of memory', MQTT_ERR_PROTOCOL: 'Protocol error', MQTT_ERR_INVAL: 'Invalid parameters', MQTT_ERR_NO_CONN: 'No connection', MQTT_ERR_CONN_REFUSED: 'Connection refused', MQTT_ERR_NOT_FOUND: 'DNS resolution failure', MQTT_ERR_CONN_LOST: 'Connection lost', MQTT_ERR_TLS: 'TLS error', MQTT_ERR_PAYLOAD_SIZE: 'Payload size error', MQTT_ERR_NOT_SUPPORTED: 'Not supported', MQTT_ERR_AUTH: 'Authentication error', MQTT_ERR_ACL_DENIED: 'ACL denied', MQTT_ERR_UNKNOWN: 'Unknown error', MQTT_ERR_ERRNO: 'ERRNO error'}
-
+MQTT_ERR_DESCRIPTIONS = {
+	MQTT_ERR_NOMEM: "Out of memory",
+	MQTT_ERR_PROTOCOL: "Protocol error",
+	MQTT_ERR_INVAL: "Invalid parameters",
+	MQTT_ERR_NO_CONN: "No connection",
+	MQTT_ERR_CONN_REFUSED: "Connection refused",
+	MQTT_ERR_NOT_FOUND: "DNS resolution failure",
+	MQTT_ERR_CONN_LOST: "Connection lost",
+	MQTT_ERR_TLS: "TLS error",
+	MQTT_ERR_PAYLOAD_SIZE: "Payload size error",
+	MQTT_ERR_NOT_SUPPORTED: "Not supported",
+	MQTT_ERR_AUTH: "Authentication error",
+	MQTT_ERR_ACL_DENIED: "ACL denied",
+	MQTT_ERR_UNKNOWN: "Unknown error",
+	MQTT_ERR_ERRNO: "ERRNO error"
+}
 class MQTTHandler:
-
 	def __init__(self, controller):
 		self.controller = controller
 		self.client = None
@@ -40,7 +53,6 @@ class MQTTHandler:
 		self.command_topic = None
 		self.config_topic = None
 		self.query_topic = None
-
 	def _get_mac_address(self):
 		try:
 			wlan = network.WLAN(network.STA_IF)
@@ -49,13 +61,12 @@ class MQTTHandler:
 			mac_bytes = wlan.config('mac')
 			if not mac_bytes or len(mac_bytes) != 6:
 				return None
-			if all((b == 0 for b in mac_bytes)):
+			if all(b == 0 for b in mac_bytes):
 				return None
 			mac_str = ubinascii.hexlify(mac_bytes).decode().upper()
 			return mac_str
 		except Exception as e:
 			return None
-
 	def initialize(self):
 		try:
 			wlan = network.WLAN(network.STA_IF)
@@ -68,8 +79,15 @@ class MQTTHandler:
 			self.command_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/command"
 			self.config_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/config/+"
 			self.query_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/query"
-			client_id = f'SBI_{self.mac_address}'
-			self.client = MQTTClient(client_id, mqtt_config['broker'], port=mqtt_config['port'], user=mqtt_config['username'], password=mqtt_config['password'], keepalive=mqtt_config['keepalive'])
+			client_id = f"SBI_{self.mac_address}"
+			self.client = MQTTClient(
+				client_id,
+				mqtt_config['broker'],
+				port=mqtt_config['port'],
+				user=mqtt_config['username'],
+				password=mqtt_config['password'],
+				keepalive=mqtt_config['keepalive']
+			)
 			self.client.set_callback(self._message_callback)
 			self.client.connect()
 			self.client.subscribe(self.command_topic.encode())
@@ -81,9 +99,20 @@ class MQTTHandler:
 			self.publish_all_config()
 			return True
 		except Exception as e:
+			error_code = None
+			error_desc = str(e)
+			try:
+				if str(e).startswith('-'):
+					error_code = int(str(e))
+					error_desc = MQTT_ERR_DESCRIPTIONS.get(error_code, "Unknown error")
+			except:
+				pass
+			if error_code:
+				pass
+			else:
+				pass
 			self.initialized = False
 			return False
-
 	def queue_message(self, topic, payload, qos=None, retain=False):
 		if not self.initialized:
 			return False
@@ -98,9 +127,8 @@ class MQTTHandler:
 			return True
 		else:
 			return False
-
 	def process_message_queue(self):
-		if not self.initialized or not self.client or (not self.message_queue):
+		if not self.initialized or not self.client or not self.message_queue:
 			return False
 		try:
 			topic, payload, qos, retain = self.message_queue.pop(0)
@@ -110,17 +138,20 @@ class MQTTHandler:
 		except Exception as e:
 			self.initialized = False
 			return False
-
 	def publish_parameter(self, param_name, value, retain=False):
 		if not self.initialized:
 			return False
 		try:
-			topic = f'{self.base_topic}/{param_name}'
+			topic = f"{self.base_topic}/{param_name}"
 			payload = str(value)
-			return self.queue_message(topic, payload, qos=mqtt_config['qos'], retain=retain)
+			return self.queue_message(
+				topic,
+				payload,
+				qos=mqtt_config['qos'],
+				retain=retain
+			)
 		except Exception as e:
 			return False
-
 	def check_msg(self):
 		if not self.initialized:
 			return
@@ -130,13 +161,11 @@ class MQTTHandler:
 			self.client.check_msg()
 		except:
 			self.initialized = False
-
 	def _on_param_change(self, param_name, value):
 		try:
-			self.publish_parameter(f'config/{param_name}', value, retain=True)
+			self.publish_parameter(f"config/{param_name}", value, retain=True)
 		except Exception as e:
 			pass
-
 	def _message_callback(self, topic, msg):
 		try:
 			topic = topic.decode()
@@ -153,7 +182,6 @@ class MQTTHandler:
 			self.messages_received += 1
 		except Exception as e:
 			pass
-
 	def _handle_command(self, data):
 		try:
 			command = data.get('command')
@@ -167,15 +195,17 @@ class MQTTHandler:
 				self.controller.logger.clear_errors()
 		except Exception as e:
 			pass
-
 	def _handle_config(self, param, data):
 		try:
 			value = data.get('value')
 			if value is not None:
 				success, message = self.controller.config_manager.set_param(param, value)
+				if success:
+					pass
+				else:
+					pass
 		except Exception as e:
 			pass
-
 	def _handle_query(self, data):
 		try:
 			query = data.get('query')
@@ -187,7 +217,6 @@ class MQTTHandler:
 				self._publish_errors()
 		except Exception as e:
 			pass
-
 	def publish_status(self):
 		try:
 			self.publish_parameter('temperature', self.controller.current_temp)
@@ -201,7 +230,13 @@ class MQTTHandler:
 				self.publish_parameter('voltage_measured', self.controller.output_voltage_measured)
 			if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
 				self.publish_parameter('simulated_temp', round(self.controller._ntc10k_current_temp, 1))
-			if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid']:
+			if hasattr(self.controller, '_direct_sensor_current_r') and self.controller._direct_sensor_current_r is not None:
+				self.publish_parameter('current_resistance', round(self.controller._direct_sensor_current_r, 1))
+			if hasattr(self.controller.temp_controller, 'filtered_temp') and self.controller.temp_controller.filtered_temp is not None:
+				tau = self.controller.config_manager.get_param('temp_filter_tau')
+				if tau is not None and tau > 0:
+					self.publish_parameter('filtered_temp', round(self.controller.temp_controller.filtered_temp, 2))
+			if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid', 'direct_sensor']:
 				if hasattr(self.controller.temp_controller, 'p_value') and self.controller.temp_controller.p_value is not None:
 					self.publish_parameter('pid_p', round(self.controller.temp_controller.p_value, 3))
 				if hasattr(self.controller.temp_controller, 'i_value') and self.controller.temp_controller.i_value is not None:
@@ -214,16 +249,14 @@ class MQTTHandler:
 				alloc = gc.mem_alloc()
 				total = free + alloc
 				self.publish_parameter('memory_free', free)
-				self.publish_parameter('memory_percent_used', round(alloc * 100 / total, 1))
+				self.publish_parameter('memory_percent_used', round((alloc * 100) / total, 1))
 			except Exception as e:
 				pass
 			self.last_publish = time.time()
 		except Exception as e:
 			pass
-
 	def _publish_diagnostic(self):
 		pass
-
 	def _publish_errors(self):
 		if not self.initialized:
 			return False
@@ -233,26 +266,42 @@ class MQTTHandler:
 				return True
 			error_data = []
 			for error in errors:
-				error_data.append({'t': error['timestamp'], 'y': error['type'], 'm': error['message'][:100], 's': error['severity']})
+				error_data.append({
+					't': error['timestamp'],
+					'y': error['type'],
+					'm': error['message'][:100],
+					's': error['severity']
+				})
 			import json
 			payload = json.dumps({'errors': error_data})
-			topic = f'{self.base_topic}/errors'
-			return self.queue_message(topic, payload, qos=mqtt_config['qos'])
+			topic = f"{self.base_topic}/errors"
+			return self.queue_message(
+				topic,
+				payload,
+				qos=mqtt_config['qos']
+			)
 		except Exception as e:
 			return False
-
 	def publish_error(self, error_type, message, severity):
 		if not self.initialized:
 			return False
 		try:
-			error_data = {'t': time.time(), 'y': error_type, 'm': message[:100], 's': severity}
+			error_data = {
+				't': time.time(),
+				'y': error_type,
+				'm': message[:100],
+				's': severity
+			}
 			import json
 			payload = json.dumps({'error': error_data})
-			topic = f'{self.base_topic}/errors'
-			return self.queue_message(topic, payload, qos=mqtt_config['qos'])
+			topic = f"{self.base_topic}/errors"
+			return self.queue_message(
+				topic,
+				payload,
+				qos=mqtt_config['qos']
+			)
 		except Exception as e:
 			return False
-
 	def check_connection(self):
 		wlan = network.WLAN(network.STA_IF)
 		if not wlan.isconnected():
@@ -262,11 +311,14 @@ class MQTTHandler:
 			if current_time - self.last_reconnect >= self.reconnect_interval:
 				self.last_reconnect = current_time
 				success = self.initialize()
+				if success:
+					pass
+				else:
+					pass
 				return success
 			return False
 		else:
 			return True
-
 	def publish_all_config(self):
 		if not self.initialized:
 			return False
@@ -275,13 +327,12 @@ class MQTTHandler:
 			for param_name, definition in param_defs.items():
 				try:
 					value = self.controller.config_manager.get_param(param_name)
-					self.publish_parameter(f'config/{param_name}', value, retain=True)
+					self.publish_parameter(f"config/{param_name}", value, retain=True)
 				except Exception as e:
 					pass
 			return True
 		except Exception as e:
 			return False
-
 	def publish_file_versions(self):
 		if not self.initialized:
 			return False
@@ -294,8 +345,13 @@ class MQTTHandler:
 			for filename, version in versions.items():
 				try:
 					topic_filename = filename.replace('/', '.')
-					topic = f'{self.base_topic}/versions/{topic_filename}'
-					self.queue_message(topic, str(version), qos=mqtt_config['qos'], retain=True)
+					topic = f"{self.base_topic}/versions/{topic_filename}"
+					self.queue_message(
+						topic,
+						str(version),
+						qos=mqtt_config['qos'],
+						retain=True
+					)
 					files_published += 1
 				except Exception as e:
 					pass

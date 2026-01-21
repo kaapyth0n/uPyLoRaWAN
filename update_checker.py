@@ -58,6 +58,13 @@ def get_local_versions():
 			return json.load(f)
 	except:
 		return {}
+def save_firmware_state(version, complete):
+	try:
+		state = {'version': version, 'complete': complete}
+		with open('firmware_state.json', 'w') as f:
+			json.dump(state, f)
+	except Exception as e:
+		pass
 def get_optimal_chunk_size():
 	gc.collect()
 	free = gc.mem_free()
@@ -257,6 +264,7 @@ def check_updates(base_url=None):
 			updates_needed.append((filename, info))
 		else:
 			pass
+	fw_version = manifest.get('firmware_version', 'unknown')
 	if updates_needed:
 		for filename, info in updates_needed:
 			pass
@@ -274,7 +282,8 @@ def check_updates(base_url=None):
 			"up to date",
 			beep=True
 		)
-	return updates_needed
+		save_firmware_state(fw_version, complete=True)
+	return (updates_needed, fw_version)
 def process_updates(base_url, updates_needed):
 	total = len(updates_needed)
 	successful_updates = 0
@@ -359,9 +368,15 @@ def check_and_update(base_url=None):
 			"Please wait..."
 		)
 		retries = 3
+		updates = None
+		fw_version = 'unknown'
 		while retries > 0:
 			try:
-				updates = check_updates(base_url)
+				result = check_updates(base_url)
+				if isinstance(result, tuple):
+					updates, fw_version = result
+				else:
+					updates = result
 				break
 			except MemoryError:
 				gc.collect()
@@ -378,6 +393,8 @@ def check_and_update(base_url=None):
 				return UpdateResult(True, [])
 		updated_files = process_updates(base_url, updates)
 		gc.collect()
+		complete = (updated_files == len(updates))
+		save_firmware_state(fw_version, complete)
 		if updated_files > 0:
 			return UpdateResult(True, [f[0] for f in updates[:updated_files]])
 		else:

@@ -23,6 +23,38 @@ import json
 import hashlib
 import time
 
+def compute_firmware_version(manifest):
+    """Derive unified firmware version from timestamp + file hashes.
+
+    Format: YYMMDD-<8-char-hash>
+    Example: 250312-f3c9f2e9
+
+    Args:
+        manifest (dict): The manifest containing timestamp and files
+
+    Returns:
+        str: Firmware version string
+    """
+    # Extract date from timestamp (format: YYYY-MM-DDTHH:MM:SSZ)
+    timestamp = manifest.get('timestamp', '')[:10].replace('-', '')  # YYYYMMDD
+    if len(timestamp) >= 8:
+        date_part = timestamp[2:]  # YYMMDD
+    else:
+        date_part = '000000'  # Fallback if no valid timestamp
+
+    # Combine all file hashes for deterministic version hash
+    files = manifest.get('files', {})
+    combined = ''.join(files[f]['hash'] for f in sorted(files.keys()))
+
+    # Generate short hash from combined file hashes
+    if combined:
+        short_hash = hashlib.sha256(combined.encode()).hexdigest()[:8]
+    else:
+        short_hash = '00000000'
+
+    return f"{date_part}-{short_hash}"
+
+
 class ManifestGenerator:
     def __init__(self, src_dir=".", manifest_file="manifest.json"):
         self.src_dir = src_dir
@@ -103,6 +135,10 @@ class ManifestGenerator:
             print("Files were updated - timestamp refreshed")
         else:
             print("No changes detected - keeping existing timestamp")
+
+        # Compute and include firmware version
+        manifest["firmware_version"] = compute_firmware_version(manifest)
+        print(f"Firmware version: {manifest['firmware_version']}")
 
         with open(self.manifest_file, 'w') as f:
             json.dump(manifest, f, indent=2)

@@ -1,24 +1,21 @@
 import time
-
 class DisplayManager:
-
 	def __init__(self, controller=None):
 		self.display = None
 		self.display_slot = 2
 		self.last_update = 0
 		self.update_interval = 1
-		self.current_screen = ''
+		self.current_screen = ""
 		self.controller = controller
 		self.consecutive_failures = 0
 		self.max_failures = 3
-
 	def init_display(self):
 		try:
 			from IND1 import Module_IND1
 			self.display = Module_IND1(self.display_slot)
 			success = self._verify_display()
 			if success:
-				self.show_status('Display', 'Initialized', 'OK')
+				self.show_status("Display", "Initialized", "OK")
 				self.consecutive_failures = 0
 				return True
 			else:
@@ -26,7 +23,6 @@ class DisplayManager:
 		except Exception as e:
 			self.display = None
 			return False
-
 	def _verify_display(self):
 		if not self.display:
 			return False
@@ -36,7 +32,6 @@ class DisplayManager:
 			return True
 		except:
 			return False
-
 	def show_status(self, title, *lines, font=4, beep=False):
 		if not self.display:
 			return False
@@ -63,39 +58,49 @@ class DisplayManager:
 				if self.init_display():
 					self.consecutive_failures = 0
 		return success
-
 	def show_error(self, error_type, message):
-		return self.show_status('Error', error_type, message[:21], beep=True)
-
+		return self.show_status(
+			"Error",
+			error_type,
+			message[:21],
+			beep=True
+		)
 	def show_config(self, mode, setpoint):
-		return self.show_status('Configuration', f'Mode: {mode}', f'Setpoint: {setpoint:.1f}°C')
-
+		return self.show_status(
+			"Configuration",
+			f"Mode: {mode}",
+			f"Setpoint: {setpoint:.1f}°C"
+		)
 	def show_diagnostic(self, status):
-		return self.show_status('Diagnostics', f"Temp: {status.get('temp_status', 'N/A')}", f"LoRa: {status.get('lora_status', 'N/A')}")
-
+		return self.show_status(
+			"Diagnostics",
+			f"Temp: {status.get('temp_status', 'N/A')}",
+			f"LoRa: {status.get('lora_status', 'N/A')}"
+		)
 	def clear(self):
 		if not self.display:
 			return False
 		try:
 			self.display.erase(0, display=1)
-			self.current_screen = ''
+			self.current_screen = ""
 			if self.controller and hasattr(self.controller, 'watchdog_manager'):
 				self.controller.watchdog_manager.pet('display')
 			return True
 		except:
 			return False
-
 	def show_system_status(self, status):
 		if not self.display:
 			return False
 		success = False
 		try:
 			self.display.erase(0, display=0)
-			self.display.show_text('Smart Boiler Status', x=0, y=0, font=2)
+			self.display.show_text("Smart Boiler Status", x=0, y=0, font=2)
 			mode_text = f"Mode: {status['mode'].upper()}"
-			heating_text = f"State: {('HEAT' if status['heating_active'] else 'IDLE')}"
-			if status['mode'] == 'ntc10k' and 'ntc10k_simulated_temp' in status and (status['ntc10k_simulated_temp'] is not None):
+			heating_text = f"State: {'HEAT' if status['heating_active'] else 'IDLE'}"
+			if status['mode'] == 'ntc10k' and 'ntc10k_simulated_temp' in status and status['ntc10k_simulated_temp'] is not None:
 				heating_text += f" {status['ntc10k_simulated_temp']:.1f}C"
+			elif status['mode'] == 'direct_sensor' and 'direct_sensor_resistance' in status and status['direct_sensor_resistance'] is not None:
+				heating_text += f" {status['direct_sensor_resistance']:.0f}R"
 			elif 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
 				heating_text += f" {status['output_voltage_calculated']:.1f}V"
 			self.display.show_text(mode_text, x=0, y=8, font=2)
@@ -104,8 +109,8 @@ class DisplayManager:
 			current_text = f"Actual: {self._format_temp(status['current_temp'])}"
 			self.display.show_text(target_text, x=0, y=24, font=2)
 			self.display.show_text(current_text, x=0, y=32, font=2)
-			wifi_text = f"WiFi: {('ON' if status['wifi_connected'] else 'OFF')}"
-			mqtt_text = f"MQTT: {('ON' if status['mqtt_connected'] else 'OFF')} {status['mqtt_tx']}/{status['mqtt_rx']}"
+			wifi_text = f"WiFi: {'ON' if status['wifi_connected'] else 'OFF'}"
+			mqtt_text = f"MQTT: {'ON' if status['mqtt_connected'] else 'OFF'} {status['mqtt_tx']}/{status['mqtt_rx']}"
 			lora_base = f"LoRa: {status['lora_tx']}/{status['lora_rx']}"
 			if 'devaddr' in status and status['devaddr']:
 				lora_text = f"{lora_base} {status['devaddr']}"
@@ -124,8 +129,7 @@ class DisplayManager:
 				if self.init_display():
 					self.consecutive_failures = 0
 		return success
-
 	def _format_temp(self, temp):
 		if temp is None:
-			return '---'
-		return f'{temp:.1f} C'
+			return "---"
+		return f"{temp:.1f} C"

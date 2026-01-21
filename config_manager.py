@@ -13,7 +13,7 @@ class ConfigurationManager:
 			'mode': {
 				'id': 0,
 				'type': str,
-				'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid', 'ntc10k'],
+				'allowed_values': ['relay', 'sensor', 'pid', 'soft_pid', 'ntc10k', 'direct_sensor'],
 				'default': BoilerDefaults.DEFAULT_MODE
 			},
 			'setpoint': {
@@ -169,6 +169,7 @@ class ConfigurationManager:
 				'min': 901.0,
 				'max': 100000.0,
 				'default': BoilerDefaults.DIRECT_RESISTANCE,
+				'scale': 0.1,
 				'description': 'Direct resistance value for sensor mode (Ohms)'
 			},
 			'outdoor_sensor_type': {
@@ -177,6 +178,65 @@ class ConfigurationManager:
 				'allowed_values': ['ntc10k', 'ntc5k', 'pt1000', 'ds18b20', 'disabled'],
 				'default': BoilerDefaults.OUTDOOR_SENSOR_TYPE,
 				'description': 'Outdoor temperature sensor type on IO1 LN_2 input'
+			},
+			'ds_min_resistance': {
+				'id': 23,
+				'type': float,
+				'min': 100.0,
+				'max': 100000.0,
+				'default': BoilerDefaults.DIRECT_SENSOR_MIN_R,
+				'scale': 0.1,
+				'description': 'Direct sensor mode minimum resistance bound (Ohms)'
+			},
+			'ds_max_resistance': {
+				'id': 24,
+				'type': float,
+				'min': 100.0,
+				'max': 100000.0,
+				'default': BoilerDefaults.DIRECT_SENSOR_MAX_R,
+				'scale': 0.1,
+				'description': 'Direct sensor mode maximum resistance bound (Ohms)'
+			},
+			'ds_invert_control': {
+				'id': 25,
+				'type': int,
+				'min': 0,
+				'max': 1,
+				'default': BoilerDefaults.DIRECT_SENSOR_INVERT,
+				'description': 'Direct sensor control direction: 0=NTC (normal), 1=PTC (inverted)'
+			},
+			'ds_rate_limit': {
+				'id': 26,
+				'type': float,
+				'min': 0.1,
+				'max': 100.0,
+				'default': BoilerDefaults.DIRECT_SENSOR_RATE_LIMIT,
+				'description': 'Direct sensor max resistance change per PID update cycle (Ohms). Effective rate = ds_rate_limit / pid_dt Ohms/sec'
+			},
+			'temp_filter_tau': {
+				'id': 27,
+				'type': float,
+				'min': 0.0,
+				'max': 7200.0,
+				'default': BoilerDefaults.TEMP_FILTER_TAU,
+				'scale': 1,
+				'description': 'Low-pass filter time constant for temperature (seconds). 0=disabled. Typical: 1800 (30 min) for slow boilers'
+			},
+			'firmware_version': {
+				'id': 28,
+				'type': str,
+				'readonly': True,
+				'virtual': True,
+				'default': 'unknown',
+				'description': 'Firmware version (YYMMDD-hash format)'
+			},
+			'firmware_complete': {
+				'id': 29,
+				'type': bool,
+				'readonly': True,
+				'virtual': True,
+				'default': False,
+				'description': 'True if all files match manifest after OTA update'
 			}
 		}
 		self.id_to_param = {}
@@ -267,9 +327,27 @@ class ConfigurationManager:
 		except Exception as e:
 			return False
 	def get_param(self, param_name):
+		if param_name in ('firmware_version', 'firmware_complete'):
+			return self._get_firmware_param(param_name)
 		return self.current_config.get(param_name,
 			self.parameter_definitions.get(param_name, {}).get('default'))
+	def _get_firmware_param(self, param_name):
+		try:
+			with open('firmware_state.json', 'r') as f:
+				state = json.load(f)
+			if param_name == 'firmware_version':
+				return state.get('version', 'unknown')
+			elif param_name == 'firmware_complete':
+				return state.get('complete', False)
+		except:
+			pass
+		return self.parameter_definitions[param_name]['default']
 	def set_param(self, param_name, value):
+		if param_name not in self.parameter_definitions:
+			return False, f"Unknown parameter: {param_name}"
+		param_def = self.parameter_definitions[param_name]
+		if param_def.get('readonly'):
+			return False, f"Parameter {param_name} is read-only"
 		valid, message = self.validate_param(param_name, value)
 		if not valid:
 			return False, message
