@@ -103,6 +103,7 @@ All parameters are enumerated in `config_manager.py`
 Device sends NOTIFY (0x05) messages:
 - When a parameter value changes (triggered by local or remote config)
 - In response to CONFIG read requests (parameter value query)
+- At power on: all configuration parameters are broadcast with ~10 second intervals (for installer diagnostics)
 
 "Sequence" - auto-incremented by device for each notification sent.
 

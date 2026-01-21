@@ -162,6 +162,9 @@ class StateMachine:
                     "LoRa initialization failed",
                     severity=2
                 )
+            else:
+                # Start broadcasting all config params over LoRa for installer diagnostics
+                self.controller.lora_handler.start_startup_broadcast()
             print("LoRa initialized")
             # Initialize MQTT
             print("Initializing MQTT...")

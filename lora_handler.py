@@ -53,6 +53,11 @@ class LoRaHandler:
         self.reinit_failures = 0    # Track consecutive failures
         self.reinit_retry_factor = 2 # Exponential backoff factor for retries
 
+        # Startup broadcast state - sends all config params after LoRa init
+        self._startup_broadcast_queue = []  # List of param IDs to send
+        self._startup_broadcast_last_send = 0  # Timestamp of last send
+        self._startup_broadcast_interval = 10  # Seconds between sends
+
         # Set up parameter change callback
         if hasattr(self.controller.config_manager, 'add_change_callback'):
             self.controller.config_manager.add_change_callback(self._on_param_change)
@@ -267,9 +272,48 @@ class LoRaHandler:
                 action_taken = success
             except Exception as e:
                 print(f"Forced status update failed: {e}")
-                
+
+        # Process startup broadcast queue (sends config params with intervals)
+        if self.initialized:
+            self._process_startup_broadcast()
+
         return action_taken
-    
+
+    def start_startup_broadcast(self):
+        """Queue all config params for startup broadcast (complete system snapshot).
+
+        This helps installers diagnose connection problems by generating traffic
+        at power on. Each parameter is sent with ~10 second intervals.
+        """
+        from config_manager import parameter_definitions
+        self._startup_broadcast_queue = [
+            p['id'] for name, p in parameter_definitions.items()
+        ]
+        self._startup_broadcast_queue.sort()  # Send in ID order for predictability
+        self._startup_broadcast_last_send = 0  # Send first one immediately
+        print(f"Startup broadcast: queued {len(self._startup_broadcast_queue)} parameters")
+
+    def _process_startup_broadcast(self):
+        """Send next config param if interval elapsed.
+
+        Called from check_pending_actions() to process the startup broadcast queue.
+        Sends one parameter value every _startup_broadcast_interval seconds.
+        """
+        if not self._startup_broadcast_queue:
+            return
+
+        now = time.time()
+        if now - self._startup_broadcast_last_send < self._startup_broadcast_interval:
+            return
+
+        param_id = self._startup_broadcast_queue.pop(0)
+        try:
+            self.send_param_value(param_id)
+            print(f"Startup broadcast: sent param {param_id}, {len(self._startup_broadcast_queue)} remaining")
+        except Exception as e:
+            print(f"Startup broadcast: failed to send param {param_id}: {e}")
+        self._startup_broadcast_last_send = now
+
     def reinitialize_from_scratch(self):
         """Completely reinitialize LoRa from scratch"""
         print("\nPerforming complete LoRa reinitialization...")
