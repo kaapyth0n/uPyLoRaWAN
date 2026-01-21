@@ -189,7 +189,7 @@ class DisplayManager:
 
     def show_system_status(self, status):
         """Show comprehensive system status screen with watchdog management
-        
+
         Args:
             status (dict): Status information containing:
                 - mode: Operating mode
@@ -202,10 +202,12 @@ class DisplayManager:
                 - mqtt_rx: MQTT packets received
                 - lora_tx: LoRa packets transmitted
                 - lora_rx: LoRa packets received
-                - output_voltage_calculated: Calculated output voltage
+                - output_voltage_calculated: Calculated output voltage (pid/soft_pid modes)
                 - output_voltage_measured: Measured output voltage
+                - ntc10k_simulated_temp: Simulated outdoor temp (ntc10k mode)
+                - direct_sensor_resistance: Current resistance output (direct_sensor mode)
                 - devaddr: Device address as hex string (optional)
-                
+
         Returns:
             bool: True if display update was successful
         """
@@ -228,6 +230,9 @@ class DisplayManager:
             if status['mode'] == 'ntc10k' and 'ntc10k_simulated_temp' in status and status['ntc10k_simulated_temp'] is not None:
                 # Show simulated outdoor temperature for ntc10k mode
                 heating_text += f" {status['ntc10k_simulated_temp']:.1f}C"
+            elif status['mode'] == 'direct_sensor' and 'direct_sensor_resistance' in status and status['direct_sensor_resistance'] is not None:
+                # Show current resistance for direct_sensor mode
+                heating_text += f" {status['direct_sensor_resistance']:.0f}R"
             elif 'output_voltage_calculated' in status and status['output_voltage_calculated'] is not None:
                 # Show voltage for PID modes
                 heating_text += f" {status['output_voltage_calculated']:.1f}V"

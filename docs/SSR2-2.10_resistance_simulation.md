@@ -152,7 +152,7 @@ config_manager.set_param('ds_rate_limit', 5.0)       # Max 5 Ohm change per upda
 - **MQTT**: Published as `current_resistance` topic with current output resistance (Ohms)
 - **MQTT**: PID components (`pid_p`, `pid_i`, `pid_d`) also published
 - **LoRaWAN**: Bytes 6-7 of status message contain resistance with scale 0.1 (value/10, precision 10 Ohms)
-- **Display**: Shows current resistance output (to be implemented)
+- **Display**: State line shows "HEAT {resistance}R" with current resistance in Ohms
 
 ### Direct Resistance Mode (`sensor`)
 

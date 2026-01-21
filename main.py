@@ -798,16 +798,19 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Get current mode
             mode = self._get_mode()
             
-            # Get output voltage based on mode
+            # Get output value based on mode
             output_voltage_calc = None
             output_voltage_meas = None
             ntc10k_temp = None
+            direct_sensor_r = None
             if mode in ['pid', 'soft_pid']:
                 output_voltage_calc = self.output_voltage_calculated
                 output_voltage_meas = self.output_voltage_measured
             elif mode == 'ntc10k':
                 ntc10k_temp = self._ntc10k_current_temp
-            
+            elif mode == 'direct_sensor':
+                direct_sensor_r = self._direct_sensor_current_r
+
             # Get device address for display
             devaddr = None
             if hasattr(self.lora_handler, 'device_address') and self.lora_handler.device_address:
@@ -829,6 +832,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 'output_voltage_calculated': output_voltage_calc,
                 'output_voltage_measured': output_voltage_meas,
                 'ntc10k_simulated_temp': ntc10k_temp,
+                'direct_sensor_resistance': direct_sensor_r,
                 'devaddr': devaddr
             }
             
