@@ -156,9 +156,8 @@ class LoRaHandler:
 			self._process_startup_broadcast()
 		return action_taken
 	def start_startup_broadcast(self):
-		from config_manager import parameter_definitions
 		self._startup_broadcast_queue = [
-			p['id'] for name, p in parameter_definitions.items()
+			p['id'] for name, p in self.controller.config_manager.parameter_definitions.items()
 		]
 		self._startup_broadcast_queue.sort()
 		self._startup_broadcast_last_send = 0
