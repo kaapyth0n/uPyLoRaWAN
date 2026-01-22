@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-20T23:20:45Z",
+  "timestamp": "2026-01-22T10:35:01Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -32,10 +32,10 @@
       "size": 7976
     },
     "main.py": {
-      "version": "3.9",
+      "version": "4.0",
       "path": "/main.py",
-      "hash": "722715f744957f50431a14b259717533a3fd756d72092c83410cb0dd2395d0fa",
-      "size": 47729
+      "hash": "727f5ca4872f2f445fec197b4e0ca21391c7616fa8f2a1f3a623671c2c092a41",
+      "size": 47917
     },
     "config_portal.py": {
       "version": "1.6",
@@ -80,10 +80,10 @@
       "size": 3849
     },
     "state_machine.py": {
-      "version": "1.7",
+      "version": "1.8",
       "path": "/state_machine.py",
-      "hash": "fc667d09faada26e0bb1b4daac8a06a49d8eb883eb49e756c92df7abc5229085",
-      "size": 10845
+      "hash": "b202e2d34c2a60ce18a22dc313b58252fc1375673b8c824994f3b0aaa38d6771",
+      "size": 11025
     },
     "temp_controller.py": {
       "version": "1.4",
@@ -116,16 +116,16 @@
       "size": 6005
     },
     "display_manager.py": {
-      "version": "1.8",
+      "version": "1.9",
       "path": "/display_manager.py",
-      "hash": "68e699a7aa3f2637f49f4d460e79fc593312ce45d916ecd9d314f1108b517efd",
-      "size": 10695
+      "hash": "1107d4472d91efc935ab373b53bd84ff1b4f0dd933af6e9635e8ea61832a6b8e",
+      "size": 11148
     },
     "lora_handler.py": {
-      "version": "1.9",
+      "version": "2.0",
       "path": "/lora_handler.py",
-      "hash": "c0a394ba8a9a726778e812be8438390c68ea6c2c0c98243ba06a3726993ed54c",
-      "size": 36304
+      "hash": "15b8ccec68570be8090a8dfaa16dff0245ea46941752355d76950f40d01bc40f",
+      "size": 37866
     },
     "constants.py": {
       "version": "1.3",
@@ -152,5 +152,5 @@
       "size": 26024
     }
   },
-  "firmware_version": "260120-62611d5a"
+  "firmware_version": "260122-78d62027"
 }

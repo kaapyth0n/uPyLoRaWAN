@@ -285,9 +285,8 @@ class LoRaHandler:
         This helps installers diagnose connection problems by generating traffic
         at power on. Each parameter is sent with ~10 second intervals.
         """
-        from config_manager import parameter_definitions
         self._startup_broadcast_queue = [
-            p['id'] for name, p in parameter_definitions.items()
+            p['id'] for name, p in self.controller.config_manager.parameter_definitions.items()
         ]
         self._startup_broadcast_queue.sort()  # Send in ID order for predictability
         self._startup_broadcast_last_send = 0  # Send first one immediately
