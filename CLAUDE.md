@@ -91,6 +91,7 @@ See `docs/SSR2-2.10_resistance_simulation.md` for detailed documentation on resi
 
 - Code must be memory-efficient for MicroPython (heavy modules loaded lazily)
 - Use `gc.collect()` before loading large modules like sx127x
+- Before importing a variable from another module, verify it exists at module level. If it's an instance/class attribute (like `self.parameter_definitions`), access it through the existing object reference (e.g., `self.controller.config_manager.parameter_definitions`) instead of importing
 - Hardware watchdog activates 30 minutes after boot if not cancelled
 - All temperature values stored/transmitted with 0.1 degree precision
 
