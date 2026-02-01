@@ -15,7 +15,7 @@ class BoilerDefaults:
     MODE_RELAY = 'relay'   # Direct relay control mode
     MODE_SENSOR = 'sensor' # Direct resistance control mode (SSR2-2.10)
     MODE_NTC10K = 'ntc10k' # NTC10k temperature simulation mode (SSR2-2.10)
-    DEFAULT_MODE = MODE_RELAY
+    DEFAULT_MODE = MODE_NTC10K
     
     # Safety parameters
     WATCHDOG_TIMEOUT = 3600    # Communication timeout (seconds)
