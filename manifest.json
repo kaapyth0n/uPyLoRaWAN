@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-21T11:58:06Z",
+  "timestamp": "2026-02-01T14:20:45Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.2",
@@ -32,10 +32,10 @@
       "size": 4529
     },
     "main.py": {
-      "version": "4.4",
+      "version": "4.5",
       "path": "/main.py",
-      "hash": "3da6c5d285a545c7f3b0b0ff7a9e739c75aefcc638b4a5097e2a9399246a2cad",
-      "size": 22688
+      "hash": "0355bd98b9722a24120d859968f240cb716d9ae9ca334f8d19cd715ff995694e",
+      "size": 25117
     },
     "config_portal.py": {
       "version": "1.8",
@@ -92,10 +92,10 @@
       "size": 6344
     },
     "config_manager.py": {
-      "version": "2.6",
+      "version": "2.7",
       "path": "/config_manager.py",
-      "hash": "0bc72b775dd161beb9a3ed56dd437209ce9184d011c8abf3c5399a26a102679c",
-      "size": 12221
+      "hash": "f92c5db9244a4fe6adec7038d32441c0ff8a34466d372fe6079b2100a0ff3c94",
+      "size": 13959
     },
     "error_logger.py": {
       "version": "1.6",
@@ -128,10 +128,10 @@
       "size": 16853
     },
     "constants.py": {
-      "version": "1.7",
+      "version": "1.8",
       "path": "/constants.py",
-      "hash": "3a345c58dd38ac875a7fd2e816232847d6ab823d2e55744512842904f60c831a",
-      "size": 1752
+      "hash": "1308c024d6bd5804aab81b0b339f90ffb7921d1ba3caa7daae86580dd5d45178",
+      "size": 1897
     },
     "utils.py": {
       "version": "1.6",
@@ -152,5 +152,5 @@
       "size": 11670
     }
   },
-  "firmware_version": "260121-0b464139"
+  "firmware_version": "260201-043c0d44"
 }

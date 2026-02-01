@@ -15,6 +15,7 @@ from mqtt_handler import MQTTHandler
 from module_detector import ModuleDetector
 import network
 import machine
+IO1_MIN_VERSION_FOR_SENSOR_CONFIG = 0.90
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 	def __init__(self):
 		super().__init__()
@@ -47,6 +48,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 		self._previous_mode = None
 		self._direct_sensor_current_r = None
 		self._direct_sensor_last_update = 0
+		self._remote_outdoor_temp = None
+		self._remote_outdoor_timestamp = 0
 		self.state_machine.current_state = SystemState.INITIALIZING
 		self._pid_configured = False
 		self.config_manager.add_change_callback(self._on_config_change)
@@ -124,6 +127,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 				pass
 			if not self._test_io_module():
 				raise Exception("IO module test failed")
+			self._configure_outdoor_sensor_input()
 			if not self._use_lora_relay:
 				if not self._test_ssr_module():
 					raise Exception("SSR module test failed")
@@ -158,6 +162,37 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 		except Exception as e:
 			self.logger.log_error('hardware', f'SSR module test failed: {e}', 2)
 			return False
+	def _parse_io1_version(self, header):
+		try:
+			import re
+			match = re.search(r'/\s*v(\d+\.\d+)', str(header))
+			if match:
+				return float(match.group(1))
+		except:
+			pass
+		return 0.0
+	def _configure_outdoor_sensor_input(self):
+		sensor_type = self.config_manager.get_param('outdoor_sensor_type')
+		if sensor_type == 'disabled':
+			return
+		try:
+			header = self.fr.read(0, slot=6)
+			version = self._parse_io1_version(header)
+			if version < IO1_MIN_VERSION_FOR_SENSOR_CONFIG:
+				return
+		except Exception as e:
+			return
+		io1_type_map = {
+			'ntc10k': 'NTC10k',
+			'ntc5k': 'NTC5k',
+			'pt1000': 'PT1000',
+			'ds18b20': 'DS18B20',
+		}
+		io1_sensor_type = io1_type_map.get(sensor_type, 'AUTO')
+		try:
+			self.fr.write(56, io1_sensor_type, slot=6)
+		except Exception as e:
+			self.logger.log_error('hardware', f'Failed to configure IO1 LN_2: {e}', 2)
 	def run(self):
 		self.display_manager.show_status("Starting", "Control Loop")
 		last_state = None
@@ -228,12 +263,45 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 							f'PID parameter {param_name} changed - will reconfigure',
 							severity=1
 						)
+			if param_name == 'outdoor_sensor_type':
+				self._configure_outdoor_sensor_input()
+			if param_name == 'remote_outdoor_temp':
+				if value is None or value == -32766:
+					self._remote_outdoor_temp = None
+					self._remote_outdoor_timestamp = 0
+				else:
+					self._remote_outdoor_temp = value
+					self._remote_outdoor_timestamp = time.time()
 		except Exception as e:
 			self.logger.log_error(
 				'control',
 				f'Config change handler error: {e}',
 				severity=2
 			)
+	def _get_effective_outdoor_temp(self):
+		current_time = time.time()
+		timeout = self.config_manager.get_param('remote_outdoor_timeout')
+		if self._remote_outdoor_temp is not None:
+			if timeout == 0 or (current_time - self._remote_outdoor_timestamp) < timeout:
+				return (self._remote_outdoor_temp, 'remote')
+		if self.outdoor_temp is not None:
+			if self.outdoor_temp not in (-32767, -32768):
+				return (self.outdoor_temp, 'local')
+		return (None, None)
+	def _apply_sim_temp_limits(self, new_temp):
+		hard_low = self.config_manager.get_param('sim_temp_hard_low')
+		hard_high = self.config_manager.get_param('sim_temp_hard_high')
+		soft_cap = self.config_manager.get_param('sim_temp_soft_cap')
+		unlock_threshold = self.config_manager.get_param('sim_temp_unlock_threshold')
+		if new_temp < hard_low:
+			return hard_low
+		if new_temp > soft_cap:
+			outdoor_temp, source = self._get_effective_outdoor_temp()
+			if outdoor_temp is None or outdoor_temp <= unlock_threshold:
+				new_temp = soft_cap
+		if new_temp > hard_high:
+			return hard_high
+		return new_temp
 	def _update_control_logic(self):
 		try:
 			if self.current_temp is None or self._get_setpoint() is None:
@@ -337,7 +405,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 							else:
 								change = max_change
 							new_temp = self._ntc10k_current_temp + change
-							new_temp = max(-40.0, min(40.0, new_temp))
+							new_temp = self._apply_sim_temp_limits(new_temp)
 							if new_temp != self._ntc10k_current_temp:
 								self._ntc10k_current_temp = new_temp
 						self._ntc10k_last_update = current_time

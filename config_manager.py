@@ -237,6 +237,56 @@ class ConfigurationManager:
 				'virtual': True,
 				'default': False,
 				'description': 'True if all files match manifest after OTA update'
+			},
+			'sim_temp_hard_low': {
+				'id': 30,
+				'type': float,
+				'min': -50.0,
+				'max': 0.0,
+				'default': BoilerDefaults.SIM_TEMP_HARD_LOW,
+				'description': 'Hard floor for simulated outdoor temp (°C)'
+			},
+			'sim_temp_hard_high': {
+				'id': 31,
+				'type': float,
+				'min': 10.0,
+				'max': 40.0,
+				'default': BoilerDefaults.SIM_TEMP_HARD_HIGH,
+				'description': 'Hard ceiling for simulated outdoor temp (°C)'
+			},
+			'sim_temp_soft_cap': {
+				'id': 32,
+				'type': float,
+				'min': 0.0,
+				'max': 40.0,
+				'default': BoilerDefaults.SIM_TEMP_SOFT_CAP,
+				'description': 'Soft cap for simulated temp - requires unlock by real outdoor temp (°C)'
+			},
+			'sim_temp_unlock_threshold': {
+				'id': 33,
+				'type': float,
+				'min': -10.0,
+				'max': 30.0,
+				'default': BoilerDefaults.SIM_TEMP_UNLOCK_THRESHOLD,
+				'description': 'Real outdoor temp threshold to unlock soft cap (°C)'
+			},
+			'remote_outdoor_temp': {
+				'id': 34,
+				'type': float,
+				'min': -50.0,
+				'max': 60.0,
+				'nullable': True,
+				'default': None,
+				'virtual': True,
+				'description': 'Remote outdoor temperature from gateway via LoRaWAN (°C)'
+			},
+			'remote_outdoor_timeout': {
+				'id': 35,
+				'type': int,
+				'min': 0,
+				'max': 86400,
+				'default': BoilerDefaults.REMOTE_OUTDOOR_TIMEOUT,
+				'description': 'Timeout for remote outdoor temp validity (seconds, 0=never expires)'
 			}
 		}
 		self.id_to_param = {}
@@ -269,6 +319,11 @@ class ConfigurationManager:
 		if param_name not in self.parameter_definitions:
 			return False, f"Unknown parameter: {param_name}"
 		param_def = self.parameter_definitions[param_name]
+		if value is None:
+			if param_def.get('nullable'):
+				return True, "Parameter valid (None)"
+			else:
+				return False, f"Parameter {param_name} does not accept None"
 		if not isinstance(value, param_def['type']):
 			return False, f"Invalid type for {param_name}: expected {param_def['type'].__name__}, got {type(value).__name__}"
 		if 'validator' in param_def:
@@ -310,6 +365,7 @@ class ConfigurationManager:
 		self.current_config = {
 			name: definition['default']
 			for name, definition in self.parameter_definitions.items()
+			if not definition.get('virtual')
 		}
 		self.save_config()
 	def save_config(self):
@@ -321,8 +377,12 @@ class ConfigurationManager:
 					f.write(backup_config)
 			except:
 				pass
+			config_to_save = {
+				k: v for k, v in self.current_config.items()
+				if not self.parameter_definitions.get(k, {}).get('virtual')
+			}
 			with open(self.config_file, 'w') as f:
-				json.dump(self.current_config, f)
+				json.dump(config_to_save, f)
 			return True
 		except Exception as e:
 			return False
