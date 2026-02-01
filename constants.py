@@ -58,6 +58,13 @@ class BoilerDefaults:
     # Temperature filtering for PID-based control modes
     TEMP_FILTER_TAU = 0.0             # Filter time constant (seconds). 0=disabled, typical: 1800 (30 min)
 
+    # Simulated outdoor temperature limits (NTC10k mode)
+    SIM_TEMP_HARD_LOW = -20.0         # Hard floor for simulated temp (°C)
+    SIM_TEMP_HARD_HIGH = 25.0         # Hard ceiling for simulated temp (°C)
+    SIM_TEMP_SOFT_CAP = 15.0          # Soft cap - requires unlock (°C)
+    SIM_TEMP_UNLOCK_THRESHOLD = 5.0   # Real outdoor temp to unlock soft cap (°C)
+    REMOTE_OUTDOOR_TIMEOUT = 3600     # Timeout for remote outdoor temp (seconds, 0=never)
+
 class ErrorCodes:
     """Error codes for system events"""
     

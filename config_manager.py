@@ -255,6 +255,57 @@ class ConfigurationManager:
                 'virtual': True,  # Not stored in config, read from firmware_state.json
                 'default': False,
                 'description': 'True if all files match manifest after OTA update'
+            },
+            # Simulated outdoor temperature limits (NTC10k mode)
+            'sim_temp_hard_low': {
+                'id': 30,
+                'type': float,
+                'min': -50.0,
+                'max': 0.0,
+                'default': BoilerDefaults.SIM_TEMP_HARD_LOW,
+                'description': 'Hard floor for simulated outdoor temp (°C)'
+            },
+            'sim_temp_hard_high': {
+                'id': 31,
+                'type': float,
+                'min': 10.0,
+                'max': 40.0,
+                'default': BoilerDefaults.SIM_TEMP_HARD_HIGH,
+                'description': 'Hard ceiling for simulated outdoor temp (°C)'
+            },
+            'sim_temp_soft_cap': {
+                'id': 32,
+                'type': float,
+                'min': 0.0,
+                'max': 40.0,
+                'default': BoilerDefaults.SIM_TEMP_SOFT_CAP,
+                'description': 'Soft cap for simulated temp - requires unlock by real outdoor temp (°C)'
+            },
+            'sim_temp_unlock_threshold': {
+                'id': 33,
+                'type': float,
+                'min': -10.0,
+                'max': 30.0,
+                'default': BoilerDefaults.SIM_TEMP_UNLOCK_THRESHOLD,
+                'description': 'Real outdoor temp threshold to unlock soft cap (°C)'
+            },
+            'remote_outdoor_temp': {
+                'id': 34,
+                'type': float,
+                'min': -50.0,
+                'max': 60.0,
+                'nullable': True,  # Supports None value
+                'default': None,
+                'virtual': True,  # Not persisted to config file
+                'description': 'Remote outdoor temperature from gateway via LoRaWAN (°C)'
+            },
+            'remote_outdoor_timeout': {
+                'id': 35,
+                'type': int,
+                'min': 0,
+                'max': 86400,
+                'default': BoilerDefaults.REMOTE_OUTDOOR_TIMEOUT,
+                'description': 'Timeout for remote outdoor temp validity (seconds, 0=never expires)'
             }
         }
         
@@ -345,7 +396,14 @@ class ConfigurationManager:
             return False, f"Unknown parameter: {param_name}"
             
         param_def = self.parameter_definitions[param_name]
-        
+
+        # Handle nullable parameters - None is always valid for nullable params
+        if value is None:
+            if param_def.get('nullable'):
+                return True, "Parameter valid (None)"
+            else:
+                return False, f"Parameter {param_name} does not accept None"
+
         # Type check
         if not isinstance(value, param_def['type']):
             return False, f"Invalid type for {param_name}: expected {param_def['type'].__name__}, got {type(value).__name__}"
@@ -417,16 +475,17 @@ class ConfigurationManager:
             return False
             
     def _load_defaults(self):
-        """Load default configuration"""
+        """Load default configuration (excludes virtual parameters)"""
         self.current_config = {
-            name: definition['default'] 
+            name: definition['default']
             for name, definition in self.parameter_definitions.items()
+            if not definition.get('virtual')
         }
         self.save_config()
         
     def save_config(self):
-        """Save current configuration
-        
+        """Save current configuration (excludes virtual parameters)
+
         Returns:
             bool: True if successful
         """
@@ -439,10 +498,16 @@ class ConfigurationManager:
                     f.write(backup_config)
             except:
                 pass
-                
+
+            # Filter out virtual parameters before saving
+            config_to_save = {
+                k: v for k, v in self.current_config.items()
+                if not self.parameter_definitions.get(k, {}).get('virtual')
+            }
+
             # Save new configuration
             with open(self.config_file, 'w') as f:
-                json.dump(self.current_config, f)
+                json.dump(config_to_save, f)
             return True
             
         except Exception as e:

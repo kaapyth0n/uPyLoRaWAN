@@ -76,6 +76,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self._direct_sensor_current_r = None  # Current resistance being output (Ohms)
         self._direct_sensor_last_update = 0   # Timestamp of last control update
 
+        # Remote outdoor temperature state (received via LoRaWAN)
+        self._remote_outdoor_temp = None      # Remote outdoor temp value (°C)
+        self._remote_outdoor_timestamp = 0    # Timestamp when remote temp was received
+
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
 
@@ -474,12 +478,84 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             if param_name == 'outdoor_sensor_type':
                 self._configure_outdoor_sensor_input()
 
+            # Handle remote outdoor temperature updates
+            if param_name == 'remote_outdoor_temp':
+                if value is None or value == -32766:
+                    # Clear remote outdoor temp
+                    self._remote_outdoor_temp = None
+                    self._remote_outdoor_timestamp = 0
+                    print('Remote outdoor temp cleared')
+                else:
+                    self._remote_outdoor_temp = value
+                    self._remote_outdoor_timestamp = time.time()
+                    print(f'Remote outdoor temp updated: {value}°C')
+
         except Exception as e:
             self.logger.log_error(
                 'control',
                 f'Config change handler error: {e}',
                 severity=2
             )
+
+    def _get_effective_outdoor_temp(self):
+        """Get effective outdoor temperature with priority: remote > local > None
+
+        Returns:
+            tuple: (temperature, source) where source is 'remote', 'local', or None
+        """
+        current_time = time.time()
+        timeout = self.config_manager.get_param('remote_outdoor_timeout')
+
+        # Check remote outdoor temp first
+        if self._remote_outdoor_temp is not None:
+            # Check if remote value has expired (timeout=0 means never expires)
+            if timeout == 0 or (current_time - self._remote_outdoor_timestamp) < timeout:
+                return (self._remote_outdoor_temp, 'remote')
+
+        # Fall back to local sensor reading
+        if self.outdoor_temp is not None:
+            # Check for error values from local sensor
+            if self.outdoor_temp not in (-32767, -32768):
+                return (self.outdoor_temp, 'local')
+
+        # No valid outdoor temp available
+        return (None, None)
+
+    def _apply_sim_temp_limits(self, new_temp):
+        """Apply simulated temperature limits for NTC10k mode
+
+        Args:
+            new_temp (float): Proposed new simulated temperature
+
+        Returns:
+            float: Clamped temperature value within limits
+
+        Logic:
+        1. Hard floor: Never go below sim_temp_hard_low
+        2. Soft cap: If above sim_temp_soft_cap, check if unlocked by real outdoor temp
+        3. Hard ceiling: Never go above sim_temp_hard_high
+        """
+        hard_low = self.config_manager.get_param('sim_temp_hard_low')
+        hard_high = self.config_manager.get_param('sim_temp_hard_high')
+        soft_cap = self.config_manager.get_param('sim_temp_soft_cap')
+        unlock_threshold = self.config_manager.get_param('sim_temp_unlock_threshold')
+
+        # Apply hard floor
+        if new_temp < hard_low:
+            return hard_low
+
+        # Check soft cap - only applies when trying to go above it
+        if new_temp > soft_cap:
+            outdoor_temp, source = self._get_effective_outdoor_temp()
+            # If no outdoor temp available or outdoor temp is cold, lock to soft cap
+            if outdoor_temp is None or outdoor_temp <= unlock_threshold:
+                new_temp = soft_cap
+
+        # Apply hard ceiling
+        if new_temp > hard_high:
+            return hard_high
+
+        return new_temp
 
     def _update_control_logic(self):
         """Update control logic for relay, sensor, PID, soft PID and ntc10k modes"""
@@ -648,9 +724,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                             else:
                                 change = max_change
 
-                            # Apply change with output limits (-40 to +40°C outdoor range)
+                            # Apply change with configurable limits
                             new_temp = self._ntc10k_current_temp + change
-                            new_temp = max(-40.0, min(40.0, new_temp))
+                            new_temp = self._apply_sim_temp_limits(new_temp)
 
                             if new_temp != self._ntc10k_current_temp:
                                 self._ntc10k_current_temp = new_temp
