@@ -104,13 +104,12 @@ The message format is backward compatible:
 Connect the outdoor sensor to IO1 module terminals:
 
 ### NTC/PT1000 Sensors
-- **X2-3 (LN_2+)**: Sensor connection
-- **X2-4 (LN_2-)**: Sensor ground/reference
+- **X2-2 (LN_2)**: Sensor connection
+- **X2-4 (GND)**: Sensor ground
 
 ### DS18B20 (1-Wire)
-- **Data line**: Connect to LN_2+
-- **Pullup resistor**: 4.7kΩ (internal or external)
-- Parasitic power mode supported
+- **X2-2 (LN_2)**: Data line (parasitic power mode supported)
+- **X2-4 (GND)**: Ground
 
 ## Implementation Details
 
@@ -132,9 +131,29 @@ Connect the outdoor sensor to IO1 module terminals:
 5. Stores result in `self.outdoor_temp`
 6. Value is published via MQTT and LoRaWAN status messages
 
+## IO1 Firmware Requirements
+
+**Minimum IO1 firmware version:** v0.90
+
+The sensor type is automatically configured on the IO1 module at startup and when the `outdoor_sensor_type` parameter changes. This requires IO1 firmware v0.90 or later, which supports writing to parameter 56 (`ID_1wire_L2`).
+
+### Automatic Configuration
+
+- On startup: SBI writes the sensor type string to IO1 parameter 56
+- On config change: IO1 is reconfigured when `outdoor_sensor_type` changes via LoRaWAN/MQTT
+- Supported sensor type strings: `AUTO`, `NTC10k`, `NTC5k`, `PT1000`, `DS18B20`
+
+### Older Firmware Behavior
+
+On IO1 firmware versions below v0.90:
+- The automatic sensor configuration is skipped
+- An informative message is logged: "IO1 LN_2 sensor config skipped: requires v0.90+ (found vX.XX)"
+- The module defaults to AUTO mode (auto-detects PT1000, DS18B20, but not NTC sensors)
+- NTC sensors may not work correctly without manual firmware update
+
 ## Notes
 
 - This is a **read-only** feature - no control actions are taken based on outdoor temperature
-- The IO1 module auto-detects PT1000 and DS18B20 sensors
-- For NTC sensors, ensure correct sensor type is configured
+- The IO1 module auto-detects PT1000 and DS18B20 sensors in AUTO mode
+- For NTC sensors on IO1 v0.90+, the correct sensor type is automatically configured
 - Valid outdoor temperature range: -40°C to +60°C

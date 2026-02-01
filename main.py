@@ -17,6 +17,9 @@ from module_detector import ModuleDetector
 import network
 import machine
 
+# Minimum IO1 firmware version required for ID_1wire_L2 at parameter 56
+IO1_MIN_VERSION_FOR_SENSOR_CONFIG = 0.90
+
 class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def __init__(self):
         super().__init__()
@@ -214,7 +217,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 print("IO module test failed")
                 raise Exception("IO module test failed")
             print("IO module test passed")
-                    
+
+            # Configure IO1 input type for outdoor temperature sensor
+            self._configure_outdoor_sensor_input()
+
             print("4. Testing SSR module...")    
             # Test SSR module only if not using LoRa relay    
             if not self._use_lora_relay:
@@ -260,18 +266,78 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Try to read module type
             if self.fr.read(0, slot=5) is None:
                 return False
-                
+
             # Test relay control (brief pulse)
             self.fr.write(6, 0x01, slot=5)  # On
             time.sleep(0.1)
             self.fr.write(6, 0x00, slot=5)  # Off
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.log_error('hardware', f'SSR module test failed: {e}', 2)
             return False
-        
+
+    def _parse_io1_version(self, header):
+        """Parse IO1 firmware version from module header string.
+
+        Args:
+            header: Module header string, e.g. "FrSet / IO1-2.22 / v0.90 / p3.22"
+
+        Returns:
+            float: Version number (e.g. 0.90), or 0.0 if parsing fails
+        """
+        try:
+            # Header format: "FrSet / IO1-2.22 / v0.90 / p3.22"
+            import re
+            match = re.search(r'/\s*v(\d+\.\d+)', str(header))
+            if match:
+                return float(match.group(1))
+        except:
+            pass
+        return 0.0
+
+    def _configure_outdoor_sensor_input(self):
+        """Configure IO1 module LN_2 input type for outdoor temperature sensor.
+
+        Writes sensor type string to IO1 parameter 56 (ID_1wire_L2).
+        Requires IO1 firmware v0.90+ (parameter 56 location).
+        Skips configuration on older firmware versions.
+        """
+        sensor_type = self.config_manager.get_param('outdoor_sensor_type')
+
+        if sensor_type == 'disabled':
+            print('Outdoor sensor disabled, skipping IO1 LN_2 configuration')
+            return
+
+        # Check IO1 firmware version - v0.90+ required for parameter 56
+        try:
+            header = self.fr.read(0, slot=6)
+            version = self._parse_io1_version(header)
+            if version < IO1_MIN_VERSION_FOR_SENSOR_CONFIG:
+                print(f'IO1 LN_2 sensor config skipped: requires v{IO1_MIN_VERSION_FOR_SENSOR_CONFIG}+ (found v{version})')
+                return
+        except Exception as e:
+            print(f'IO1 version check failed: {e}, skipping sensor config')
+            return
+
+        # Map config value to IO1 parameter string
+        io1_type_map = {
+            'ntc10k': 'NTC10k',
+            'ntc5k': 'NTC5k',
+            'pt1000': 'PT1000',
+            'ds18b20': 'DS18B20',
+        }
+
+        io1_sensor_type = io1_type_map.get(sensor_type, 'AUTO')
+
+        try:
+            # Write sensor type to ID_1wire_L2 (parameter 56) on IO1 v0.90+ (slot 6)
+            self.fr.write(56, io1_sensor_type, slot=6)
+            print(f'IO1 LN_2 configured for {io1_sensor_type} sensor')
+        except Exception as e:
+            self.logger.log_error('hardware', f'Failed to configure IO1 LN_2: {e}', 2)
+
     def run(self):
         """Main control loop"""
         print("Starting smart boiler control...")
@@ -379,7 +445,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 
     def _on_config_change(self, param_name, value):
         """Handle configuration parameter changes
-        
+
         Args:
             param_name (str): Name of changed parameter
             value: New parameter value
@@ -387,7 +453,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         try:
             # Check if this is a PID-related parameter
             pid_params = {'pid_kp', 'pid_ki', 'pid_kd', 'pid_max_volts', 'mode'}
-            
+
             if param_name in pid_params:
                 if param_name == 'mode':
                     # If switching away from PID mode, mark as unconfigured
@@ -403,7 +469,11 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                             f'PID parameter {param_name} changed - will reconfigure',
                             severity=1
                         )
-                        
+
+            # Handle outdoor sensor type changes - reconfigure IO1 input
+            if param_name == 'outdoor_sensor_type':
+                self._configure_outdoor_sensor_input()
+
         except Exception as e:
             self.logger.log_error(
                 'control',
