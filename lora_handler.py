@@ -52,6 +52,7 @@ class LoRaHandler:
         self.reinit_interval = 10   # Try to reinitialize every 10 seconds if not connected
         self.reinit_failures = 0    # Track consecutive failures
         self.reinit_retry_factor = 2 # Exponential backoff factor for retries
+        self.reinit_max_interval = 120  # Cap retry interval at 2 minutes (LoRa is mandatory)
 
         # Startup broadcast state - sends all config params after LoRa init
         self._startup_broadcast_queue = []  # List of param IDs to send
@@ -120,21 +121,42 @@ class LoRaHandler:
             return static_devaddr
     
     def initialize(self):
-        """Initialize LoRa module with proper RX setup"""
+        """Initialize LoRa module with proper RX setup
+
+        Temporarily disables Wi-Fi during initialization to avoid SPI/DMA
+        interference between Wi-Fi and LoRa modules on Pico W.
+        """
+        # Track Wi-Fi state to restore after init
+        wifi_was_active = False
+        sta_if = None
+
         try:
             # Clear any existing state
             self.lora = None
             self.initialized = False
-            
+
             # Update last init time
             self.last_init_time = time.time()
-            
+
             print("Initializing LoRa module...")
+
+            # Temporarily disable Wi-Fi during LoRa init for cleaner SPI timing
+            # Wi-Fi uses DMA and can cause SPI interference on Pico W
+            try:
+                sta_if = network.WLAN(network.STA_IF)
+                wifi_was_active = sta_if.active()
+                if wifi_was_active:
+                    print("Temporarily disabling Wi-Fi for LoRa init...")
+                    sta_if.active(False)
+                    time.sleep_ms(100)  # Let it settle
+            except Exception as e:
+                print(f"Wi-Fi disable warning: {e}")
+
             print("Memory before imports:", gc.mem_free())
-            
+
             # Force garbage collection before loading heavy modules
             gc.collect()
-            
+
             # Import heavy modules only when needed
             from sx127x import TTN, SX127x
             from config import device_config, lora_parameters, ttn_config
@@ -214,14 +236,30 @@ class LoRaHandler:
             self.force_status_update = True  # Set flag to force status update
             print("LoRa initialization successful")
             print("Final memory:", gc.mem_free())
+
+            # Re-enable Wi-Fi after successful LoRa init
+            if wifi_was_active and sta_if:
+                print("Re-enabling Wi-Fi...")
+                sta_if.active(True)
+                # Wi-Fi reconnection happens automatically or via main loop
+
             return True
-            
+
         except Exception as e:
             print(f"LoRa initialization failed: {e}")
             self.initialized = False
             self.lora = None
             # Force garbage collection to reclaim memory
             gc.collect()
+
+            # Re-enable Wi-Fi even on failure
+            if wifi_was_active and sta_if:
+                print("Re-enabling Wi-Fi after failed LoRa init...")
+                try:
+                    sta_if.active(True)
+                except:
+                    pass
+
             return False
         
     def check_pending_actions(self):
@@ -246,9 +284,10 @@ class LoRaHandler:
         
         # Check if it's time for periodic reinitialization if not initialized
         if not self.initialized:
-            # Calculate wait time with exponential backoff based on failures
+            # Calculate wait time with exponential backoff based on failures, capped at max interval
             wait_time = self.reinit_interval * (self.reinit_retry_factor ** self.reinit_failures)
-            
+            wait_time = min(wait_time, self.reinit_max_interval)  # Cap at 2 minutes
+
             if current_time - self.last_init_time > wait_time:
                 print(f"Attempting periodic LoRa reinitialization (failures: {self.reinit_failures})")
                 success = self.initialize()
@@ -560,18 +599,28 @@ class LoRaHandler:
             return False
         
     def send_periodic_status(self):
-        """Send status update if keepalive interval has elapsed"""
+        """Send status update if keepalive interval has elapsed
+
+        Returns:
+            bool: True if LoRa is initialized and either sent successfully or
+                  not time to send yet. False if LoRa is not initialized (so
+                  the LoRa watchdog will properly trigger reinit).
+        """
+        # Return False if not initialized so LoRa watchdog triggers reinit
+        if not self.initialized:
+            return False
+
         # Get current keepalive interval from config
         keepalive = self.controller.config_manager.get_param('lora_keepalive')
-        
+
         # Use default if config read fails
         if keepalive is None:
             keepalive = 300  # 5 minute fallback
-            
+
         if time.time() - self.last_status_time >= keepalive:
             return self.send_status()
-        
-        return True
+
+        return True  # Initialized and not time to send yet
 
     def _encode_parameter_value(self, param_info, value):
         """Encode parameter value to bytes based on parameter type

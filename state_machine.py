@@ -155,6 +155,12 @@ class StateMachine:
                 "Initializing",
                 "Starting LoRa"
             )
+            # Settle delay: let Wi-Fi DMA settle before SPI init
+            # Web search confirmed 40-200ms delay fixes similar SPI/I2C issues
+            import gc
+            gc.collect()
+            time.sleep_ms(200)
+
             if not self.controller.lora_handler.initialize():
                 print("LoRa initialization failed - continuing anyway")
                 self.controller.logger.log_error(

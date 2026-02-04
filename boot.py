@@ -112,6 +112,12 @@ def connect_wifi(ssid, password):
     if sta_if.isconnected():
         print("\nConnected successfully!")
         print(f'Network config: {sta_if.ifconfig()}')
+        # Disable Wi-Fi power management to avoid timing issues with SPI
+        try:
+            sta_if.config(pm=0xa11140)
+            print("Wi-Fi power management disabled")
+        except Exception as e:
+            print(f"Warning: Could not disable Wi-Fi PM: {e}")
         update_display("Boot Status", "Connected!", sta_if.ifconfig()[0])
         return True
     else:
