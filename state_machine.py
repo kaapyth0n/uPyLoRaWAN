@@ -102,6 +102,9 @@ class StateMachine:
 				"Initializing",
 				"Starting LoRa"
 			)
+			import gc
+			gc.collect()
+			time.sleep_ms(200)
 			if not self.controller.lora_handler.initialize():
 				self.controller.logger.log_error(
 					'initialization',

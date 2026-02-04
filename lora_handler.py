@@ -30,6 +30,7 @@ class LoRaHandler:
 		self.reinit_interval = 10
 		self.reinit_failures = 0
 		self.reinit_retry_factor = 2
+		self.reinit_max_interval = 120
 		self._startup_broadcast_queue = []
 		self._startup_broadcast_last_send = 0
 		self._startup_broadcast_interval = 10
@@ -63,10 +64,20 @@ class LoRaHandler:
 		else:
 			return static_devaddr
 	def initialize(self):
+		wifi_was_active = False
+		sta_if = None
 		try:
 			self.lora = None
 			self.initialized = False
 			self.last_init_time = time.time()
+			try:
+				sta_if = network.WLAN(network.STA_IF)
+				wifi_was_active = sta_if.active()
+				if wifi_was_active:
+					sta_if.active(False)
+					time.sleep_ms(100)
+			except Exception as e:
+				pass
 			gc.collect()
 			from sx127x import TTN, SX127x
 			from config import device_config, lora_parameters, ttn_config
@@ -120,11 +131,18 @@ class LoRaHandler:
 				raise RuntimeError("Failed to set RX mode")
 			self.initialized = True
 			self.force_status_update = True
+			if wifi_was_active and sta_if:
+				sta_if.active(True)
 			return True
 		except Exception as e:
 			self.initialized = False
 			self.lora = None
 			gc.collect()
+			if wifi_was_active and sta_if:
+				try:
+					sta_if.active(True)
+				except:
+					pass
 			return False
 	def check_pending_actions(self):
 		current_time = time.time()
@@ -137,6 +155,7 @@ class LoRaHandler:
 			return success
 		if not self.initialized:
 			wait_time = self.reinit_interval * (self.reinit_retry_factor ** self.reinit_failures)
+			wait_time = min(wait_time, self.reinit_max_interval)
 			if current_time - self.last_init_time > wait_time:
 				success = self.initialize()
 				if success:
@@ -323,6 +342,8 @@ class LoRaHandler:
 			)
 			return False
 	def send_periodic_status(self):
+		if not self.initialized:
+			return False
 		keepalive = self.controller.config_manager.get_param('lora_keepalive')
 		if keepalive is None:
 			keepalive = 300

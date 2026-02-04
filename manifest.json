@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-01T14:20:45Z",
+  "timestamp": "2026-02-04T21:54:18Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.2",
@@ -26,10 +26,10 @@
       "size": 4507
     },
     "boot.py": {
-      "version": "2.4",
+      "version": "2.5",
       "path": "/boot.py",
-      "hash": "3c3c37fbe615fc05364ddb45fda95abe5fee0d4c20ca4e2e473a83bb0d292909",
-      "size": 4529
+      "hash": "0dfa45ded290d6970965d759b93642a25194d3d6bc8f69955176759b82ff560d",
+      "size": 4638
     },
     "main.py": {
       "version": "4.5",
@@ -80,10 +80,10 @@
       "size": 1077
     },
     "state_machine.py": {
-      "version": "2.0",
+      "version": "2.1",
       "path": "/state_machine.py",
-      "hash": "30796669b1d1505147f428dc1980dfbb7b863cf8c3c79b62bdea8119d78b551d",
-      "size": 5576
+      "hash": "02e22022a0de322815eaba2729876e374538c632e0aaef28d7f13608c1ed6d0d",
+      "size": 5627
     },
     "temp_controller.py": {
       "version": "1.8",
@@ -122,10 +122,10 @@
       "size": 4616
     },
     "lora_handler.py": {
-      "version": "2.5",
+      "version": "2.6",
       "path": "/lora_handler.py",
-      "hash": "ef9f8fafb62323130a5c071fb7e008d7071537e5b5b32c44c4e606ed6d875d3f",
-      "size": 16853
+      "hash": "c080de9900f1e88c872fdf664d99a3e7a304424ff1aba467ba8de540be5758fa",
+      "size": 17372
     },
     "constants.py": {
       "version": "1.8",
@@ -152,5 +152,5 @@
       "size": 11670
     }
   },
-  "firmware_version": "260201-043c0d44"
+  "firmware_version": "260204-48817193"
 }
