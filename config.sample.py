@@ -70,3 +70,20 @@ wifi_config = {
     'ssid':'',
     'password':''
 }
+
+sensor_output_config = {
+    'pin': 25,                  # GPIO 25 = DAC1 on ESP32 (true analog out)
+    'use_dac': None,            # None = auto-detect, True = force DAC, False = force PWM
+    'pwm_freq': 1000,           # Hz, only used if DAC unavailable
+    'default_temp_c': 5.0,      # assumed outdoor temp when no saved state exists
+    'slew_max': 0.005,          # max normalised change per loop tick (smoothness)
+    'significant_change': 0.02, # normalised drift that triggers a flash save
+}
+
+ntc_config = {
+    'r_nominal': 10000,         # ohms at t_nominal
+    't_nominal': 25.0,          # degrees C
+    'beta': 3435,               # K
+    'r_min': 500,               # ohms clamp (hot end)
+    'r_max': 100000,            # ohms clamp (cold end)
+}
