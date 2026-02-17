@@ -155,13 +155,22 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 		try:
 			if self.fr.read(0, slot=5) is None:
 				return False
-			self.fr.write(6, 0x01, slot=5)
-			time.sleep(0.1)
-			self.fr.write(6, 0x00, slot=5)
+			if self.fr.read(6, slot=5) is None:
+				return False
 			return True
 		except Exception as e:
 			self.logger.log_error('hardware', f'SSR module test failed: {e}', 2)
 			return False
+	def _read_ssr_param(self, param_number):
+		try:
+			val = self.fr.read(param_number, slot=5)
+			if val is None:
+				return None
+			if val != val or val == float('inf') or val == -float('inf'):
+				return None
+			return val
+		except Exception:
+			return None
 	def _parse_io1_version(self, header):
 		try:
 			import re
@@ -390,7 +399,13 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 				try:
 					current_time = time.time()
 					if self._ntc10k_current_temp is None:
-						self._ntc10k_current_temp = self.config_manager.get_param('simulated_temp')
+						hw_temp = self._read_ssr_param(8)
+						hard_low = self.config_manager.get_param('sim_temp_hard_low')
+						hard_high = self.config_manager.get_param('sim_temp_hard_high')
+						if hw_temp is not None and hard_low <= hw_temp <= hard_high:
+							self._ntc10k_current_temp = hw_temp
+						else:
+							self._ntc10k_current_temp = self.config_manager.get_param('simulated_temp')
 						self._ntc10k_last_update = current_time
 					dt = current_time - self._ntc10k_last_update
 					if dt >= 10.0:
@@ -443,7 +458,11 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 					rate_limit = self.config_manager.get_param('ds_rate_limit')
 					pid_dt = self.config_manager.get_param('pid_dt')
 					if self._direct_sensor_current_r is None:
-						self._direct_sensor_current_r = (min_r + max_r) / 2
+						hw_r = self._read_ssr_param(6)
+						if hw_r is not None and min_r <= hw_r <= max_r:
+							self._direct_sensor_current_r = hw_r
+						else:
+							self._direct_sensor_current_r = (min_r + max_r) / 2
 						self._direct_sensor_last_update = current_time
 					dt = current_time - self._direct_sensor_last_update
 					if dt >= pid_dt:
