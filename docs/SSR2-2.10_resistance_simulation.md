@@ -46,7 +46,7 @@ config_manager.set_param('simulated_temp', 10.0) # Start from 10C outdoor (optio
 ```
 
 **How it works:**
-1. On mode entry, initializes simulated temp from `simulated_temp` config parameter
+1. On mode entry, reads current T_NTC10k (param 8) from the SSR2-2.10 module. If the value is valid (within `sim_temp_hard_low` to `sim_temp_hard_high`), it is used as the starting point. Otherwise, falls back to the `simulated_temp` config parameter. This preserves the output across soft reboots.
 2. Every 10 seconds, calculates error: `setpoint - current_flow_temp`
 3. If error exceeds hysteresis:
    - Flow too cold (error > 0): decrease simulated outdoor temp
@@ -59,7 +59,8 @@ config_manager.set_param('simulated_temp', 10.0) # Start from 10C outdoor (optio
 **Runtime Values (not stored in config):**
 - Current simulated outdoor temperature is a runtime value
 - Reported in status as `ntc10k_simulated_temp`
-- Resets to `simulated_temp` config value when re-entering the mode
+- On soft reboot, restored from the SSR2-2.10 module's current T_NTC10k value (if valid)
+- Falls back to `simulated_temp` config value on hard power cycle or invalid module value
 
 **Status Reporting:**
 - **MQTT**: Published as `simulated_temp` topic with current simulated outdoor temperature
@@ -128,7 +129,7 @@ config_manager.set_param('ds_rate_limit', 5.0)       # Max 5 Ohm change per upda
 ```
 
 **How it works:**
-1. On mode entry, initializes resistance to midpoint: (min_r + max_r) / 2
+1. On mode entry, reads current R_Emulated (param 6) from the SSR2-2.10 module. If the value is valid (within `ds_min_resistance` to `ds_max_resistance`), it is used as the starting point. Otherwise, falls back to the midpoint: (min_r + max_r) / 2. This preserves the output across soft reboots.
 2. At each PID interval (`pid_dt`), calculates error: `setpoint - current_flow_temp`
 3. If `ds_invert_control=1` (PTC), negates the error
 4. Applies PID algorithm using `pid_kp_std`, `pid_ti_std`, `pid_td_std`
@@ -146,7 +147,8 @@ config_manager.set_param('ds_rate_limit', 5.0)       # Max 5 Ohm change per upda
 
 **Runtime Values (not stored in config):**
 - Current resistance output is a runtime value
-- Resets to midpoint when re-entering the mode
+- On soft reboot, restored from the SSR2-2.10 module's current R_Emulated value (if within configured bounds)
+- Falls back to midpoint on hard power cycle, mode change with out-of-range value, or invalid module read
 
 **Status Reporting:**
 - **MQTT**: Published as `current_resistance` topic with current output resistance (Ohms)

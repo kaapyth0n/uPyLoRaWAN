@@ -265,22 +265,31 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             return False
         
     def _test_ssr_module(self):
-        """Test SSR module functionality"""
+        """Test SSR module functionality (non-destructive read test)"""
         try:
-            # Try to read module type
             if self.fr.read(0, slot=5) is None:
                 return False
-
-            # Test relay control (brief pulse)
-            self.fr.write(6, 0x01, slot=5)  # On
-            time.sleep(0.1)
-            self.fr.write(6, 0x00, slot=5)  # Off
-
+            # Verify data communication without corrupting output state
+            if self.fr.read(6, slot=5) is None:
+                return False
             return True
-
         except Exception as e:
             self.logger.log_error('hardware', f'SSR module test failed: {e}', 2)
             return False
+
+    def _read_ssr_param(self, param_number):
+        """Read a float parameter from SSR2-2.10 module (slot 5).
+        Returns float or None if read failed or value is invalid."""
+        try:
+            val = self.fr.read(param_number, slot=5)
+            if val is None:
+                return None
+            # Guard against NaN and Inf
+            if val != val or val == float('inf') or val == -float('inf'):
+                return None
+            return val
+        except Exception:
+            return None
 
     def _parse_io1_version(self, header):
         """Parse IO1 firmware version from module header string.
@@ -570,12 +579,12 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 if mode == 'ntc10k':
                     # Reset ntc10k state to reinitialize from config
                     self._ntc10k_current_temp = None
-                    print(f'Mode changed to ntc10k, will initialize from config')
+                    print(f'Mode changed to ntc10k, will try module value')
                 elif mode == 'direct_sensor':
                     # Reset direct_sensor state to reinitialize from midpoint
                     self._direct_sensor_current_r = None
                     self.temp_controller.reset()  # Reset PID state
-                    print(f'Mode changed to direct_sensor, will initialize from midpoint')
+                    print(f'Mode changed to direct_sensor, will try module value')
                 self._previous_mode = mode
 
             if mode == 'pid':
@@ -695,11 +704,18 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 try:
                     current_time = time.time()
 
-                    # Initialize simulated temp from config on first run or mode switch
+                    # Initialize simulated temp: try module value first, then config fallback
                     if self._ntc10k_current_temp is None:
-                        self._ntc10k_current_temp = self.config_manager.get_param('simulated_temp')
+                        hw_temp = self._read_ssr_param(8)  # T_NTC10k
+                        hard_low = self.config_manager.get_param('sim_temp_hard_low')
+                        hard_high = self.config_manager.get_param('sim_temp_hard_high')
+                        if hw_temp is not None and hard_low <= hw_temp <= hard_high:
+                            self._ntc10k_current_temp = hw_temp
+                            print(f'NTC10k: restored {hw_temp:.1f}C from module')
+                        else:
+                            self._ntc10k_current_temp = self.config_manager.get_param('simulated_temp')
+                            print(f'NTC10k: init from config {self._ntc10k_current_temp}C')
                         self._ntc10k_last_update = current_time
-                        print(f'NTC10k: initialized to {self._ntc10k_current_temp}C')
 
                     # Calculate time since last update
                     dt = current_time - self._ntc10k_last_update
@@ -781,11 +797,16 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     rate_limit = self.config_manager.get_param('ds_rate_limit')
                     pid_dt = self.config_manager.get_param('pid_dt')
 
-                    # Initialize resistance to midpoint on first run or mode switch
+                    # Initialize resistance: try module value first, then midpoint fallback
                     if self._direct_sensor_current_r is None:
-                        self._direct_sensor_current_r = (min_r + max_r) / 2
+                        hw_r = self._read_ssr_param(6)  # R_Emulated
+                        if hw_r is not None and min_r <= hw_r <= max_r:
+                            self._direct_sensor_current_r = hw_r
+                            print(f'Direct sensor: restored {hw_r:.1f} Ohms from module')
+                        else:
+                            self._direct_sensor_current_r = (min_r + max_r) / 2
+                            print(f'Direct sensor: init midpoint {self._direct_sensor_current_r:.1f} Ohms')
                         self._direct_sensor_last_update = current_time
-                        print(f'Direct sensor: initialized to {self._direct_sensor_current_r:.1f} Ohms')
 
                     # Calculate time since last update
                     dt = current_time - self._direct_sensor_last_update
