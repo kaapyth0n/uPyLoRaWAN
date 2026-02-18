@@ -1,5 +1,6 @@
 import time
-from machine import SoftSPI, Pin, PWM
+import math
+from machine import SPI, SoftSPI, Pin, PWM
 import uctypes
 
 #буфера для коротких системных сообщений по SPI
@@ -12,8 +13,10 @@ n_irq = 0    # число прерываний
 class FrSet:
     def __init__(self, size=8, search=False):
         #версия
-        self.version = 'FrSet v0.59'
+        self.version = 'FrSet v0.61'
         
+        #v0.61 при обработке знаковых целых добавлены отрицательные значения
+        #v0.60 добавлен тип данныхR
         #v0.59 FrSet(..., search=Falce)
         #v0.58 добавлены типы данных D и (R)
         #v0.57 при отображении текстовых строк непечатаемые символы преобразуются в формат со слешем
@@ -138,7 +141,7 @@ class FrSet:
             print("callback", slot)
         except ValueError:
             print("callback ERROR", p)
-            return
+            return 
         self.led(100, 100, 100) #мигнем светодиодом
         #прочитаем Events в модуле вызвавшем прерывание
         #буфера коротких пакетов
@@ -157,6 +160,12 @@ class FrSet:
         
         #return rx_6
        
+#---------------------------------------------------------------------------------
+    #преобразовать его в знаковое int32
+    def to_signed32(self, val):
+        if val & 0x80000000:
+            return val - 0x100000000
+        return val
 #---------------------------------------------------------------------------------
     #пакет обмена для параметра "parameter", "value" значение параметра,
     # "n" число байт параметра при чтении, "rw" чтение/запись, timeout (мкс)(=0 ->не обрабатывать!),
@@ -279,21 +288,21 @@ class FrSet:
                 #if rw == 0 : return '\x00'
             #на всякий случай ограничиваем маркером \x00 максимально длинный конец
             rx[-1] = 0
-            try:
-                # Попытка декодировать bytearray в строку
-                x = rx[2:]  # Обрезаем первые два байта
-                result = []
-                for byte in x:
-                    if 0x20 <= byte <= 0x7E:  # Печатаемые ASCII символы
-                        result.append(chr(byte))
-                    elif byte == 0x00:  # Остановка при байте 0x00
-                        break
-                    else:  # Непечатаемые символы
-                        result.append(f"x{byte:02X}")
-                return ''.join(result)
-            except Exception:
-                # Возвращение пустой строки в случае любой ошибки
-                return ''
+        try:
+            # Попытка декодировать bytearray в строку
+            x = rx[2:]  # Обрезаем первые два байта
+            result = []
+            for byte in x:
+                if 0x20 <= byte <= 0x7E:  # Печатаемые ASCII символы
+                    result.append(chr(byte))
+                elif byte == 0x00:  # Остановка при байте 0x00
+                    break
+                else:  # Непечатаемые символы
+                    result.append(f"x{byte:02X}")
+            return ''.join(result)
+        except Exception:
+            # Возвращение пустой строки в случае любой ошибки
+            return ''
             
         else:                              #ошибка типа
             return None
@@ -320,19 +329,23 @@ class FrSet:
             #узнаем тип переменной из Header самого параметра
             h = x[0]
             if h == 'f' or h == 'F':
-                x = self.packet(parameter, 0.0, slot=self.spi_slot)
+                x = self.packet(parameter, 0.0, slot=self.spi_slot) 
             elif h == 'b' or h == 'B':
                 x = self.packet(parameter, 0, slot=self.spi_slot)
             elif h == 'u' or h == 'U':
-                x = self.packet(parameter, 0, slot=self.spi_slot)
+                x = self.packet(parameter, 0, slot=self.spi_slot) 
             elif h == 's' or h == 'S':
                 x = self.packet(parameter, 0, slot=self.spi_slot)
+                x = self.to_signed32(x)
             elif h == 'd' or h == 'D':
                 x = self.packet(parameter, 0, slot=self.spi_slot)
+                x = self.to_signed32(x)
             elif h == 'c' or h == 'C':
-                x = self.packet(parameter, 0, slot=self.spi_slot)
+                x = self.packet(parameter, 0, slot=self.spi_slot) 
             elif h == 'h' or h == 'H':
                 x = self.packet(parameter, '', n=self.size_buf, slot=self.spi_slot)
+            elif h == 'r' or h == 'R':
+                x = self.packet(parameter, b'', n=self.size_buf, slot=self.spi_slot)
                 #строка проверена ранее в packet()
                 
             else:
@@ -400,6 +413,11 @@ class FrSet:
             #print(self.parse_control_chars(x))
             print(x)
 
+        elif h == 'r' or h == 'R':
+            x = self.packet(parameter & 0xFE, b'\x00', n=self.size_buf, slot=self.spi_slot)  #читаем  parameter
+            # Вывод в виде шестнадцатеричных чисел
+            print(' '.join(f'{byte:02X}' for byte in x))
+
         elif h == 'f' or h == 'F':
             x = self.packet(parameter, 0.0, slot=self.spi_slot)
             print("%.3f" % x)
@@ -407,16 +425,18 @@ class FrSet:
             x = self.packet(parameter, 0, slot=self.spi_slot)
             print(bin(x))
         elif h == 'u' or h == 'U':
-            x = self.packet(parameter, 0, slot=self.spi_slot)
-            print(hex(x))
+            x = self.packet(parameter, 0, slot=self.spi_slot) 
+            print(hex(x)) 
         elif h == 's' or h == 'S':
             x = self.packet(parameter, 0, slot=self.spi_slot)
-            print(hex(x))
+            x = self.to_signed32(x)
+            print(hex(x)) 
         elif h == 'd' or h == 'D':
             x = self.packet(parameter, 0, slot=self.spi_slot)
-            print(x)
+            x = self.to_signed32(x)
+            print(x) 
         elif h == 'c' or h == 'C':
-            x = self.packet(parameter, 0, slot=self.spi_slot)
+            x = self.packet(parameter, 0, slot=self.spi_slot) 
             print(hex(x))
         return h
 

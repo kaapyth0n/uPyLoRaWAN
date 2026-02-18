@@ -142,10 +142,10 @@ class MQTTHandler:
                 return False
                 
             # Build topic strings only after we have a valid MAC
-            self.base_topic = f"{mqtt_config['topic_prefix']}/device/{self.mac_address}/Boiler:1"
-            self.command_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/command"
-            self.config_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/config/+"
-            self.query_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/query"
+            self.base_topic = f"{mqtt_config['topic_prefix']}/device/{self.mac_address}/Pump:1"
+            self.command_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Pump:1/command"
+            self.config_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Pump:1/config/+"
+            self.query_topic = f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Pump:1/query"
             
             # Generate unique client ID using MAC address
             client_id = f"SBI_{self.mac_address}"
@@ -350,7 +350,7 @@ class MQTTHandler:
             
             if topic == self.command_topic:
                 self._handle_command(data)
-            elif topic.startswith(f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Boiler:1/config/"):
+            elif topic.startswith(f"{mqtt_config['topic_prefix']}/client/{self.mac_address}/Pump:1/config/"):
                 param = topic.split('/')[-1]
                 self._handle_config(param, data)
             elif topic == self.query_topic:
@@ -423,68 +423,47 @@ class MQTTHandler:
             print(f"Error handling query: {e}")
             
     def publish_status(self):
-        """Publish current status including memory statistics"""
+        """Publish current pump status parameters over MQTT"""
         try:
-            # Queue essential values for publishing
-            self.publish_parameter('temperature', self.controller.current_temp)
-            self.publish_parameter('setpoint', self.controller.config_manager.get_param('setpoint'))
-            self.publish_parameter('heating', self.controller.heating_active)
+            # Get pump status from lin_pump handler
+            pump = self.controller.lin_pump.get_status()
 
-            # Publish outdoor temperature if available
-            if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:
-                self.publish_parameter('outdoor_temp', self.controller.outdoor_temp)
+            # Publish pump control parameters
+            self.publish_parameter('setpoint', self.controller.config_manager.get_param('pump_setpoint'))
+            self.publish_parameter('control_mode', pump.get('control_mode_name', '?'))
+            self.publish_parameter('command_on', self.controller.config_manager.get_param('pump_command_on'))
 
-            # Check for calculated voltage
-            if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
-                self.publish_parameter('voltage_calculated', self.controller.output_voltage_calculated)
+            # Publish pump status values
+            self.publish_parameter('operational_status', pump.get('operational_status', 0))
+            self.publish_parameter('ready', pump.get('ready_for_operation', 0))
+            self.publish_parameter('actual_setpoint', pump.get('actual_setpoint', 0))
+            self.publish_parameter('rpm', pump.get('rpm', 0))
+            self.publish_parameter('head', pump.get('head', 0))
+            self.publish_parameter('flow', pump.get('flow', 0))
+            self.publish_parameter('fluid_temp', pump.get('fluid_temp', 0))
+            self.publish_parameter('power', pump.get('power', 0))
+            self.publish_parameter('rotation_direction', pump.get('rotation_direction', 0))
+            self.publish_parameter('power_on_indicator', pump.get('power_on_indicator', 0))
 
-            # Check for measured voltage
-            if hasattr(self.controller, 'output_voltage_measured') and self.controller.output_voltage_measured is not None:
-                self.publish_parameter('voltage_measured', self.controller.output_voltage_measured)
+            # Publish alarm flags
+            self.publish_parameter('warning', pump.get('warning', 0))
+            self.publish_parameter('error', pump.get('error', 0))
+            self.publish_parameter('final_error', pump.get('final_error', 0))
+            self.publish_parameter('limit_reached', pump.get('limit_reached', 0))
 
-            # Publish NTC10K simulated temperature if in ntc10k mode
-            if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
-                self.publish_parameter('simulated_temp', round(self.controller._ntc10k_current_temp, 1))
-
-            # Publish current resistance if in direct_sensor mode
-            if hasattr(self.controller, '_direct_sensor_current_r') and self.controller._direct_sensor_current_r is not None:
-                self.publish_parameter('current_resistance', round(self.controller._direct_sensor_current_r, 1))
-
-            # Publish filtered temperature if filtering is enabled
-            if hasattr(self.controller.temp_controller, 'filtered_temp') and self.controller.temp_controller.filtered_temp is not None:
-                tau = self.controller.config_manager.get_param('temp_filter_tau')
-                if tau is not None and tau > 0:
-                    self.publish_parameter('filtered_temp', round(self.controller.temp_controller.filtered_temp, 2))
-
-            # Add PID component values if they exist (for pid, soft_pid, and direct_sensor modes)
-            if self.controller.config_manager.get_param('mode') in ['pid', 'soft_pid', 'direct_sensor']:
-                if hasattr(self.controller.temp_controller, 'p_value') and self.controller.temp_controller.p_value is not None:
-                    self.publish_parameter('pid_p', round(self.controller.temp_controller.p_value, 3))
-
-                if hasattr(self.controller.temp_controller, 'i_value') and self.controller.temp_controller.i_value is not None:
-                    self.publish_parameter('pid_i', round(self.controller.temp_controller.i_value, 3))
-
-                if hasattr(self.controller.temp_controller, 'd_value') and self.controller.temp_controller.d_value is not None:
-                    self.publish_parameter('pid_d', round(self.controller.temp_controller.d_value, 3))
-            
-            # Get and publish memory statistics
+            # Publish memory statistics
             try:
-                # Force garbage collection before measuring
                 gc.collect()
                 free = gc.mem_free()
                 alloc = gc.mem_alloc()
                 total = free + alloc
-                
-                # Queue memory information for publishing
                 self.publish_parameter('memory_free', free)
                 self.publish_parameter('memory_percent_used', round((alloc * 100) / total, 1))
-                
             except Exception as e:
                 print(f"Error queuing memory stats: {e}")
-            
-            # Use last_publish specifically to track status updates
+
             self.last_publish = time.time()
-                
+
         except Exception as e:
             print(f"Error queuing status data: {e}")
             

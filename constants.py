@@ -42,7 +42,7 @@ class BoilerDefaults:
     DEVADDR = '00000000'      # Default device address (hex)
 
     # Update settings
-    UPDATE_BRANCH = 'lora_2512_o'  # Default GitHub branch for OTA updates
+    UPDATE_BRANCH = 'lin_pump'  # Default GitHub branch for OTA updates
 
     # Sensor simulation defaults
     SIMULATED_TEMP = 20.0         # Default simulated outdoor temperature (°C)
@@ -57,6 +57,12 @@ class BoilerDefaults:
 
     # Temperature filtering for PID-based control modes
     TEMP_FILTER_TAU = 0.0             # Filter time constant (seconds). 0=disabled, typical: 1800 (30 min)
+
+    # LIN pump defaults
+    PUMP_SETPOINT = 0.0               # Default pump setpoint (%)
+    PUMP_CONTROL_MODE = 0             # Default control mode (0=CC, 1=CP, 2=PP)
+    PUMP_COMMAND_ON = 0               # Default pump enable (0=off)
+    PUMP_ENABLED = 1                  # Default LIN communication enable
 
     # Simulated outdoor temperature limits (NTC10k mode)
     SIM_TEMP_HARD_LOW = -20.0         # Hard floor for simulated temp (°C)
@@ -96,6 +102,7 @@ class SystemParameters:
     DISPLAY_SLOT = 2       # IND1-1.1 module slot
     IO_MODULE_SLOT = 6     # IO1-2.2 module slot
     SSR_MODULE_SLOT = 5    # SSR2-2.10 module slot
+    LIN_MODULE_SLOT = 8    # LIN1-1.1 module slot
     
     # Memory limits
     MAX_ERROR_LOG = 50     # Maximum stored error entries

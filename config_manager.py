@@ -306,6 +306,39 @@ class ConfigurationManager:
                 'max': 86400,
                 'default': BoilerDefaults.REMOTE_OUTDOOR_TIMEOUT,
                 'description': 'Timeout for remote outdoor temp validity (seconds, 0=never expires)'
+            },
+            # LIN pump parameters
+            'pump_setpoint': {
+                'id': 36,
+                'type': float,
+                'min': 0.0,
+                'max': 100.0,
+                'default': BoilerDefaults.PUMP_SETPOINT,
+                'description': 'Pump target setpoint (0-100%)'
+            },
+            'pump_control_mode': {
+                'id': 37,
+                'type': int,
+                'min': 0,
+                'max': 2,
+                'default': BoilerDefaults.PUMP_CONTROL_MODE,
+                'description': 'Pump control mode: 0=CC, 1=CP, 2=PP'
+            },
+            'pump_command_on': {
+                'id': 38,
+                'type': int,
+                'min': 0,
+                'max': 1,
+                'default': BoilerDefaults.PUMP_COMMAND_ON,
+                'description': 'Pump enable: 0=off, 1=on'
+            },
+            'pump_enabled': {
+                'id': 39,
+                'type': int,
+                'min': 0,
+                'max': 1,
+                'default': BoilerDefaults.PUMP_ENABLED,
+                'description': 'LIN communication enable: 0=disabled, 1=enabled'
             }
         }
         
