@@ -42,7 +42,7 @@ class BoilerDefaults:
     DEVADDR = '00000000'      # Default device address (hex)
 
     # Update settings
-    UPDATE_BRANCH = 'lin_pump'  # Default GitHub branch for OTA updates
+    UPDATE_BRANCH = 'demo'  # Default GitHub branch for OTA updates
 
     # Sensor simulation defaults
     SIMULATED_TEMP = 20.0         # Default simulated outdoor temperature (°C)
