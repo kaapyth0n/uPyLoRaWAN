@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-04T19:44:11Z",
+  "timestamp": "2026-03-04T20:13:30Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -32,10 +32,10 @@
       "size": 8248
     },
     "main.py": {
-      "version": "4.5",
+      "version": "4.6",
       "path": "/main.py",
-      "hash": "b18167b4b8b82b7543182e2d7959422c9f3855e1d25ed09f63e115c213117410",
-      "size": 16752
+      "hash": "21cda56cface771f24d6ae0974294f6ed63ad3df2c2409e32e28fcce16acc9cc",
+      "size": 16906
     },
     "config_portal.py": {
       "version": "1.6",
@@ -80,10 +80,10 @@
       "size": 3849
     },
     "state_machine.py": {
-      "version": "1.9",
+      "version": "2.0",
       "path": "/state_machine.py",
-      "hash": "2c9bdadf68a93dcf6708d549d497fcc787e1e2bb11bef264743db4577e2c33f9",
-      "size": 11248
+      "hash": "7cbbbd29942aeb83ce423ef80fd0c1d8ebb6f0834242b61618b56d4d8dff378e",
+      "size": 11306
     },
     "temp_controller.py": {
       "version": "1.4",
@@ -158,5 +158,5 @@
       "size": 21801
     }
   },
-  "firmware_version": "260304-ef060e68"
+  "firmware_version": "260304-09339af4"
 }

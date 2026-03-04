@@ -197,7 +197,9 @@ class StateMachine:
             self.transition_to(SystemState.RUNNING)
                 
         except Exception as e:
+            import sys
             print(f"Initialization sequence failed with error: {str(e)}")
+            sys.print_exception(e)
             self.controller.logger.log_error(
                 'initialization',
                 f"Initialization failed: {e}",

@@ -113,7 +113,7 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self._demo_dir = 1     # 1 = ramping up, -1 = ramping down
         self._demo_step = 1.0  # Step size per loop iteration (%)
         if self._demo_mode:
-            self.config_manager.set_param('pump_enabled', True)
+            self.config_manager.set_param('pump_enabled', 1)
 
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
@@ -220,6 +220,9 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
 
             # Initialize LIN1-1.1 module
             print("2. Initializing LIN1-1.1 module...")
+            # Demo mode forces pump on regardless of config
+            if self._demo_mode:
+                self.config_manager.set_param('pump_enabled', 1)
             if self.config_manager.get_param('pump_enabled'):
                 if not self.lin_pump.init_module():
                     print("LIN module initialization failed")
