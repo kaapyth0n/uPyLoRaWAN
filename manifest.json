@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-18T21:21:05Z",
+  "timestamp": "2026-03-04T18:31:11Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -32,10 +32,10 @@
       "size": 8248
     },
     "main.py": {
-      "version": "4.3",
+      "version": "4.4",
       "path": "/main.py",
-      "hash": "33298659e9bdc9e4b08a85f9ff5524053c362a21e92b00b5e553a4a23b48efb8",
-      "size": 14883
+      "hash": "39ac0ba58a4969b79fc2d05e31b4e7b017e533d82630e47721f18125015eac13",
+      "size": 16660
     },
     "config_portal.py": {
       "version": "1.6",
@@ -152,11 +152,11 @@
       "size": 24305
     },
     "lin_pump.py": {
-      "version": "1.1",
+      "version": "1.2",
       "path": "/lin_pump.py",
-      "hash": "f9480dbb4b769d74a5cc7e28c898219cfbb5cb28c20c9117ab20724849ffacc9",
-      "size": 18933
+      "hash": "367f8522198412ff8554c361d5580e665aacc7d3eea5b5ea672d59c64b9d7ff8",
+      "size": 21801
     }
   },
-  "firmware_version": "260218-afc4eee9"
+  "firmware_version": "260304-05374b26"
 }
