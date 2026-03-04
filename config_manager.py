@@ -496,6 +496,7 @@ class ConfigurationManager:
                 return True
             else:
                 print(f"Invalid configuration loaded: {message}")
+                print(f"Config keys: {list(config.keys())}")
                 return False
                 
         except OSError:

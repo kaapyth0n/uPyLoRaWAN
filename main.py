@@ -221,9 +221,12 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             # Initialize LIN1-1.1 module
             print("2. Initializing LIN1-1.1 module...")
             # Demo mode forces pump on regardless of config
+            pump_en = self.config_manager.get_param('pump_enabled')
+            print(f"   pump_enabled={pump_en} (type={type(pump_en).__name__}), demo={self._demo_mode}")
             if self._demo_mode:
-                self.config_manager.set_param('pump_enabled', 1)
-            if self.config_manager.get_param('pump_enabled'):
+                pump_en = 1
+                self.config_manager.current_config['pump_enabled'] = 1
+            if pump_en:
                 if not self.lin_pump.init_module():
                     print("LIN module initialization failed")
                     self.logger.log_error('hardware', 'LIN1-1.1 module init failed', 3)
