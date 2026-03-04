@@ -111,3 +111,4 @@ old/
 # config files
 config.py
 wifi_config.json
+.claude/settings.json
