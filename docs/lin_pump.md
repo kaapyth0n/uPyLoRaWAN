@@ -20,68 +20,139 @@ Connect the LIN1-1.1 module to the Grundfos pump's LIN connector:
 
 - **LIN** - LIN bus signal line
 - **GND** - Ground reference
-- **+12V** - LIN bus supply (if not provided by pump)
+- **+12V/+24V** - Power supply (pump needs V_24 >= 8V)
 
-The LIN bus operates at **19200 baud** with **classic checksum** per VDMA 24226.
+The LIN bus operates at **19200 baud** per VDMA 24226.
+
+## LIN1-1.1 Module Parameter Map (v0.78)
+
+| Param | Address | Type | Description |
+|-------|---------|------|-------------|
+| P_MODULE | 0 | R | Module identification string |
+| P_EVENTS | 2 | R | Event flags |
+| P_EVENTS_MSK | 4 | RW | Event mask |
+| P_LIN_ID | 6 | RW | LIN frame ID for current operation (0x00-0x3F) |
+| P_LIN_N | 8 | R | Received byte count (Variant D: resets on read of LIN_N) |
+| P_LIN_BUF | 10 | RW | 8-byte frame data buffer |
+| P_TIME_UPD | 12 | RW | Cycle control: 0=stop, 1=send once, >1=cyclic period (ms) |
+| P_RXF_POP | 14 | R | Pop one entry from RX FIFO |
+| P_LIN_PAUSE | 16 | RW | Min inter-packet pause (ms), VDMA requires >=20 |
+| P_BAUDRATE | 18 | RW | LIN baudrate (default 19200) |
+| P_RX_TIMEOUT | 20 | RW | Slave response timeout (ms), 0=auto |
+| P_LIN_STATUS | 22 | R | Status bitmap |
+| P_CNT_TX | 24 | R | TX packet counter |
+| P_CNT_RX_OK | 26 | R | RX OK counter (CRC valid) |
+| P_CNT_CRC_ERR | 28 | R | CRC error counter |
+| P_CNT_NORESP | 30 | R | No-response (timeout) counter |
+| P_CNT_BUS_ERR | 32 | R | Bus error counter |
+| P_CNT_FIFO_OVR | 34 | R | FIFO overflow counter |
+| P_T_CPU | 36 | R | CPU temperature (°C) |
+| P_V_24 | 38 | R | 24V supply voltage (V) |
+| P_V_CPU | 40 | R | CPU supply voltage (V) |
+| P_LEDS | 42 | RW | LED control |
+| P_UPTIME | 44 | R | Uptime (seconds) |
+| P_NV_SAVE | 46 | W | Save config to Flash |
+| P_RESET | 48 | W | Module reset |
+
+## Communication Protocol
+
+### One-Shot Master TX (SET_PUMP)
+
+To send a command to the pump:
+1. Write LIN_ID = frame ID (`fr.write(6, 0x01, slot)`)
+2. Write LIN_buf = 8-byte frame data (`fr.write(10, data, slot)`)
+3. Write TIME_UPD = 1 for single send (`fr.write(12, 1, slot)`)
+
+### Cyclic Master TX (SET_PUMP keepalive)
+
+The pump requires periodic SET_PUMP frames to avoid entering fallback mode:
+1. Write LIN_ID = 0x01
+2. Write LIN_buf = 8-byte frame data
+3. Write TIME_UPD = 200 (200ms cycle)
+4. Module auto-repeats. Update data by writing new LIN_buf (after setting LIN_ID).
+
+### One-Shot Master RX (Status reads)
+
+To read a response from the pump:
+1. Write LIN_ID = frame ID (e.g., 0x02 for Status_GET)
+2. Read LIN_N to clear stale value (Variant D: resets on read)
+3. Write TIME_UPD = 1 (trigger single header send)
+4. Poll LIN_N until non-zero or timeout
+5. Read LIN_buf for response data
+
+**LIN_N sign convention**: positive = CRC OK, negative = CRC error, abs(N) = byte count.
+
+### Important: Switching Between IDs
+
+When performing reads between cyclic SET_PUMP transmissions:
+1. Stop cyclic: set LIN_ID=0x01, then TIME_UPD=0
+2. Perform the read operation
+3. Restart cyclic: set LIN_ID=0x01, write new LIN_buf, set TIME_UPD=200
 
 ## LIN Protocol
 
 ### Frame Table
 
-Four unconditional frames are used cyclically:
+Four unconditional frames per VDMA 24226:
 
-| Frame | LIN ID | Direction | Cycle | Size | Purpose |
-|-------|--------|-----------|-------|------|---------|
-| SET_PUMP | 1 | Master Write | 100ms | 8B | Control: setpoint, mode, on/off |
-| Status_GET | 2 | Slave Response | 100ms | 8B | Status: RPM, head, flow, temp |
-| ADVANCED_GET | 3 | Slave Response | 250ms | 8B | Power, power-on indicator |
-| MANU_SPECIFIC | 4 | Slave Response | 1000ms | 8B | Vendor-specific (Grundfos) |
+| Frame | LIN ID | Direction | Purpose |
+|-------|--------|-----------|---------|
+| SET_PUMP | 0x01 | Master TX | Control: setpoint, mode, on/off |
+| Status_GET | 0x02 | Master RX | Status: RPM, head, flow, temp |
+| ADVANCED_GET | 0x03 | Master RX | Power, voltage indicator |
+| MANU_SPECIFIC | 0x04 | Master RX | Vendor-specific (Grundfos) |
 
 ### SET_PUMP (ID 1) - Master Write
 
-| Bits | Field | Factor | Unit | Range |
-|------|-------|--------|------|-------|
-| 0-9 | Setpoint_SET | 0.1 | % | 0-100 |
-| 10-13 | ControlMode_SET | - | enum | 0=CC, 1=CP, 2=PP |
-| 14 | RotationDirection_SET | - | bit | 0/1 |
-| 15 | CommandON_SET | - | bit | 0=off, 1=on |
-| 16-63 | Reserved | - | - | 0xFF fill |
+Byte-level layout:
+
+| Byte | Bits | Field | Description |
+|------|------|-------|-------------|
+| 0 | 7:0 | Setpoint_SET [7:0] | Lower 8 bits of 10-bit setpoint (raw 0-1000 = 0-100%) |
+| 1 | 1:0 | Setpoint_SET [9:8] | Upper 2 bits of setpoint |
+| 1 | 5:2 | ControlMode_SET | 0=CC, 1=CP, 2=PP |
+| 1 | 6 | RotationDirection_SET | 0=normal |
+| 1 | 7 | CommandON_SET | 0=stop, 1=run |
+| 2-7 | - | Reserved | **0x00 fill** |
 
 ### Status_GET (ID 2) - Slave Response
 
-| Bits | Field | Factor | Unit | Range |
-|------|-------|--------|------|-------|
-| 0-9 | ActualSetpoint | 0.1 | % | 0-100 |
-| 10-13 | ControlMode | - | enum | 0=CC, 1=CP, 2=PP |
-| 14 | RotationDirection | - | bit | 0/1 |
-| 15 | OperationalStatus | - | bit | 0=off, 1=running |
-| 16 | ReadyForOperation | - | bit | 0/1 |
-| 17 | WarningPresent | - | bit | 0/1 |
-| 18 | ErrorPresent | - | bit | 0/1 |
-| 19 | FinalErrorPresent | - | bit | 0/1 |
-| 20-29 | EstimatedRPM | 10 | rpm | 0-10230 |
-| 30-37 | EstimatedHead | 10 | cmH2O | 0-2550 |
-| 38-51 | EstimatedFlow | 0.1 | l/h | 0-1638.3 |
-| 52-62 | FluidTemp | 0.1 (offset -20) | °C | -20 to 184.7 |
-| 63 | OperationalLimitReached | - | bit | 0/1 |
+Byte-level layout (matching proven test decode):
+
+| Byte | Bits | Field | Raw value |
+|------|------|-------|-----------|
+| 0 | 7:0 | ActualSetpoint [7:0] | raw/10 = % |
+| 1 | 1:0 | ActualSetpoint [9:8] | |
+| 1 | 5:2 | ControlMode | 0=CC, 1=CP, 2=PP, 15=INIT |
+| 1 | 6 | RotationDirection | 0/1 |
+| 1 | 7 | OperationalStatus | 0=stopped, 1=running |
+| 2 | 0 | ReadyForOperation | 0/1 |
+| 2 | 1 | WarningPresent | 0/1 |
+| 2 | 2 | ErrorPresent | 0/1 |
+| 2 | 3 | FinalErrorPresent | 0/1 |
+| 2-3 | 7:4, 5:0 | EstimatedRPM | 10-bit, raw RPM |
+| 3-4 | 7:6, 5:0 | EstimatedHead | 8-bit, cm H2O |
+| 4-6 | 7:6, 7:0, 3:0 | EstimatedFlow | 14-bit, raw |
+| 6-7 | 7:4, 6:0 | FluidTemp | 11-bit, raw*0.1 - 20 = °C |
+| 7 | 7 | OperationalLimitReached | 0/1 |
 
 ### ADVANCED_GET (ID 3) - Slave Response
 
-| Bits | Field | Factor | Unit | Range |
-|------|-------|--------|------|-------|
-| 0-13 | EstimatedPowerInput | 0.2 | W | 0-3276.6 |
-| 14-17 | PowerOnIndicator | - | enum | 0-15 |
-| 18-62 | Reserved | - | - | - |
-| 63 | ResponseError | - | bit | 0/1 |
+| Byte | Bits | Field | Raw value |
+|------|------|-------|-----------|
+| 0-1 | 7:0, 5:0 | EstimatedPowerInput | 14-bit, raw Watts |
+| 1-2 | 7:6, 1:0 | PowerOnIndicator | 4-bit counter |
+| 2-3 | 7:2, 0 | MainsVoltage | 7-bit |
+| 7 | 7 | ResponseError | 0=OK, 1=error |
 
 ### MANU_SPECIFIC (ID 4) - Vendor-Specific (Grundfos)
 
 Best-effort decode; format may vary between pump models.
 
-| Bits | Field | Factor | Unit |
-|------|-------|--------|------|
-| 0-15 | Kv value | 0.01 | - |
-| 16-31 | Low flow threshold | 0.1 | l/h |
+| Bytes | Field | Factor | Unit |
+|-------|-------|--------|------|
+| 0-1 | Kv value | 0.01 | - |
+| 2-3 | Low flow threshold | 0.1 | l/h |
 
 ## Control Modes
 
@@ -105,11 +176,11 @@ Topic prefix: `SBI:FFFF/device/{MAC}/Pump:1/`
 | `operational_status` | int | 0/1 | Pump running status |
 | `ready` | int | 0/1 | Ready for operation |
 | `actual_setpoint` | float | % | Actual setpoint from pump |
-| `rpm` | int | rpm | Estimated RPM |
-| `head` | int | cmH2O | Estimated head pressure |
-| `flow` | float | l/h | Estimated flow rate |
+| `rpm` | int | rpm | Estimated RPM (raw) |
+| `head` | int | cmH2O | Estimated head pressure (raw) |
+| `flow` | int | raw | Estimated flow rate (raw) |
 | `fluid_temp` | float | °C | Fluid temperature |
-| `power` | float | W | Estimated power input |
+| `power` | int | W | Estimated power input (raw) |
 | `rotation_direction` | int | 0/1 | Rotation direction |
 | `power_on_indicator` | int | 0-15 | Power-on indicator |
 | `warning` | int | 0/1 | Warning flag |
@@ -154,18 +225,28 @@ Stored in `boiler_config.json`:
 ### Startup
 
 1. FrSet interface is initialized
-2. LIN1-1.1 module is detected at slot 8
-3. Baudrate set to 19200
-4. Packet table configured (4 entries with cycle times)
-5. **CommandON=0 is sent first** (pump off for safety)
-6. Cyclic sending is started
-7. System waits for `ReadyForOperation` flag from pump
-8. Once ready, `CommandON` follows the `pump_command_on` config parameter
+2. LIN1-1.1 module is detected at slot 8 (read P_MODULE)
+3. Wait for V_24 >= 8.0V (pump needs power supply)
+4. Baudrate set to 19200, LIN_pause set to 20ms
+5. RX FIFO is drained
+6. **CommandON=0 is sent first** (pump off for safety)
+7. Cyclic SET_PUMP starts at 200ms to keep pump alive
+8. System waits for `ReadyForOperation` flag from pump
+9. Once ready, `CommandON` follows the `pump_command_on` config parameter
+
+### Update Loop
+
+Each `update()` call:
+1. Syncs control parameters from config manager
+2. Updates cyclic SET_PUMP data if parameters changed
+3. Reads Status_GET every ~0.5s (stops cyclic, reads, restarts cyclic)
+4. Reads ADVANCED_GET every ~2s
+5. Reads MANU_SPECIFIC every ~5s
 
 ### Shutdown / Error
 
 On error or shutdown:
-1. `emergency_stop()` sends CommandON=0 and setpoint=0
+1. `emergency_stop()` stops cyclic, sends CommandON=0 and setpoint=0, restarts cyclic with OFF
 2. Display shows shutdown status
 3. System resets after 1 second delay
 

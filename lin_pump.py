@@ -1,6 +1,9 @@
 # lin_pump.py - LIN Pump Handler for Grundfos UPM4 series
 # Communicates with LIN-enabled circulator pumps via LIN1-1.1 FrSet module
 # Implements VDMA 24226 LIN Circulator Profile (4 unconditional frames)
+#
+# Communication approach: one-shot master TX/RX with cyclic SET_PUMP keepalive
+# Based on proven protocol from test_LIN_pump_v0_1.py
 
 import time
 
@@ -14,29 +17,37 @@ MODE_NAMES = {MODE_CC: 'cc', MODE_CP: 'cp', MODE_PP: 'pp'}
 MODE_FROM_NAME = {'cc': MODE_CC, 'cp': MODE_CP, 'pp': MODE_PP}
 
 # LIN frame IDs per VDMA 24226
-FRAME_SET_PUMP = 1       # Master write: control setpoint, mode, on/off
-FRAME_STATUS_GET = 2     # Slave response: RPM, head, flow, temp
-FRAME_ADVANCED_GET = 3   # Slave response: power, voltage indicator
-FRAME_MANU_SPECIFIC = 4  # Slave response: vendor-specific (Grundfos)
+FRAME_SET_PUMP = 0x01       # Master TX: control setpoint, mode, on/off
+FRAME_STATUS_GET = 0x02     # Master RX: RPM, head, flow, temp
+FRAME_ADVANCED_GET = 0x03   # Master RX: power, voltage indicator
+FRAME_MANU_SPECIFIC = 0x04  # Master RX: vendor-specific (Grundfos)
 
-# LIN1-1.1 FrSet parameter addresses
-LIN_PARAM_ID = 6         # Set LIN frame ID for packet table entry
-LIN_PARAM_N = 8          # Set number of packet table entries
-LIN_PARAM_BUF = 10       # Read/write 8-byte frame data + 4-byte metadata
-LIN_PARAM_TIME = 12      # Set cycle time per entry (ms)
-LIN_PARAM_RXF_POP = 14   # Pop received frames from FIFO
-LIN_PARAM_PAUSE = 16     # Pause/resume cyclic sending
-LIN_PARAM_BAUDRATE = 18  # Set baudrate
+# LIN1-1.1 FrSet parameter addresses (v0.78 firmware)
+P_MODULE    = 0    # Module identification string
+P_LIN_ID    = 6    # LIN frame ID for current operation
+P_LIN_N     = 8    # Received byte count (Variant D: resets on read)
+P_LIN_BUF   = 10   # 8-byte frame data buffer (read/write)
+P_TIME_UPD  = 12   # Cycle time: 0=stop, 1=send once, >1=cyclic (ms)
+P_RXF_POP   = 14   # Pop one entry from RX FIFO (returns 16-bit word)
+P_LIN_PAUSE = 16   # Min inter-packet pause in ms (VDMA requires >=20ms)
+P_BAUDRATE  = 18   # LIN baudrate
+P_V_24      = 38   # 24V power supply voltage reading
+
+# Timing constants
+V24_MIN = 8.0               # Minimum supply voltage for pump (V)
+V24_WAIT_S = 30             # Max time to wait for power (s)
+FRAME_INTERVAL = 0.025      # Min interval between frames (s)
+PUMP_RESPONSE_MS = 500      # Timeout waiting for slave response (ms)
 
 
 class LinPumpHandler:
     """Handler for LIN-bus communication with Grundfos UPM4 circulator pumps.
 
-    Uses LIN1-1.1 FrSet module to exchange VDMA 24226 frames:
-    - SET_PUMP (ID 1): Write setpoint, control mode, on/off
-    - Status_GET (ID 2): Read RPM, head, flow, fluid temp
-    - ADVANCED_GET (ID 3): Read power input, power-on indicator
-    - MANU_SPECIFIC (ID 4): Read vendor-specific data (Grundfos Kv, low flow)
+    Uses LIN1-1.1 FrSet module with one-shot master TX/RX protocol:
+    - SET_PUMP (ID 1): Cyclic master TX at 200ms to keep pump alive
+    - Status_GET (ID 2): Periodic one-shot master RX for pump status
+    - ADVANCED_GET (ID 3): Periodic one-shot master RX for power data
+    - MANU_SPECIFIC (ID 4): Periodic one-shot master RX for vendor data
     """
 
     def __init__(self, fr, config_manager, slot=8, baudrate=19200):
@@ -69,61 +80,50 @@ class LinPumpHandler:
         self._last_advanced_read = 0
         self._last_manu_read = 0
         self._comm_errors = 0
+        # SET_PUMP is sent cyclically; track if we need to update the data
+        self._set_pump_dirty = True
 
     def init_module(self):
-        """Configure LIN1-1.1 module: baudrate, packet table entries, cycle times.
-
-        Packet table layout:
-        - Entry 0: ID 1 (SET_PUMP), master write, 100ms cycle
-        - Entry 1: ID 2 (Status_GET), slave read, 100ms cycle
-        - Entry 2: ID 3 (ADVANCED_GET), slave read, 250ms cycle
-        - Entry 3: ID 4 (MANU_SPECIFIC), slave read, 1000ms cycle
+        """Configure LIN1-1.1 module: verify presence, wait for power,
+        set baudrate and pause, drain FIFO, start cyclic SET_PUMP.
 
         Returns:
             bool: True if module configured successfully
         """
         try:
-            print(f"Initializing LIN1-1.1 module at slot {self.slot}...")
+            print("Initializing LIN1-1.1 module at slot %d..." % self.slot)
 
             # Verify module is present
-            module_id = self.fr.read(0, slot=self.slot)
+            module_id = self.fr.read(P_MODULE, slot=self.slot)
             if module_id is None:
-                print(f"LIN1-1.1 module not found at slot {self.slot}")
+                print("LIN1-1.1 module not found at slot %d" % self.slot)
                 return False
-            print(f"Found module: {module_id}")
+            print("Found module: %s" % module_id)
 
-            # Pause cyclic sending during configuration
-            self.fr.write(LIN_PARAM_PAUSE, 1, slot=self.slot)
-            time.sleep_ms(50)
+            # Wait for V_24 supply voltage (pump needs power)
+            if not self._wait_power():
+                print("ERROR: No power on V_24 line!")
+                return False
 
-            # Set baudrate to 19200 (VDMA 24226 standard)
-            self.fr.write(LIN_PARAM_BAUDRATE, self.baudrate, slot=self.slot)
-            time.sleep_ms(50)
+            # Set baudrate
+            self.fr.write(P_BAUDRATE, self.baudrate, slot=self.slot)
+            time.sleep(0.2)
+            baud_readback = self.fr.read(P_BAUDRATE, slot=self.slot)
+            print("Baudrate: %s (requested %d)" % (baud_readback, self.baudrate))
 
-            # Set number of packet table entries to 4
-            self.fr.write(LIN_PARAM_N, 4, slot=self.slot)
-            time.sleep_ms(50)
+            # Set minimum inter-packet pause (VDMA requires >=20ms)
+            self.fr.write(P_LIN_PAUSE, 20, slot=self.slot)
+            time.sleep(0.05)
 
-            # Configure packet table entries
-            # Entry 0: SET_PUMP (ID 1), master write, 100ms
-            self._configure_packet_entry(0, FRAME_SET_PUMP, is_write=True, cycle_ms=100)
+            # Drain any stale data from RX FIFO
+            self._drain_fifo()
 
-            # Entry 1: Status_GET (ID 2), slave read, 100ms
-            self._configure_packet_entry(1, FRAME_STATUS_GET, is_write=False, cycle_ms=100)
-
-            # Entry 2: ADVANCED_GET (ID 3), slave read, 250ms
-            self._configure_packet_entry(2, FRAME_ADVANCED_GET, is_write=False, cycle_ms=250)
-
-            # Entry 3: MANU_SPECIFIC (ID 4), slave read, 1000ms
-            self._configure_packet_entry(3, FRAME_MANU_SPECIFIC, is_write=False, cycle_ms=1000)
-
-            # Write initial SET_PUMP frame with CommandON=0 (pump off for safety)
+            # Send initial SET_PUMP with CommandON=0 (pump off for safety)
             self.command_on = 0
-            self._write_set_pump()
+            self._send_set_pump_once()
 
-            # Resume cyclic sending
-            self.fr.write(LIN_PARAM_PAUSE, 0, slot=self.slot)
-            time.sleep_ms(100)
+            # Start cyclic SET_PUMP at 200ms to prevent pump fallback
+            self._start_cyclic_set_pump()
 
             self.initialized = True
             self._comm_errors = 0
@@ -131,42 +131,124 @@ class LinPumpHandler:
             return True
 
         except Exception as e:
-            print(f"LIN1-1.1 init failed: {e}")
+            print("LIN1-1.1 init failed: %s" % e)
             self.initialized = False
             return False
 
-    def _configure_packet_entry(self, entry_idx, frame_id, is_write, cycle_ms):
-        """Configure a single packet table entry in LIN1-1.1 module.
+    def _wait_power(self):
+        """Wait for V_24 supply voltage to reach minimum threshold.
+
+        Returns:
+            bool: True if voltage is sufficient
+        """
+        v24 = self.fr.read(P_V_24, slot=self.slot)
+        if v24 is not None and v24 >= V24_MIN:
+            print("V_24 = %.1fV - OK" % v24)
+            return True
+
+        print("V_24 = %.1fV - waiting..." % (v24 if v24 is not None else 0))
+        t0 = time.ticks_ms()
+        while time.ticks_diff(time.ticks_ms(), t0) < V24_WAIT_S * 1000:
+            time.sleep(0.5)
+            v24 = self.fr.read(P_V_24, slot=self.slot)
+            if v24 is not None and v24 >= V24_MIN:
+                print("V_24 = %.1fV - OK" % v24)
+                return True
+
+        v24 = self.fr.read(P_V_24, slot=self.slot)
+        print("TIMEOUT! V_24 = %.1fV (need >= %.1fV)" % (
+            v24 if v24 is not None else 0, V24_MIN))
+        return False
+
+    def _drain_fifo(self):
+        """Clear stale entries from RX FIFO."""
+        for _ in range(32):
+            rxf = self.fr.read(P_RXF_POP, slot=self.slot)
+            if rxf is None or rxf == 0:
+                break
+
+    def _lin_set_id(self, lin_id):
+        """Select LIN frame ID for next operation."""
+        self.fr.write(P_LIN_ID, lin_id & 0x3F, slot=self.slot)
+        time.sleep(0.02)
+
+    def _lin_write_data(self, data_bytes):
+        """Write 8-byte frame data to LIN buffer."""
+        self.fr.write(P_LIN_BUF, bytearray(data_bytes), slot=self.slot)
+        time.sleep(0.02)
+
+    def _lin_send_once(self):
+        """Trigger a single LIN frame transmission."""
+        self.fr.write(P_TIME_UPD, 1, slot=self.slot)
+        time.sleep(0.02)
+
+    def _lin_master_tx(self, lin_id, data_bytes):
+        """Send data as master TX (header + data from master)."""
+        self._lin_set_id(lin_id)
+        self._lin_write_data(data_bytes)
+        self._lin_send_once()
+        time.sleep(FRAME_INTERVAL)
+
+    def _lin_master_rx(self, lin_id, timeout_ms=PUMP_RESPONSE_MS):
+        """Send header (master RX) and wait for slave response.
 
         Args:
-            entry_idx: Packet table entry index (0-3)
-            frame_id: LIN frame ID (1-4)
-            is_write: True for master write, False for slave read
-            cycle_ms: Cycle time in milliseconds
+            lin_id: LIN frame ID to request
+            timeout_ms: Max wait time for response
+
+        Returns:
+            tuple: (n, data) where n is byte count (negative if CRC error),
+                   data is raw bytes. Returns (None, None) on timeout.
         """
-        # Select the packet table entry by writing entry index
-        # Then set frame ID, direction, and cycle time
-        # LIN1-1.1 uses LIN_ID parameter to configure each entry sequentially
+        self._lin_set_id(lin_id)
+        # Variant D: clear stale LIN_N before triggering send
+        self.fr.read(P_LIN_N, slot=self.slot)
+        self._lin_send_once()
 
-        # Build entry configuration:
-        # High byte: entry index, Low byte: frame_id | (direction << 6)
-        direction_bit = 0x00 if is_write else 0x40  # bit 6 = direction (0=write, 1=read)
-        entry_config = (entry_idx << 8) | (frame_id & 0x3F) | direction_bit
-        self.fr.write(LIN_PARAM_ID, entry_config, slot=self.slot)
-        time.sleep_ms(20)
+        t0 = time.ticks_ms()
+        while True:
+            n = self.fr.read(P_LIN_N, slot=self.slot)
+            if n is not None and n != 0:
+                data = self.fr.read(P_LIN_BUF, slot=self.slot)
+                return (n, data)
+            if time.ticks_diff(time.ticks_ms(), t0) > timeout_ms:
+                return (None, None)
+            time.sleep(0.02)
 
-        # Set cycle time for this entry
-        cycle_config = (entry_idx << 16) | (cycle_ms & 0xFFFF)
-        self.fr.write(LIN_PARAM_TIME, cycle_config, slot=self.slot)
-        time.sleep_ms(20)
+    def _send_set_pump_once(self):
+        """Encode and send a single SET_PUMP frame."""
+        frame_data = self.encode_set_pump()
+        self._lin_master_tx(FRAME_SET_PUMP, frame_data)
+
+    def _stop_cyclic(self):
+        """Stop cyclic SET_PUMP transmission."""
+        self.fr.write(P_TIME_UPD, 0, slot=self.slot)
+        time.sleep(0.02)
+
+    def _start_cyclic_set_pump(self, frame_data=None):
+        """Start cyclic SET_PUMP transmission at 200ms interval.
+        Optionally accepts pre-encoded frame data to avoid re-encoding."""
+        self._lin_set_id(FRAME_SET_PUMP)
+        if frame_data is None:
+            frame_data = self.encode_set_pump()
+        self._lin_write_data(frame_data)
+        # Set cyclic period - module auto-repeats at this interval
+        self.fr.write(P_TIME_UPD, 200, slot=self.slot)
+        time.sleep(0.02)
+
+    def _update_cyclic_set_pump(self):
+        """Update the SET_PUMP data for ongoing cyclic transmission.
+        Only writes new data to the buffer; the module continues cycling."""
+        self._lin_set_id(FRAME_SET_PUMP)
+        self._lin_write_data(self.encode_set_pump())
 
     def update(self):
         """Main update cycle - called from main loop each iteration.
 
-        1. Load control parameters from config
-        2. Encode and write SET_PUMP frame
-        3. Read and decode response frames from FIFO
-        4. Handle startup sequence (send OFF first, check ready, then enable)
+        1. Sync control parameters from config
+        2. Update cyclic SET_PUMP data if changed
+        3. Handle startup sequence
+        4. Batch all pending reads in a single stop/restart cycle
         """
         if not self.initialized:
             return
@@ -179,26 +261,47 @@ class LinPumpHandler:
             if not self._startup_done:
                 self._handle_startup()
 
-            # Write SET_PUMP frame with current control parameters
-            self._write_set_pump()
+            # Update SET_PUMP data if parameters changed
+            if self._set_pump_dirty:
+                self._update_cyclic_set_pump()
+                self._set_pump_dirty = False
 
-            # Read received frames from FIFO
-            self._read_responses()
+            now = time.time()
+
+            # Collect pending reads to batch them in a single stop/restart
+            pending = []
+            if now - self._last_status_read >= 0.5:
+                pending.append(FRAME_STATUS_GET)
+            if now - self._last_advanced_read >= 2.0:
+                pending.append(FRAME_ADVANCED_GET)
+            if now - self._last_manu_read >= 5.0:
+                pending.append(FRAME_MANU_SPECIFIC)
+
+            if pending:
+                self._do_pending_reads(pending, now)
 
         except Exception as e:
             self._comm_errors += 1
             if self._comm_errors % 10 == 1:
-                print(f"LIN update error ({self._comm_errors}): {e}")
+                print("LIN update error (%d): %s" % (self._comm_errors, e))
 
     def _sync_from_config(self):
-        """Sync control parameters from config manager."""
-        self.setpoint = self.config_manager.get_param('pump_setpoint') or 0.0
+        """Sync control parameters from config manager.
+        Marks SET_PUMP data dirty if anything changed."""
+        sp = self.config_manager.get_param('pump_setpoint') or 0.0
+        if sp != self.setpoint:
+            self.setpoint = sp
+            self._set_pump_dirty = True
+
         mode_val = self.config_manager.get_param('pump_control_mode')
-        if mode_val is not None:
+        if mode_val is not None and mode_val != self.control_mode:
             self.control_mode = mode_val
+            self._set_pump_dirty = True
+
         cmd = self.config_manager.get_param('pump_command_on')
-        if cmd is not None:
+        if cmd is not None and cmd != self.command_on:
             self.command_on = cmd
+            self._set_pump_dirty = True
 
     def _handle_startup(self):
         """Handle pump startup sequence.
@@ -212,217 +315,181 @@ class LinPumpHandler:
         if self.status.get('ready_for_operation'):
             self._startup_done = True
             print("LIN pump ready for operation")
-        else:
-            # Force pump off during startup
+        elif self.command_on != 0:
+            # Force pump off during startup — persist to config so a reboot
+            # doesn't restart the pump before ReadyForOperation is confirmed
             self.command_on = 0
+            self._set_pump_dirty = True
+            self.config_manager.set_param('pump_command_on', 0)
 
-    def _write_set_pump(self):
-        """Encode and write SET_PUMP frame (ID 1) to LIN1-1.1 module."""
-        frame_data = self.encode_set_pump()
+    def _do_pending_reads(self, frame_ids, now):
+        """Batch one-shot master RX reads in a single stop/restart cycle.
 
-        # Write frame data to LIN_buf for entry 0 (SET_PUMP)
-        # Prepend entry index byte so module knows which entry this data is for
-        buf = bytearray(1) + frame_data
-        buf[0] = 0  # entry index 0
-        self.fr.write(LIN_PARAM_BUF, buf, slot=self.slot)
+        Stops cyclic SET_PUMP once, performs all pending reads, then
+        restarts cyclic once. Saves SPI overhead vs. individual stop/restart.
 
-    def _read_responses(self):
-        """Read and decode response frames from LIN1-1.1 FIFO."""
-        # Pop frames from RxF FIFO - each pop returns one frame
-        # Try to read up to 4 frames per cycle
-        for _ in range(4):
-            try:
-                raw = self.fr.packet(LIN_PARAM_RXF_POP, b'\x00', n=12, slot=self.slot)
-                if raw is None or len(raw) < 12:
-                    break
+        Args:
+            frame_ids: list of FRAME_* constants to read
+            now: current time.time() value (avoids redundant syscalls)
+        """
+        # Stop cyclic SET_PUMP once for all reads
+        self._stop_cyclic()
 
-                # Frame format from LIN1-1.1:
-                # Bytes 0-7: frame data (8 bytes)
-                # Byte 8: frame ID
-                # Byte 9: status/flags
-                # Bytes 10-11: timestamp or reserved
-                frame_data = raw[0:8]
-                frame_id = raw[8] & 0x3F  # lower 6 bits = LIN ID
-                frame_status = raw[9]
+        for frame_id in frame_ids:
+            n, data = self._lin_master_rx(frame_id)
+            got_data = n is not None and n != 0 and data is not None
 
-                # Check if frame is valid (status byte indicates success)
-                if frame_status & 0x80:  # error flag
-                    continue
+            if frame_id == FRAME_STATUS_GET:
+                self._last_status_read = now
+                if got_data:
+                    self.decode_status_get(data, abs(n), crc_ok=(n > 0))
+                    self._comm_errors = 0
+                else:
+                    self._comm_errors += 1
+            elif frame_id == FRAME_ADVANCED_GET:
+                self._last_advanced_read = now
+                if got_data:
+                    self.decode_advanced_get(data, abs(n))
+            elif frame_id == FRAME_MANU_SPECIFIC:
+                self._last_manu_read = now
+                if got_data:
+                    self.decode_manu_specific(data, abs(n))
 
-                # Decode based on frame ID
-                if frame_id == FRAME_STATUS_GET:
-                    self.decode_status_get(frame_data)
-                elif frame_id == FRAME_ADVANCED_GET:
-                    self.decode_advanced_get(frame_data)
-                elif frame_id == FRAME_MANU_SPECIFIC:
-                    self.decode_manu_specific(frame_data)
-
-            except Exception:
-                break
+        # Restart cyclic SET_PUMP once after all reads
+        self._start_cyclic_set_pump()
 
     # --- Frame encoding ---
 
     def encode_set_pump(self):
         """Encode SET_PUMP frame (ID 1, 8 bytes) from current control parameters.
 
-        Bit layout (LSB-first byte order):
-            Bits [0:9]   = Setpoint_SET (10 bits, factor 0.1, 0-100%)
-            Bits [10:13] = ControlMode_SET (4 bits: 0=CC, 1=CP, 2=PP)
-            Bits [14]    = RotationDirection_SET (1 bit)
-            Bits [15]    = CommandON_SET (1 bit)
-            Bits [16:63] = Reserved (0xFF fill)
+        VDMA 24226 byte layout:
+            Byte 0: Setpoint_SET [7:0] (lower 8 bits of 10-bit value)
+            Byte 1: [CommandON:7][RotDir:6][ControlMode:5-2][Setpoint:1-0]
+            Bytes 2-7: 0x00 (reserved)
 
         Returns:
             bytearray: 8-byte SET_PUMP frame
         """
-        # Quantize setpoint: 0-100% with 0.1 resolution -> 0-1000
-        sp_raw = int(min(max(self.setpoint, 0.0), 100.0) * 10) & 0x3FF
-
-        # Pack bits 0-15 into two bytes (little-endian)
-        mode_bits = (self.control_mode & 0x0F) << 10
-        rot_bit = (self.rotation_dir & 0x01) << 14
-        cmd_bit = (self.command_on & 0x01) << 15
-
-        word0 = sp_raw | mode_bits | rot_bit | cmd_bit
+        # Quantize setpoint: 0-100% with 0.1 resolution -> raw 0-1000
+        raw = int(min(max(self.setpoint, 0.0), 100.0) * 10)
 
         data = bytearray(8)
-        data[0] = word0 & 0xFF
-        data[1] = (word0 >> 8) & 0xFF
-        # Bytes 2-7: reserved, fill with 0xFF per VDMA spec
-        data[2] = 0xFF
-        data[3] = 0xFF
-        data[4] = 0xFF
-        data[5] = 0xFF
-        data[6] = 0xFF
-        data[7] = 0xFF
-
+        data[0] = raw & 0xFF                          # Setpoint [7:0]
+        data[1] = ((raw >> 8) & 0x03)                 # Setpoint [9:8]
+        data[1] |= (self.control_mode & 0x0F) << 2   # ControlMode [5:2]
+        data[1] |= (self.rotation_dir & 0x01) << 6   # RotationDirection [6]
+        data[1] |= (self.command_on & 0x01) << 7      # CommandON [7]
+        # Bytes 2-7: reserved, fill with 0x00
         return data
 
     # --- Frame decoding ---
 
-    def decode_status_get(self, data):
-        """Decode Status_GET frame (ID 2, 8 bytes) into status dict.
+    def decode_status_get(self, data, n_bytes, crc_ok=True):
+        """Decode Status_GET frame (ID 2) using byte-level access.
 
-        Bit layout (LSB-first):
-            Bits [0:9]   = ActualSetpoint (10b, factor 0.1, %)
-            Bits [10:13] = ControlMode (4b)
-            Bits [14]    = RotationDirection (1b)
-            Bits [15]    = OperationalStatus (1b)
-            Bits [16]    = ReadyForOperation (1b)
-            Bits [17]    = WarningPresent (1b)
-            Bits [18]    = ErrorPresent (1b)
-            Bits [19]    = FinalErrorPresent (1b)
-            Bits [20:29] = EstimatedRPM (10b, factor 10, rpm)
-            Bits [30:37] = EstimatedHead (8b, factor 10, cm H2O -> m H2O)
-            Bits [38:51] = EstimatedFlow (14b, factor 10, l/h)
-            Bits [52:62] = FluidTemp (11b, factor 0.1, offset -20, °C)
-            Bits [63]    = OperationalLimitReached (1b)
+        Matches proven test file decode: byte-by-byte field extraction
+        with raw values (no scaling factors applied to RPM/head/flow).
 
         Args:
-            data: 8-byte frame data
+            data: raw frame data (bytes or bytearray)
+            n_bytes: number of valid bytes received
+            crc_ok: True if CRC was valid
         """
-        if len(data) < 8:
+        if data is None or n_bytes < 2:
             return
 
-        # Convert bytes to a 64-bit integer (little-endian)
-        val = 0
-        for i in range(8):
-            val |= data[i] << (i * 8)
+        # Bytes 0-1: setpoint, control mode, rotation, operational status
+        sp_raw = data[0] | ((data[1] & 0x03) << 8)
+        self.status['actual_setpoint'] = round(sp_raw / 10.0, 1)
+        self.status['control_mode'] = (data[1] >> 2) & 0x0F
+        self.status['control_mode_name'] = MODE_NAMES.get(
+            self.status['control_mode'], '?')
+        self.status['rotation_direction'] = (data[1] >> 6) & 0x01
+        self.status['operational_status'] = (data[1] >> 7) & 0x01
 
-        # Extract bit fields
-        actual_setpoint = (val & 0x3FF) * 0.1               # bits 0-9
-        control_mode = (val >> 10) & 0x0F                     # bits 10-13
-        rotation_dir = (val >> 14) & 0x01                     # bit 14
-        operational_status = (val >> 15) & 0x01               # bit 15
-        ready_for_op = (val >> 16) & 0x01                     # bit 16
-        warning = (val >> 17) & 0x01                          # bit 17
-        error = (val >> 18) & 0x01                            # bit 18
-        final_error = (val >> 19) & 0x01                      # bit 19
-        rpm = ((val >> 20) & 0x3FF) * 10                      # bits 20-29, factor 10
-        head_raw = (val >> 30) & 0xFF                         # bits 30-37
-        head_cm = head_raw * 10                               # factor 10, in cm H2O
-        flow = ((val >> 38) & 0x3FFF) * 0.1                   # bits 38-51, factor 10 -> l/h
-        fluid_temp_raw = (val >> 52) & 0x7FF                  # bits 52-62
-        fluid_temp = fluid_temp_raw * 0.1 - 20.0             # factor 0.1, offset -20
-        limit_reached = (val >> 63) & 0x01                    # bit 63
+        # Byte 2: flags
+        if n_bytes >= 3:
+            self.status['ready_for_operation'] = data[2] & 0x01
+            self.status['warning'] = (data[2] >> 1) & 0x01
+            self.status['error'] = (data[2] >> 2) & 0x01
+            self.status['final_error'] = (data[2] >> 3) & 0x01
 
-        # Update status dict
-        self.status['actual_setpoint'] = round(actual_setpoint, 1)
-        self.status['control_mode'] = control_mode
-        self.status['control_mode_name'] = MODE_NAMES.get(control_mode, '?')
-        self.status['rotation_direction'] = rotation_dir
-        self.status['operational_status'] = operational_status
-        self.status['ready_for_operation'] = ready_for_op
-        self.status['warning'] = warning
-        self.status['error'] = error
-        self.status['final_error'] = final_error
-        self.status['rpm'] = rpm
-        self.status['head'] = head_cm
-        self.status['flow'] = round(flow, 1)
-        self.status['fluid_temp'] = round(fluid_temp, 1)
-        self.status['limit_reached'] = limit_reached
+        # Bytes 2-3: RPM (bits 20-29 = upper nibble of byte 2 + lower 6 of byte 3)
+        if n_bytes >= 4:
+            rpm = ((data[2] >> 4) & 0x0F) | ((data[3] & 0x3F) << 4)
+            self.status['rpm'] = rpm
 
-        self._last_status_read = time.time()
-        self._comm_errors = 0  # Reset error counter on successful read
+        # Bytes 3-4: Head (bits 30-37 = upper 2 of byte 3 + lower 6 of byte 4)
+        if n_bytes >= 5:
+            head = ((data[3] >> 6) & 0x03) | ((data[4] & 0x3F) << 2)
+            self.status['head'] = head  # cm H2O, raw value
 
-    def decode_advanced_get(self, data):
-        """Decode ADVANCED_GET frame (ID 3, 8 bytes).
+        # Bytes 4-6: Flow (bits 38-51 = upper 2 of byte 4 + byte 5 + lower 4 of byte 6)
+        if n_bytes >= 7:
+            flow = ((data[4] >> 6) & 0x03) | (data[5] << 2) | (
+                (data[6] & 0x0F) << 10)
+            self.status['flow'] = flow
 
-        Bit layout (LSB-first):
-            Bits [0:13]  = EstimatedPowerInput (14b, factor 0.2, W)
-            Bits [14:17] = PowerOnIndicator (4b)
-            Bits [18:62] = Reserved
-            Bit  [63]    = ResponseError
+        # Bytes 6-7: FluidTemp (bits 52-62) and OperationalLimitReached (bit 63)
+        if n_bytes >= 8:
+            temp_raw = ((data[6] >> 4) & 0x0F) | ((data[7] & 0x7F) << 4)
+            self.status['fluid_temp_raw'] = temp_raw
+            # Apply VDMA offset: factor 0.1, offset -20
+            self.status['fluid_temp'] = round(temp_raw * 0.1 - 20.0, 1)
+            self.status['limit_reached'] = (data[7] >> 7) & 0x01
+
+        self.status['crc_ok'] = crc_ok
+
+    def decode_advanced_get(self, data, n_bytes):
+        """Decode ADVANCED_GET frame (ID 3) using byte-level access.
 
         Args:
-            data: 8-byte frame data
+            data: raw frame data
+            n_bytes: number of valid bytes received
         """
-        if len(data) < 8:
+        if data is None or n_bytes < 2:
             return
 
-        val = 0
-        for i in range(8):
-            val |= data[i] << (i * 8)
+        # Bytes 0-1: Power (14 bits = byte 0 + lower 6 of byte 1)
+        power = data[0] | ((data[1] & 0x3F) << 8)
+        self.status['power'] = power  # raw Watts
 
-        power_raw = val & 0x3FFF                              # bits 0-13
-        power = power_raw * 0.2                               # factor 0.2, in Watts
-        power_on_indicator = (val >> 14) & 0x0F               # bits 14-17
-        response_error = (val >> 63) & 0x01                   # bit 63
+        # Bytes 1-2: PowerOnIndicator (4 bits spanning byte boundary)
+        if n_bytes >= 3:
+            pon = ((data[1] >> 6) & 0x03) | ((data[2] & 0x03) << 2)
+            self.status['power_on_indicator'] = pon
 
-        self.status['power'] = round(power, 1)
-        self.status['power_on_indicator'] = power_on_indicator
-        self.status['response_error'] = response_error
+        # Bytes 2-3: Mains voltage (7 bits)
+        if n_bytes >= 4:
+            voltage = ((data[2] >> 2) & 0x3F) | ((data[3] & 0x01) << 6)
+            self.status['mains_voltage'] = voltage
 
-        self._last_advanced_read = time.time()
+        # Byte 7: ResponseError (bit 63)
+        if n_bytes >= 8:
+            self.status['response_error'] = (data[7] >> 7) & 0x01
 
-    def decode_manu_specific(self, data):
-        """Decode MANU_SPECIFIC frame (ID 4, 8 bytes) - Grundfos-specific.
+    def decode_manu_specific(self, data, n_bytes):
+        """Decode MANU_SPECIFIC frame (ID 4) - Grundfos-specific.
 
-        Best-effort decode of vendor-specific data.
-        Format may vary between pump models. Common Grundfos fields:
-            Bits [0:15]  = Kv value (16b, factor 0.01)
-            Bits [16:31] = Low flow threshold (16b, factor 0.1, l/h)
+        Best-effort decode of vendor-specific data. Stores raw bytes
+        for diagnostics since format varies between pump models.
 
         Args:
-            data: 8-byte frame data
+            data: raw frame data
+            n_bytes: number of valid bytes received
         """
-        if len(data) < 8:
+        if data is None or n_bytes < 2:
             return
 
-        val = 0
-        for i in range(8):
-            val |= data[i] << (i * 8)
+        # Best-effort Grundfos decode
+        if n_bytes >= 2:
+            kv_raw = data[0] | (data[1] << 8)
+            self.status['kv'] = round(kv_raw * 0.01, 2)
 
-        # Grundfos-specific fields (best-effort, may not apply to all models)
-        kv_raw = val & 0xFFFF
-        kv = kv_raw * 0.01
-        low_flow_raw = (val >> 16) & 0xFFFF
-        low_flow = low_flow_raw * 0.1
-
-        self.status['kv'] = round(kv, 2)
-        self.status['low_flow_threshold'] = round(low_flow, 1)
-
-        self._last_manu_read = time.time()
+        if n_bytes >= 4:
+            low_flow_raw = data[2] | (data[3] << 8)
+            self.status['low_flow_threshold'] = round(low_flow_raw * 0.1, 1)
 
     # --- Public control API ---
 
@@ -444,6 +511,7 @@ class LinPumpHandler:
         success, msg = self.config_manager.set_param('pump_setpoint', value)
         if success:
             self.setpoint = value
+            self._set_pump_dirty = True
 
     def set_control_mode(self, mode):
         """Set pump control mode.
@@ -454,17 +522,18 @@ class LinPumpHandler:
         if isinstance(mode, str):
             mode_int = MODE_FROM_NAME.get(mode.lower())
             if mode_int is None:
-                print(f"Unknown control mode: {mode}")
+                print("Unknown control mode: %s" % mode)
                 return
         else:
             mode_int = int(mode)
             if mode_int not in MODE_NAMES:
-                print(f"Invalid control mode: {mode_int}")
+                print("Invalid control mode: %d" % mode_int)
                 return
 
         success, msg = self.config_manager.set_param('pump_control_mode', mode_int)
         if success:
             self.control_mode = mode_int
+            self._set_pump_dirty = True
 
     def set_command_on(self, on):
         """Set pump on/off command.
@@ -476,6 +545,7 @@ class LinPumpHandler:
         success, msg = self.config_manager.set_param('pump_command_on', val)
         if success:
             self.command_on = val
+            self._set_pump_dirty = True
 
     def is_comm_ok(self):
         """Check if LIN communication is working.
@@ -490,11 +560,18 @@ class LinPumpHandler:
         return (now - self._last_status_read) < 5
 
     def emergency_stop(self):
-        """Send immediate pump off command (safety shutdown)."""
+        """Send immediate pump off command (safety shutdown).
+        Stops cyclic transmission, sends stop command, restarts cyclic with OFF."""
         self.command_on = 0
         self.setpoint = 0.0
+        self._set_pump_dirty = True
         if self.initialized:
             try:
-                self._write_set_pump()
+                # Stop any cyclic transmission
+                self._stop_cyclic()
+                # Send stop command immediately
+                self._send_set_pump_once()
+                # Restart cyclic with OFF command
+                self._start_cyclic_set_pump()
             except Exception as e:
-                print(f"Emergency stop write failed: {e}")
+                print("Emergency stop write failed: %s" % e)
