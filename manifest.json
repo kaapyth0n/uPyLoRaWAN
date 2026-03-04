@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-04T19:10:40Z",
+  "timestamp": "2026-03-04T19:16:13Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -128,10 +128,10 @@
       "size": 39742
     },
     "constants.py": {
-      "version": "1.6",
+      "version": "1.7",
       "path": "/constants.py",
-      "hash": "1466eee73d9f3c7497777ad45955e11ab07ca5607287371839ec32fda961e8d7",
-      "size": 5493
+      "hash": "f364dddebdcce4d14f2715ff20bea10da88064af90e8e99be64602d4f4cc96e4",
+      "size": 5489
     },
     "utils.py": {
       "version": "1.4",
@@ -158,5 +158,5 @@
       "size": 21801
     }
   },
-  "firmware_version": "260304-ed7a2c3f"
+  "firmware_version": "260304-99d766aa"
 }
