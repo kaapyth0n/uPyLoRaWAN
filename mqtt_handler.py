@@ -75,7 +75,7 @@ class MQTTHandler:
         self.messages_published = 0
         self.messages_received = 0
         self.last_reconnect = 0
-        self.reconnect_interval = 5  # Wait 5 seconds between reconnection attempts
+        self.reconnect_interval = 30  # Wait 30 seconds between reconnection attempts
         
         # Add message queue for outgoing messages
         self.message_queue = []
@@ -166,8 +166,8 @@ class MQTTHandler:
             # Set callback
             self.client.set_callback(self._message_callback)
             
-            # Connect to broker
-            self.client.connect()
+            # Connect to broker (5s timeout to avoid blocking the main loop)
+            self.client.connect(timeout=5)
             
             # Subscribe to command and config topics
             self.client.subscribe(self.command_topic.encode())

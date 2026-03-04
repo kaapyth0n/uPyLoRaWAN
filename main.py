@@ -112,6 +112,8 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self._demo_sp = 0.0    # Current demo setpoint (%)
         self._demo_dir = 1     # 1 = ramping up, -1 = ramping down
         self._demo_step = 1.0  # Step size per loop iteration (%)
+        if self._demo_mode:
+            self.config_manager.set_param('pump_enabled', True)
 
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
