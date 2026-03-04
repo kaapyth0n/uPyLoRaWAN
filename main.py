@@ -107,11 +107,55 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         self.button_debounce_delay = 0.5  # 500ms debounce
         self.last_wifi_check = 0
 
+        # Demo ramp mode: continuously cycles setpoint 0% -> 100% -> 0%
+        self._demo_mode = True
+        self._demo_sp = 0.0    # Current demo setpoint (%)
+        self._demo_dir = 1     # 1 = ramping up, -1 = ramping down
+        self._demo_step = 1.0  # Step size per loop iteration (%)
+
         # Finally, set initial state and start initialization
         self.state_machine.current_state = SystemState.INITIALIZING
 
         # Register for configuration change notifications
         self.config_manager.add_change_callback(self._on_config_change)
+
+    def _demo_ramp_update(self):
+        """Demo mode: ramp pump setpoint 0% -> 100% -> 0% in a continuous cycle.
+
+        Each call adjusts setpoint by _demo_step. At boundaries:
+        - 0% going up: turn pump on, start ramping
+        - 100%: reverse to ramp down
+        - 0% going down: turn pump off, then restart cycle next iteration
+        """
+        self._demo_sp += self._demo_dir * self._demo_step
+
+        # Clamp and reverse at boundaries
+        if self._demo_sp >= 100.0:
+            self._demo_sp = 100.0
+            self._demo_dir = -1
+        elif self._demo_sp <= 0.0:
+            self._demo_sp = 0.0
+            if self._demo_dir == -1:
+                # Finished a down-ramp: turn pump off, next cycle will restart
+                self.lin_pump.set_command_on(0)
+                self._demo_dir = 1
+                print("[DEMO] Cycle complete, pump OFF")
+                return
+            else:
+                # Starting a new cycle: turn pump on
+                self.lin_pump.set_command_on(1)
+                print("[DEMO] Starting cycle, pump ON")
+
+        self.lin_pump.set_setpoint(self._demo_sp)
+
+        # Print status line with available pump data
+        s = self.lin_pump.status
+        print("[DEMO] SP: {:.0f}%  RPM: {}  Head: {}  Pwr: {}W".format(
+            self._demo_sp,
+            s.get('rpm', '?'),
+            s.get('head', '?'),
+            s.get('power', '?')
+        ))
 
     def _check_buttons(self):
         """Handle button presses for pump control with debouncing.
@@ -242,6 +286,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                         self.watchdog_manager.pet('control')
                         # Track operational status for display
                         self.heating_active = bool(self.lin_pump.status.get('operational_status'))
+
+                    # Demo ramp: auto-adjust setpoint each cycle
+                    if self._demo_mode:
+                        self._demo_ramp_update()
 
                     # Handle button input
                     self._check_buttons()
