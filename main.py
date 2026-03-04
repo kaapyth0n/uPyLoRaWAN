@@ -123,10 +123,15 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
         """Demo mode: ramp pump setpoint 0% -> 100% -> 0% in a continuous cycle.
 
         Each call adjusts setpoint by _demo_step. At boundaries:
-        - 0% going up: turn pump on, start ramping
+        - 0% at cycle start: turn pump on before ramping
         - 100%: reverse to ramp down
-        - 0% going down: turn pump off, then restart cycle next iteration
+        - 0% after down-ramp: turn pump off, restart next iteration
         """
+        # Start of new cycle: turn pump on before ramping
+        if self._demo_sp == 0.0 and self._demo_dir == 1:
+            self.lin_pump.set_command_on(1)
+            print("[DEMO] Starting cycle, pump ON")
+
         self._demo_sp += self._demo_dir * self._demo_step
 
         # Clamp and reverse at boundaries
@@ -135,16 +140,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
             self._demo_dir = -1
         elif self._demo_sp <= 0.0:
             self._demo_sp = 0.0
-            if self._demo_dir == -1:
-                # Finished a down-ramp: turn pump off, next cycle will restart
-                self.lin_pump.set_command_on(0)
-                self._demo_dir = 1
-                print("[DEMO] Cycle complete, pump OFF")
-                return
-            else:
-                # Starting a new cycle: turn pump on
-                self.lin_pump.set_command_on(1)
-                print("[DEMO] Starting cycle, pump ON")
+            self.lin_pump.set_command_on(0)
+            self._demo_dir = 1
+            print("[DEMO] Cycle complete, pump OFF")
+            return
 
         self.lin_pump.set_setpoint(self._demo_sp)
 
