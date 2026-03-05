@@ -383,8 +383,11 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 # Check for incoming messages
                 self.mqtt_handler.check_msg()
 
-                # Process one message from the outgoing queue
-                self.mqtt_handler.process_message_queue()
+                # Process up to 10 messages from the outgoing queue (0.1s apart)
+                for _ in range(10):
+                    if not self.mqtt_handler.process_message_queue():
+                        break
+                    time.sleep(0.1)
 
                 # Check if it's time to publish periodic status updates
                 current_time = time.time()
