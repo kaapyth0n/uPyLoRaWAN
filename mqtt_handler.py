@@ -1,6 +1,6 @@
 # mqtt_handler.py
 import time
-from umqtt.robust import MQTTClient
+from umqtt.simple import MQTTClient
 import network
 import ubinascii
 from config import mqtt_config
@@ -166,11 +166,16 @@ class MQTTHandler:
             # Set callback
             self.client.set_callback(self._message_callback)
             
-            # Connect to broker (5s timeout to avoid blocking the main loop)
-            self.client.connect(timeout=5)
+            # Connect to broker; try with timeout param, fall back if unsupported
+            try:
+                self.client.connect(timeout=5)
+            except TypeError:
+                self.client.connect()
 
             # Set socket timeout to prevent publish/read from blocking forever
-            # if the broker silently drops the connection
+            # if the broker silently drops the connection.
+            # Using umqtt.simple (not robust) so OSError propagates up
+            # instead of being caught in an infinite reconnect loop.
             if self.client.sock:
                 self.client.sock.settimeout(5)
 
