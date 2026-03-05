@@ -97,26 +97,14 @@ class WatchdogManager:
         for watchdog in self.watchdogs.values():
             watchdog.check()
         
-        # Initialize hardware watchdog with maximum safe timeout if not yet initialized
-        if self.hw_watchdog == None:
-            self.hw_watchdog = machine.WDT(timeout=self.MAX_HW_TIMEOUT)
-
-            # Cancel the delayed watchdog since the system has booted successfully
-            try:
-                import delayed_watchdog
-                delayed_watchdog.cancel()
-                print("Delayed watchdog cancelled - main watchdog now active")
-            except ImportError:
-                print("No delayed watchdog module detected")
-            except Exception as e:
-                print(f"Error cancelling delayed watchdog: {e}")
-                # Continue anyway
-        
-        # Feed hardware watchdog
-        try:
-            self.hw_watchdog.feed()
-        except:
-            print("Failed to feed hardware watchdog!")
+        # Hardware watchdog disabled for debugging
+        # if self.hw_watchdog == None:
+        #     self.hw_watchdog = machine.WDT(timeout=self.MAX_HW_TIMEOUT)
+        #     try:
+        #         import delayed_watchdog
+        #         delayed_watchdog.cancel()
+        #     except Exception:
+        #         pass
         
     def pet(self, name):
         """Pet specific watchdog

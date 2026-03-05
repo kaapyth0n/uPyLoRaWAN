@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-05T12:56:40Z",
+  "timestamp": "2026-03-05T16:48:40Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -26,10 +26,10 @@
       "size": 6401
     },
     "boot.py": {
-      "version": "2.3",
+      "version": "2.4",
       "path": "/boot.py",
-      "hash": "d2e299df8aa6a7feb0862a9240ead35e69c90d7e5177070ec7d35f1593585e0f",
-      "size": 8248
+      "hash": "5b44310ab2441479ef5aede2bd24c72a1d3d62847cd6eaf6562224a8146b17ae",
+      "size": 8235
     },
     "main.py": {
       "version": "4.8",
@@ -104,10 +104,10 @@
       "size": 4581
     },
     "watchdog.py": {
-      "version": "1.4",
+      "version": "1.5",
       "path": "/watchdog.py",
-      "hash": "cfeeb95e098e42f133c489fb2d7076935fb24c756e2dd94c91d684ce4ef195be",
-      "size": 6620
+      "hash": "5b7443fe430d1a10f2db3b7c938200ab40af0358097715b6347f7b071803da97",
+      "size": 6096
     },
     "system_recovery.py": {
       "version": "1.1",
@@ -158,5 +158,5 @@
       "size": 21801
     }
   },
-  "firmware_version": "260305-bf1d6238"
+  "firmware_version": "260305-66b23a38"
 }

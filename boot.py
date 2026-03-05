@@ -6,9 +6,9 @@ try:
         activation_delay_ms=1800000,  # 30 minutes
         watchdog_timeout_ms=8388      # ~8 seconds (just under the maximum allowed)
     )
-    # Schedule the watchdog
-    delayed_watchdog.schedule()
-    print("Delayed watchdog scheduled (will activate in 30 minutes if not cancelled)")
+    # Hardware watchdog disabled for debugging
+    # delayed_watchdog.schedule()
+    print("Delayed watchdog DISABLED for debugging")
 except Exception as e:
     print(f"WARNING: Failed to schedule delayed watchdog: {e}")
 
