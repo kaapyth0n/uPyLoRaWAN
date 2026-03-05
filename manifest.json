@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-05T16:48:40Z",
+  "timestamp": "2026-03-05T18:05:16Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -146,10 +146,10 @@
       "size": 6785
     },
     "mqtt_handler.py": {
-      "version": "2.1",
+      "version": "2.2",
       "path": "/mqtt_handler.py",
-      "hash": "bd5f6b4a9ecfff4d805e63806adba78705ce06d8e76091504d36939e3a623f3b",
-      "size": 24361
+      "hash": "66bbca2f77dd059265658fe67fa8f5c0914c5f4e3aa7a7d0e13fbf32b9d72ad5",
+      "size": 24407
     },
     "lin_pump.py": {
       "version": "1.2",
@@ -158,5 +158,5 @@
       "size": 21801
     }
   },
-  "firmware_version": "260305-66b23a38"
+  "firmware_version": "260305-cdcdd739"
 }

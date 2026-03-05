@@ -223,9 +223,9 @@ class MQTTHandler:
         if not self.initialized:
             return False
             
-        # Use configured QoS if not specified
-        if qos is None:
-            qos = mqtt_config['qos']
+        # Force QoS 0: QoS 1 blocks waiting for PUBACK which can hang
+        # indefinitely with unreliable brokers like broker.emqx.io
+        qos = 0
             
         # Convert payload to bytes if it's a string
         if isinstance(payload, str):
