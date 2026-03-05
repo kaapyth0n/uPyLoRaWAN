@@ -168,7 +168,12 @@ class MQTTHandler:
             
             # Connect to broker (5s timeout to avoid blocking the main loop)
             self.client.connect(timeout=5)
-            
+
+            # Set socket timeout to prevent publish/read from blocking forever
+            # if the broker silently drops the connection
+            if self.client.sock:
+                self.client.sock.settimeout(5)
+
             # Subscribe to command and config topics
             self.client.subscribe(self.command_topic.encode())
             self.client.subscribe(self.config_topic.encode())
