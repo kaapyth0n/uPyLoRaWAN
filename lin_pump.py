@@ -33,6 +33,16 @@ P_LIN_PAUSE = 16   # Min inter-packet pause in ms (VDMA requires >=20ms)
 P_BAUDRATE  = 18   # LIN baudrate
 P_V_24      = 38   # 24V power supply voltage reading
 
+# Diagnostic frame IDs (classic checksum, handled by LIN1-1.1 automatically)
+DIAG_REQUEST_ID = 0x3C      # Master request frame
+DIAG_RESPONSE_ID = 0x3D     # Slave response frame
+DIAG_NAD = 0x02             # Node Address for Grundfos UPM4
+SID_READ_BY_ID = 0xB2       # LIN diagnostic SID: ReadByIdentifier
+RSID_READ_BY_ID = 0xF2      # Positive response SID (SID + 0x40)
+DIAG_ID_SERIAL = 0x01       # Identifier: pump serial number
+DIAG_ID_ALARM = 0x20        # Identifier: alarm code (decimal 32)
+DIAG_ALARM_INTERVAL = 30    # Seconds between alarm code reads
+
 # Timing constants
 V24_MIN = 8.0               # Minimum supply voltage for pump (V)
 V24_WAIT_S = 30             # Max time to wait for power (s)
@@ -82,6 +92,10 @@ class LinPumpHandler:
         self._comm_errors = 0
         # SET_PUMP is sent cyclically; track if we need to update the data
         self._set_pump_dirty = True
+
+        # Diagnostic read state
+        self._last_alarm_read = 0       # Timestamp of last alarm code read
+        self._diag_errors = 0           # Consecutive diagnostic failures
 
     def init_module(self):
         """Configure LIN1-1.1 module: verify presence, wait for power,
@@ -355,6 +369,9 @@ class LinPumpHandler:
                 if got_data:
                     self.decode_manu_specific(data, abs(n))
 
+        # Perform diagnostic reads while cyclic is stopped
+        self._do_diagnostic_reads(now)
+
         # Restart cyclic SET_PUMP once after all reads
         self._start_cyclic_set_pump()
 
@@ -490,6 +507,70 @@ class LinPumpHandler:
         if n_bytes >= 4:
             low_flow_raw = data[2] | (data[3] << 8)
             self.status['low_flow_threshold'] = round(low_flow_raw * 0.1, 1)
+
+    # --- Diagnostic SID requests ---
+
+    def _sid_b2_read(self, identifier_id, n_bytes):
+        """Read data via SID 0xB2 (ReadByIdentifier) diagnostic request.
+
+        Sends diagnostic request on 0x3C, reads response on 0x3D.
+        Validates positive response (RSID = 0xF2) and parses big-endian value.
+
+        Args:
+            identifier_id: SID 0xB2 identifier (e.g. DIAG_ID_SERIAL, DIAG_ID_ALARM)
+            n_bytes: number of data bytes to parse from response (1-4)
+
+        Returns:
+            int: parsed value, or None on failure/negative response
+        """
+        req = bytearray([DIAG_NAD, 0x02, SID_READ_BY_ID, identifier_id, 0, 0, 0, 0])
+        # Send master TX on 0x3C, read slave response on 0x3D
+        self._lin_master_tx(DIAG_REQUEST_ID, req)
+        n, data = self._lin_master_rx(DIAG_RESPONSE_ID)
+        if n is None or n == 0 or data is None:
+            return None
+        # Check for positive response
+        if data[2] != RSID_READ_BY_ID:
+            return None
+        # Parse big-endian value from bytes 4..4+n_bytes
+        val = 0
+        for i in range(n_bytes):
+            val = (val << 8) | data[4 + i]
+        return val
+
+    def _do_diagnostic_reads(self, now):
+        """Perform pending diagnostic reads (serial number, alarm code).
+
+        Called from _do_pending_reads() while cyclic SET_PUMP is stopped,
+        so diagnostic frames share the same stop/restart window.
+        All diagnostics are skipped if the pump doesn't support them
+        (determined after 3 consecutive failures).
+
+        Args:
+            now: current time.time() value
+        """
+        if not self._startup_done or self._diag_errors >= 3:
+            return
+
+        # Read serial number once (retry up to 3 times across update cycles)
+        if self.status.get('serial_number') is None:
+            val = self._sid_b2_read(DIAG_ID_SERIAL, 4)
+            if val is not None:
+                self.status['serial_number'] = val
+                self._diag_errors = 0
+                print("LIN pump serial number: %d" % val)
+            else:
+                self._diag_errors += 1
+                if self._diag_errors >= 3:
+                    print("LIN pump diagnostics not supported, giving up")
+            return  # Don't attempt alarm read in the same cycle as serial retry
+
+        # Read alarm code periodically
+        if now - self._last_alarm_read >= DIAG_ALARM_INTERVAL:
+            self._last_alarm_read = now
+            val = self._sid_b2_read(DIAG_ID_ALARM, 2)
+            if val is not None:
+                self.status['alarm_code'] = val
 
     # --- Public control API ---
 

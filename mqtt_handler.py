@@ -87,6 +87,17 @@ class MQTTHandler:
         self.config_topic = None
         self.query_topic = None
         
+    def _cleanup_client(self):
+        """Disconnect and free MQTT client to reclaim the 8KB socket buffer."""
+        if self.client:
+            try:
+                self.client.disconnect()
+            except Exception:
+                pass
+            self.client = None
+        self.initialized = False
+        gc.collect()
+
     def _get_mac_address(self):
         """Get device MAC address with validation
         
@@ -214,8 +225,8 @@ class MQTTHandler:
                 print(f"MQTT initialization failed: {error_code} ({error_desc})")
             else:
                 print(f"MQTT initialization failed: {e}")
-                
-            self.initialized = False
+
+            self._cleanup_client()
             return False
 
     def queue_message(self, topic, payload, qos=None, retain=False):
@@ -275,9 +286,7 @@ class MQTTHandler:
                 
         except Exception as e:
             print(f"Error processing queued message: {e}")
-            
-            # Mark connection as failed on error
-            self.initialized = False
+            self._cleanup_client()
             return False
             
     def publish_parameter(self, param_name, value, retain=False):
@@ -454,12 +463,22 @@ class MQTTHandler:
             self.publish_parameter('power', pump.get('power', 0))
             self.publish_parameter('rotation_direction', pump.get('rotation_direction', 0))
             self.publish_parameter('power_on_indicator', pump.get('power_on_indicator', 0))
+            self.publish_parameter('mains_voltage', pump.get('mains_voltage', 0))
+            self.publish_parameter('response_error', pump.get('response_error', 0))
+            self.publish_parameter('kv', pump.get('kv', 0))
+            self.publish_parameter('low_flow_threshold', pump.get('low_flow_threshold', 0))
 
             # Publish alarm flags
             self.publish_parameter('warning', pump.get('warning', 0))
             self.publish_parameter('error', pump.get('error', 0))
             self.publish_parameter('final_error', pump.get('final_error', 0))
             self.publish_parameter('limit_reached', pump.get('limit_reached', 0))
+
+            # Publish diagnostic parameters (only if available)
+            if pump.get('serial_number') is not None:
+                self.publish_parameter('serial_number', pump['serial_number'])
+            if pump.get('alarm_code') is not None:
+                self.publish_parameter('alarm_code', pump['alarm_code'])
 
             # Publish memory statistics
             try:
