@@ -646,9 +646,11 @@ class LoRaHandler:
             elif param_type == float:
                 # Encode floats using scale factor (default 10 for 1 decimal place)
                 # For large values like resistance, use scale=0.1 to fit in 16-bit
+                # Use signed encoding if parameter allows negative values
                 scale = param_info.get('scale', 10)
+                signed = param_info.get('min', 0) < 0
                 fixed_point = int(value * scale)
-                return fixed_point.to_bytes(2, 'big')
+                return fixed_point.to_bytes(2, 'big', signed=signed)
 
             elif param_type == str:
                 # Check if this is a hex format parameter
@@ -719,8 +721,10 @@ class LoRaHandler:
 
             elif param_type == float:
                 # Decode fixed point value using scale factor (default 10)
+                # Use signed decoding if parameter allows negative values
                 scale = param_info.get('scale', 10)
-                fixed_point = int.from_bytes(encoded_bytes, 'big')
+                signed = param_info.get('min', 0) < 0
+                fixed_point = int.from_bytes(encoded_bytes, 'big', signed=signed)
                 return fixed_point / scale
 
             elif param_type == str:
