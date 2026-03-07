@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-17T22:06:15Z",
+  "timestamp": "2026-03-08T00:26:19Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -122,10 +122,10 @@
       "size": 11148
     },
     "lora_handler.py": {
-      "version": "2.1",
+      "version": "2.2",
       "path": "/lora_handler.py",
-      "hash": "aa02b155a6d5de225c6ef041424c07a552987f58ca2e0b5c98e5d96e7b2dabf1",
-      "size": 39742
+      "hash": "eb25fcf5cf6a2ab7f8fad98eee606dcfcadf7888754f992416be027efd3e139e",
+      "size": 39520
     },
     "constants.py": {
       "version": "1.4",
@@ -152,5 +152,5 @@
       "size": 26024
     }
   },
-  "firmware_version": "260217-101c20b8"
+  "firmware_version": "260308-e9c8e82e"
 }
