@@ -554,9 +554,6 @@ class LoRaHandler:
                 # Report simulated temperature in ntc10k mode
                 if hasattr(self.controller, '_ntc10k_current_temp') and self.controller._ntc10k_current_temp is not None:
                     output_value = int(self.controller._ntc10k_current_temp * 10)
-                    # Handle signed int16 for negative values
-                    if output_value < 0:
-                        output_value = output_value & 0xFFFF
             elif mode == 'direct_sensor':
                 # Report current resistance in direct_sensor mode (scale 0.1 to fit in 16-bit)
                 if hasattr(self.controller, '_direct_sensor_current_r') and self.controller._direct_sensor_current_r is not None:
@@ -565,19 +562,12 @@ class LoRaHandler:
                 # Report voltage in other modes
                 if hasattr(self.controller, 'output_voltage_calculated') and self.controller.output_voltage_calculated is not None:
                     output_value = int(self.controller.output_voltage_calculated * 10)
-            msg[6] = (output_value >> 8) & 0xFF
-            msg[7] = output_value & 0xFF
+            msg[6:8] = output_value.to_bytes(2, 'big', signed=True)
 
             # Bytes 8-9: Outdoor temperature
             if hasattr(self.controller, 'outdoor_temp') and self.controller.outdoor_temp is not None:
-                outdoor = self.controller.outdoor_temp
-                # Convert to fixed-point int16
-                outdoor_fixed = int(outdoor * 10)
-                # Handle signed int16 for negative values (including error codes)
-                if outdoor_fixed < 0:
-                    outdoor_fixed = outdoor_fixed & 0xFFFF  # Convert to unsigned representation
-                msg[8] = (outdoor_fixed >> 8) & 0xFF
-                msg[9] = outdoor_fixed & 0xFF
+                outdoor_fixed = int(self.controller.outdoor_temp * 10)
+                msg[8:10] = outdoor_fixed.to_bytes(2, 'big', signed=True)
             else:
                 # Sensor unavailable/disabled: -32766 (0x8002)
                 msg[8] = 0x80
