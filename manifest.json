@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-05T18:43:20Z",
+  "timestamp": "2026-03-11T16:17:05Z",
   "files": {
     "delayed_watchdog.py": {
       "version": "1.0",
@@ -32,10 +32,10 @@
       "size": 8235
     },
     "main.py": {
-      "version": "4.8",
+      "version": "4.9",
       "path": "/main.py",
-      "hash": "fdca7b76ab4eccfb962e0bafb1c4823c6eab982fbdcab7b4fe3323dea41954f9",
-      "size": 17207
+      "hash": "0acc4955619da2c9fa43d2f1ceb3aab7e593b4a8936d1b2f851f29cfb72d7ab6",
+      "size": 17811
     },
     "config_portal.py": {
       "version": "1.6",
@@ -92,10 +92,10 @@
       "size": 15229
     },
     "config_manager.py": {
-      "version": "2.3",
+      "version": "2.4",
       "path": "/config_manager.py",
-      "hash": "f1ae79ac51f01a6e0c502b0f6e949d00cae2c018a6ddf106cbf72f219428dc61",
-      "size": 28070
+      "hash": "903ee9de30c4c352cbd47b478fc3f578f7dac5b8583314f1eec1c150e3e1fb80",
+      "size": 29485
     },
     "error_logger.py": {
       "version": "1.4",
@@ -146,17 +146,17 @@
       "size": 6785
     },
     "mqtt_handler.py": {
-      "version": "2.4",
+      "version": "2.5",
       "path": "/mqtt_handler.py",
-      "hash": "d3491de2375bddaf9905e15f090394f35e40026c1dbc75edb3a7f57e9c544a58",
-      "size": 24848
+      "hash": "008f9d45bdc3540a4e4d8df8033b7a8d2da8e571a1675e06a56ad22e6fb2a607",
+      "size": 26344
     },
     "lin_pump.py": {
-      "version": "1.2",
+      "version": "1.3",
       "path": "/lin_pump.py",
-      "hash": "367f8522198412ff8554c361d5580e665aacc7d3eea5b5ea672d59c64b9d7ff8",
-      "size": 21801
+      "hash": "a695c10594e6e8a60b93d934cee6a6150531574c88b2dbe47d1dfe0d842ef2b0",
+      "size": 25242
     }
   },
-  "firmware_version": "260305-1dcadc3c"
+  "firmware_version": "260311-1e611712"
 }
