@@ -1,4 +1,5 @@
 import json
+import time
 from constants import BoilerDefaults
 
 class ConfigurationManager:
@@ -22,6 +23,11 @@ class ConfigurationManager:
         
         # Add notification queue to prevent reentrancy issues
         self.notification_queue = []
+
+        # Debounced flash saves: avoid writing every set_param() call
+        self._config_dirty = False
+        self._last_save_time = 0
+        self._save_interval = 10  # min seconds between flash writes
         
         # Parameter definitions with validation rules
         self.parameter_definitions = {
@@ -542,6 +548,7 @@ class ConfigurationManager:
             # Save new configuration
             with open(self.config_file, 'w') as f:
                 json.dump(config_to_save, f)
+            self._last_save_time = time.time()
             return True
             
         except Exception as e:
@@ -616,28 +623,32 @@ class ConfigurationManager:
         if self.current_config.get(param_name) == value:
             return True, "No change"
             
-        # Store change
+        # Store change in memory
         self.current_config[param_name] = value
         self.config_version += 1
-        
-        # Save configuration
-        if self.save_config():
-            # Coalesce: if there's already a pending (unstarted) notification
-            # for this parameter, update its value instead of appending.
-            # This prevents unbounded queue growth when a parameter changes
-            # faster than notifications are processed (e.g. demo ramp mode).
-            coalesced = False
-            for i in range(len(self.notification_queue)):
-                if self.notification_queue[i][0] == param_name and self.notification_queue[i][2] == 0:
-                    self.notification_queue[i] = (param_name, value, 0)
-                    coalesced = True
-                    break
-            if not coalesced:
-                self.notification_queue.append((param_name, value, 0))
 
-            return True, "Parameter updated successfully"
+        # Debounced flash save: only write if enough time has elapsed
+        now = time.time()
+        if now - self._last_save_time >= self._save_interval and self.save_config():
+            self._config_dirty = False
         else:
-            return False, "Failed to save configuration"
+            self._config_dirty = True
+
+        # Queue notification (always, regardless of save)
+        # Coalesce: if there's already a pending (unstarted) notification
+        # for this parameter, update its value instead of appending.
+        # This prevents unbounded queue growth when a parameter changes
+        # faster than notifications are processed (e.g. demo ramp mode).
+        coalesced = False
+        for i in range(len(self.notification_queue)):
+            if self.notification_queue[i][0] == param_name and self.notification_queue[i][2] == 0:
+                self.notification_queue[i] = (param_name, value, 0)
+                coalesced = True
+                break
+        if not coalesced:
+            self.notification_queue.append((param_name, value, 0))
+
+        return True, "Parameter updated successfully"
 
     def process_next_notification(self):
         """Process the next pending parameter change notification
@@ -682,11 +693,27 @@ class ConfigurationManager:
         
     def has_pending_notifications(self):
         """Check if there are pending parameter change notifications
-        
+
         Returns:
             bool: True if there are pending notifications
         """
         return len(self.notification_queue) > 0
+
+    def save_if_dirty(self, force=False):
+        """Flush pending config to flash if dirty and debounce interval elapsed.
+        Called from main loop. Use force=True at shutdown to skip interval check.
+
+        Returns:
+            bool: True if no save needed or save succeeded
+        """
+        if not self._config_dirty:
+            return True
+        if not force and time.time() - self._last_save_time < self._save_interval:
+            return True
+        if self.save_config():
+            self._config_dirty = False
+            return True
+        return False
 
     def _validate_hex_string(self, value, param_def):
         """Validate a hexadecimal string

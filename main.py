@@ -304,6 +304,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                     # Process pending parameter change notifications
                     self._process_notifications()
 
+                    # Flush pending config changes to flash (debounced)
+                    if hasattr(self.config_manager, 'save_if_dirty'):
+                        self.config_manager.save_if_dirty()
+
                     # Handle MQTT communication
                     self._handle_mqtt_communication()
 
@@ -326,9 +330,11 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
                 time.sleep(5)
 
     def _process_notifications(self):
-        """Process pending parameter change notifications"""
+        """Process pending parameter change notifications (up to 4 per cycle)"""
         try:
-            self.config_manager.process_next_notification()
+            for _ in range(4):
+                if not self.config_manager.process_next_notification():
+                    break
         except Exception as e:
             self.logger.log_error(
                 'notification',
@@ -437,6 +443,10 @@ class SmartBoilerInterface(ObjectInterface, BoilerInterface):
     def _safe_shutdown(self):
         """Safely shut down system components - send pump off command"""
         try:
+            # Flush any pending config to flash before shutdown
+            if hasattr(self.config_manager, 'save_if_dirty'):
+                self.config_manager.save_if_dirty(force=True)
+
             self.lin_pump.emergency_stop()
 
             if self.display_manager:
