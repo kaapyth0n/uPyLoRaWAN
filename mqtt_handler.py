@@ -71,7 +71,8 @@ class MQTTHandler:
         self.initialized = False
         self.mac_address = None  # Start with no MAC address
         self.last_publish = 0
-        self.publish_interval = 60  # Default publish every 60 seconds
+        self.publish_interval = 300  # Heartbeat every 5 minutes (changed values publish each cycle)
+        self._last_published = {}  # param_name -> last published value
         self.messages_published = 0
         self.messages_received = 0
         self.last_reconnect = 0
@@ -96,6 +97,7 @@ class MQTTHandler:
                 pass
             self.client = None
         self.initialized = False
+        self._last_published.clear()  # Force full re-publish on reconnect
         gc.collect()
 
     def _get_mac_address(self):
@@ -441,46 +443,69 @@ class MQTTHandler:
         except Exception as e:
             print(f"Error handling query: {e}")
             
-    def publish_status(self):
-        """Publish current pump status parameters over MQTT"""
+    def _get_pump_params(self):
+        """Build list of (mqtt_name, current_value) for all tracked pump parameters."""
+        pump = self.controller.lin_pump.get_status()
+        cm = self.controller.config_manager
+
+        params = [
+            ('setpoint', cm.get_param('pump_setpoint')),
+            ('control_mode', pump.get('control_mode_name', '?')),
+            ('command_on', cm.get_param('pump_command_on')),
+            ('operational_status', pump.get('operational_status', 0)),
+            ('ready', pump.get('ready_for_operation', 0)),
+            ('actual_setpoint', pump.get('actual_setpoint', 0)),
+            ('rpm', pump.get('rpm', 0)),
+            ('head', pump.get('head', 0)),
+            ('flow', pump.get('flow', 0)),
+            ('fluid_temp', pump.get('fluid_temp', 0)),
+            ('power', pump.get('power', 0)),
+            ('rotation_direction', pump.get('rotation_direction', 0)),
+            ('power_on_indicator', pump.get('power_on_indicator', 0)),
+            ('mains_voltage', pump.get('mains_voltage', 0)),
+            ('response_error', pump.get('response_error', 0)),
+            ('kv', pump.get('kv', 0)),
+            ('low_flow_threshold', pump.get('low_flow_threshold', 0)),
+            ('warning', pump.get('warning', 0)),
+            ('error', pump.get('error', 0)),
+            ('final_error', pump.get('final_error', 0)),
+            ('limit_reached', pump.get('limit_reached', 0)),
+        ]
+        # Optional diagnostic params (only when available)
+        if pump.get('serial_number') is not None:
+            params.append(('serial_number', pump['serial_number']))
+        if pump.get('alarm_code') is not None:
+            params.append(('alarm_code', pump['alarm_code']))
+
+        return params
+
+    def publish_changed(self, force=False):
+        """Publish pump parameters over MQTT.
+
+        Called every main loop cycle (~1s). Compares current values against
+        _last_published cache and only queues messages for changed values.
+        When force=True, publishes all values unconditionally (heartbeat).
+        """
+        if not self.initialized:
+            return
         try:
-            # Get pump status from lin_pump handler
-            pump = self.controller.lin_pump.get_status()
+            for name, val in self._get_pump_params():
+                if force or self._last_published.get(name) != val:
+                    self.publish_parameter(name, val)
+                    self._last_published[name] = val
+        except Exception as e:
+            print("publish_changed error: %s" % e)
 
-            # Publish pump control parameters
-            self.publish_parameter('setpoint', self.controller.config_manager.get_param('pump_setpoint'))
-            self.publish_parameter('control_mode', pump.get('control_mode_name', '?'))
-            self.publish_parameter('command_on', self.controller.config_manager.get_param('pump_command_on'))
+    def publish_status(self):
+        """Full heartbeat: publish all pump parameters + memory stats.
 
-            # Publish pump status values
-            self.publish_parameter('operational_status', pump.get('operational_status', 0))
-            self.publish_parameter('ready', pump.get('ready_for_operation', 0))
-            self.publish_parameter('actual_setpoint', pump.get('actual_setpoint', 0))
-            self.publish_parameter('rpm', pump.get('rpm', 0))
-            self.publish_parameter('head', pump.get('head', 0))
-            self.publish_parameter('flow', pump.get('flow', 0))
-            self.publish_parameter('fluid_temp', pump.get('fluid_temp', 0))
-            self.publish_parameter('power', pump.get('power', 0))
-            self.publish_parameter('rotation_direction', pump.get('rotation_direction', 0))
-            self.publish_parameter('power_on_indicator', pump.get('power_on_indicator', 0))
-            self.publish_parameter('mains_voltage', pump.get('mains_voltage', 0))
-            self.publish_parameter('response_error', pump.get('response_error', 0))
-            self.publish_parameter('kv', pump.get('kv', 0))
-            self.publish_parameter('low_flow_threshold', pump.get('low_flow_threshold', 0))
+        Runs periodically (every publish_interval seconds) to ensure
+        broker has complete state even if a change message was lost.
+        """
+        try:
+            self.publish_changed(force=True)
 
-            # Publish alarm flags
-            self.publish_parameter('warning', pump.get('warning', 0))
-            self.publish_parameter('error', pump.get('error', 0))
-            self.publish_parameter('final_error', pump.get('final_error', 0))
-            self.publish_parameter('limit_reached', pump.get('limit_reached', 0))
-
-            # Publish diagnostic parameters (only if available)
-            if pump.get('serial_number') is not None:
-                self.publish_parameter('serial_number', pump['serial_number'])
-            if pump.get('alarm_code') is not None:
-                self.publish_parameter('alarm_code', pump['alarm_code'])
-
-            # Publish memory statistics
+            # Publish memory statistics (heartbeat only)
             try:
                 gc.collect()
                 free = gc.mem_free()
