@@ -622,11 +622,19 @@ class ConfigurationManager:
         
         # Save configuration
         if self.save_config():
-            # Add to notification queue instead of calling callbacks directly
-            # Include callback index 0 to start processing from the first callback
-            # Structure: (param_name, value, callback_index)
-            self.notification_queue.append((param_name, value, 0))
-            
+            # Coalesce: if there's already a pending (unstarted) notification
+            # for this parameter, update its value instead of appending.
+            # This prevents unbounded queue growth when a parameter changes
+            # faster than notifications are processed (e.g. demo ramp mode).
+            coalesced = False
+            for i in range(len(self.notification_queue)):
+                if self.notification_queue[i][0] == param_name and self.notification_queue[i][2] == 0:
+                    self.notification_queue[i] = (param_name, value, 0)
+                    coalesced = True
+                    break
+            if not coalesced:
+                self.notification_queue.append((param_name, value, 0))
+
             return True, "Parameter updated successfully"
         else:
             return False, "Failed to save configuration"
